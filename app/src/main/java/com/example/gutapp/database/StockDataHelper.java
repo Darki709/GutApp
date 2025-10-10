@@ -1,11 +1,16 @@
 package com.example.gutapp.database;
 
+import android.content.Context;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
 import android.util.Log;
 
 import com.github.mikephil.charting.data.CandleEntry;
 
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.text.ParseException;
 import java.util.ArrayList;
 
@@ -27,10 +32,31 @@ public class StockDataHelper implements Table{
     private static final String COLUMN_VOLUME = "volume";
 
     private DB_Helper DB_HELPER;
+    private Context context;
 
-    public StockDataHelper(DB_Helper db_helper) {
-    DB_HELPER = db_helper;
+    public StockDataHelper(Context context, DB_Helper db_helper) {
+        this.context = context;
+        DB_HELPER = db_helper;
         SQLiteDatabase db = DB_HELPER.getWritableDatabase();
+        loadStockDataFromAssets();
+    }
+
+    public void loadStockDataFromAssets() {
+        SQLiteDatabase db = DB_HELPER.getWritableDatabase();
+        try {
+            InputStream inputStream = context.getAssets().open("Gut_db-stock_data.sql");
+            BufferedReader bufferedReader = new BufferedReader(new InputStreamReader(inputStream));
+            String line;
+            db.beginTransaction();
+            while ((line = bufferedReader.readLine()) != null) {
+                db.execSQL(line);
+            }
+            db.setTransactionSuccessful();
+            db.endTransaction();
+            Log.i(DB_HELPER.DB_LOG_TAG, "Successfully loaded stock data from assets.");
+        } catch (IOException e) {
+            Log.e(DB_HELPER.DB_LOG_TAG, "Error loading stock data from assets: " + e.getMessage());
+        }
     }
 
     public ArrayList<CandleEntry> getCachedStockData(String symbol) throws Exception {

@@ -19,7 +19,7 @@ public class DB_Helper extends SQLiteOpenHelper {
 
     public DB_Helper(@Nullable Context context) {
         super(context, DB_NAME, null, DB_VERSION);
-        StockDataHelper stockDataHelper = new StockDataHelper(this);
+        StockDataHelper stockDataHelper = new StockDataHelper(context, this);
         tables.add(stockDataHelper);
 
     }
