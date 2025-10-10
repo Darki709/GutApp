@@ -32,7 +32,8 @@ android {
 }
 
 dependencies {
-
+    //including the charting library dependency
+    implementation(libs.mpandroidchart)
     implementation(libs.appcompat)
     implementation(libs.material)
     implementation(libs.activity)
