@@ -11,14 +11,12 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
-import java.text.ParseException;
-import java.util.ArrayList;
-
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.Locale;
 
-public class StockDataHelper implements Table{
+public class StockDataHelper implements Table {
     private static final String TABLE_NAME = "stock_data";
     private static final String COLUMN_ID = "_id";
     private static final String COLUMN_SYMBOL = "symbol";
@@ -34,11 +32,26 @@ public class StockDataHelper implements Table{
     private DB_Helper DB_HELPER;
     private Context context;
 
+    public enum Timeframe {
+        FIVE_MIN("5m"),
+        FIFTEEN_MIN("15m"),
+        HOURLY("1h"),
+        DAILY("1d");
+
+        private final String value;
+
+        Timeframe(String value) {
+            this.value = value;
+        }
+
+        public String getValue() {
+            return value;
+        }
+    }
+
     public StockDataHelper(Context context, DB_Helper db_helper) {
         this.context = context;
         DB_HELPER = db_helper;
-        SQLiteDatabase db = DB_HELPER.getWritableDatabase();
-        loadStockDataFromAssets();
     }
 
     public void loadStockDataFromAssets() {
@@ -59,36 +72,36 @@ public class StockDataHelper implements Table{
         }
     }
 
-    public ArrayList<CandleEntry> getCachedStockData(String symbol) throws Exception {
+    public ArrayList<CandleEntry> getCachedStockData(String symbol, Timeframe timeframe) throws Exception {
         ArrayList<CandleEntry> stockData = new ArrayList<>();
-        Log.i(DB_HELPER.DB_LOG_TAG, "start fetching stock data");
+        Log.i(DB_HELPER.DB_LOG_TAG, "Fetching data for timeframe: " + timeframe.getValue());
         SQLiteDatabase db = DB_HELPER.getReadableDatabase();
         String[] columns = {COLUMN_DATE, COLUMN_OPEN, COLUMN_HIGH, COLUMN_LOW, COLUMN_CLOSE};
-        String selection = COLUMN_SYMBOL + " = ?";
-        String[] selectionArgs = {symbol};
-        try{
-            Cursor cursor = db.query(TABLE_NAME, columns, selection, selectionArgs, null, null, null);
-            cursor.moveToFirst();
-            while(!cursor.isAfterLast()){
-                //retrieve data from cursor
-                String dateStr = (String)cursor.getString((int)cursor.getColumnIndexOrThrow(COLUMN_DATE));
-                float open = (float)cursor.getFloat((int)cursor.getColumnIndexOrThrow(COLUMN_OPEN));
-                float high = (float)cursor.getFloat((int)cursor.getColumnIndexOrThrow(COLUMN_HIGH));
-                float low = (float)cursor.getFloat((int)cursor.getColumnIndexOrThrow(COLUMN_LOW));
-                float close = (float)cursor.getFloat((int)cursor.getColumnIndexOrThrow(COLUMN_CLOSE));
-                SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US);
-                Date date = sdf.parse(dateStr);         // parse string to Date
-                float xValue = (float)date.getTime();
-                CandleEntry entry = new CandleEntry(xValue, open, high, low, close);
-                stockData.add(entry);//add single candlestick data to the list
-                cursor.moveToNext();
+        String selection = COLUMN_SYMBOL + " = ? AND " + COLUMN_TIMEFRAME + " = ?";
+        String[] selectionArgs = {symbol, timeframe.getValue()};
+
+        try (Cursor cursor = db.query(TABLE_NAME, columns, selection, selectionArgs, null, null, COLUMN_DATE + " ASC")) {
+            int i = 0;
+            if (cursor.moveToFirst()) {
+                do {
+                    String dateStr = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_DATE));
+                    float open = cursor.getFloat(cursor.getColumnIndexOrThrow(COLUMN_OPEN));
+                    float high = cursor.getFloat(cursor.getColumnIndexOrThrow(COLUMN_HIGH));
+                    float low = cursor.getFloat(cursor.getColumnIndexOrThrow(COLUMN_LOW));
+                    float close = cursor.getFloat(cursor.getColumnIndexOrThrow(COLUMN_CLOSE));
+
+                    SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US);
+                    Date date = sdf.parse(dateStr);
+                    long timestamp = date.getTime();
+
+                    CandleEntry entry = new CandleEntry(i, high, low, open, close);
+                    entry.setData(timestamp); // Store the actual timestamp
+                    stockData.add(entry);
+                    i++;
+                } while (cursor.moveToNext());
             }
         }
-        catch (Exception e){
-            Log.e(DB_HELPER.DB_LOG_TAG, "error fetching stock data " + e.getMessage());
-            throw e;
-        }
-        Log.i(DB_HELPER.DB_LOG_TAG, "end fetching stock data");
+        Log.i(DB_HELPER.DB_LOG_TAG, "Finished fetching data. Found " + stockData.size() + " entries.");
         return stockData;
     }
 

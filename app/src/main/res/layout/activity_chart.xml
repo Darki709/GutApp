@@ -10,12 +10,55 @@
 
     <com.github.mikephil.charting.charts.CombinedChart
         android:id="@+id/stockChart"
-        android:layout_width="411dp"
-        android:layout_height="355dp"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
         android:background="#232222"
+        app:layout_constraintBottom_toTopOf="@+id/timeframeButtons"
         app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintHorizontal_bias="0.0"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent" />
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintVertical_bias="1.0" />
 
+    <LinearLayout
+        android:id="@+id/timeframeButtons"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        android:padding="8dp" >
+
+        <Button
+            android:id="@+id/button5m"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            style="?android:attr/buttonBarButtonStyle"
+            android:text="5m" />
+
+        <Button
+            android:id="@+id/button15m"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            style="?android:attr/buttonBarButtonStyle"
+            android:text="15m" />
+
+        <Button
+            android:id="@+id/button1h"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            style="?android:attr/buttonBarButtonStyle"
+            android:text="1H" />
+
+        <Button
+            android:id="@+id/button1d"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            style="?android:attr/buttonBarButtonStyle"
+            android:text="1D" />
+
+    </LinearLayout>
 
 </androidx.constraintlayout.widget.ConstraintLayout>

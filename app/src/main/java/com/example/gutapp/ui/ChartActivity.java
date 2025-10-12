@@ -1,9 +1,11 @@
 package com.example.gutapp.ui;
 
 import android.graphics.Color;
+import android.graphics.Paint;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.View;
+import android.widget.Button;
 
 import androidx.activity.EdgeToEdge;
 import androidx.appcompat.app.AppCompatActivity;
@@ -16,37 +18,29 @@ import com.example.gutapp.database.DB_Helper;
 import com.example.gutapp.database.DB_Index;
 import com.example.gutapp.database.StockDataHelper;
 
-//charting library imports
-import com.github.mikephil.charting.charts.CandleStickChart;
 import com.github.mikephil.charting.charts.CombinedChart;
 import com.github.mikephil.charting.components.AxisBase;
+import com.github.mikephil.charting.components.XAxis;
+import com.github.mikephil.charting.components.YAxis;
 import com.github.mikephil.charting.data.CandleData;
 import com.github.mikephil.charting.data.CandleDataSet;
 import com.github.mikephil.charting.data.CandleEntry;
 import com.github.mikephil.charting.data.CombinedData;
-import com.github.mikephil.charting.data.Entry;
-import com.github.mikephil.charting.data.LineData;
-import com.github.mikephil.charting.data.LineDataSet;
 import com.github.mikephil.charting.formatter.ValueFormatter;
 
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
-import java.util.List;
 import java.util.Locale;
 
-public class ChartActivity extends AppCompatActivity implements View.OnClickListener{
+public class ChartActivity extends AppCompatActivity implements View.OnClickListener {
 
-    //defining global variables for easy access
-    DB_Helper db_helper;
-    StockDataHelper stockDataHelper;
-    CombinedChart chart;
+    private DB_Helper db_helper;
+    private StockDataHelper stockDataHelper;
+    private CombinedChart chart;
+    private String symbol = "IBM"; // Default symbol
+    private boolean isInitialLoad = true;
 
-
-
-    /**
-     * Called when the activity is first created.
-     */
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -57,98 +51,136 @@ public class ChartActivity extends AppCompatActivity implements View.OnClickList
             v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom);
             return insets;
         });
-        //initialize db helpers
-        db_helper = new DB_Helper(this);
-        db_helper.getWritableDatabase();
-        stockDataHelper = (StockDataHelper)db_helper.getHelper(DB_Index.STOCK_TABLE);
 
+        db_helper = new DB_Helper(this);
+        stockDataHelper = (StockDataHelper) db_helper.getHelper(DB_Index.STOCK_TABLE);
 
         chart = findViewById(R.id.stockChart);
-        String symbol = "TSLA";
+
+        // Set up button listeners
+        findViewById(R.id.button5m).setOnClickListener(this);
+        findViewById(R.id.button15m).setOnClickListener(this);
+        findViewById(R.id.button1h).setOnClickListener(this);
+        findViewById(R.id.button1d).setOnClickListener(this);
+
+        // Initial chart load with daily data
+        updateChartData(StockDataHelper.Timeframe.DAILY);
+    }
+
+    private void updateChartData(StockDataHelper.Timeframe timeframe) {
         ArrayList<CandleEntry> stockData;
         try {
-            stockData = stockDataHelper.getCachedStockData(symbol);
+            stockData = stockDataHelper.getCachedStockData(symbol, timeframe);
         } catch (Exception e) {
-            throw new RuntimeException(e);
+            Log.e(db_helper.DB_LOG_TAG, "Error getting stock data: " + e.getMessage());
+            e.printStackTrace();
+            return;
         }
+
         if (stockData == null || stockData.isEmpty()) {
-            Log.e(db_helper.DB_LOG_TAG, "Stock data is empty or null. Cannot create chart.");
-            return; // Avoid crashing if there's no data
+            Log.e(db_helper.DB_LOG_TAG, "Stock data is empty or null for timeframe: " + timeframe.name());
+            chart.clear(); // Clear the chart if there is no data
+            chart.invalidate();
+            return;
         }
+
         CandleDataSet dataSet = new CandleDataSet(stockData, "Stock Price");
         dataSet.setIncreasingColor(Color.GREEN);
         dataSet.setDecreasingColor(Color.RED);
-        CandleData data = new CandleData(dataSet);
+        dataSet.setIncreasingPaintStyle(Paint.Style.FILL);
+        dataSet.setDecreasingPaintStyle(Paint.Style.FILL);
+        dataSet.setShadowColorSameAsCandle(true);
+        dataSet.setDrawValues(false);
+
+        CandleData candleData = new CandleData(dataSet);
         CombinedData combinedData = new CombinedData();
-        combinedData.setData(data);
+        combinedData.setData(candleData);
+
         chart.setData(combinedData);
+        setupChart();
+
+        // Dynamic date formatting for the X-axis using the stored timestamp
         chart.getXAxis().setValueFormatter(new ValueFormatter() {
-            private final SimpleDateFormat fmt = new SimpleDateFormat("HH:mm", Locale.US);
+            private final SimpleDateFormat dailyFormat = new SimpleDateFormat("MMM dd", Locale.US);
+            private final SimpleDateFormat timeFormat = new SimpleDateFormat("HH:mm", Locale.US);
 
-
+            @Override
             public String getAxisLabel(float value, AxisBase axis) {
-                // The 'value' is the index of the entry.
                 int index = (int) value;
-
-                // Ensure the index is within the bounds of your data list.
                 if (index >= 0 && index < stockData.size()) {
-                    // Retrieve the original CandleEntry using the index.
                     CandleEntry entry = stockData.get(index);
-                    // Get the timestamp from the entry's x-value and format it.
-                    // Assumes entry.getX() returns a timestamp in milliseconds.
-                    return fmt.format(new Date((long) entry.getX()));
+                    long timestamp = (long) entry.getData();
+                    if (timeframe == StockDataHelper.Timeframe.DAILY) {
+                        return dailyFormat.format(new Date(timestamp));
+                    } else {
+                        return timeFormat.format(new Date(timestamp));
+                    }
                 }
-                // Return an empty string for out-of-bounds indices.
                 return "";
             }
         });
-        Log.i(db_helper.DB_LOG_TAG, "end create chart");
+
+        if (isInitialLoad) {
+            if (!stockData.isEmpty()) {
+                int dataSize = stockData.size();
+                float desiredVisibleRange = 60f;
+                if (dataSize > desiredVisibleRange) {
+                    float scaleX = (float) dataSize / desiredVisibleRange;
+                    float xCenter = dataSize - (desiredVisibleRange / 2f);
+                    // We need a Y value for centering, let's find the corresponding entry
+                    int centerIndex = (int)xCenter;
+                    if (centerIndex >= 0 && centerIndex < dataSize) {
+                        CandleEntry centerEntry = stockData.get(centerIndex);
+                        float yCenter = centerEntry.getClose();
+                        chart.zoom(scaleX, 1f, xCenter, yCenter, YAxis.AxisDependency.LEFT);
+                    }
+                } else {
+                    chart.fitScreen(); // If less than 60 entries, just show them all
+                }
+            }
+            isInitialLoad = false;
+        }
+
+
+        chart.invalidate(); // Refresh the chart
+        Log.i(db_helper.DB_LOG_TAG, "Chart updated for timeframe: " + timeframe.name());
     }
 
-    /**
-     * Called when the activity is becoming visible to the user.
-     */
-    @Override
-    protected void onStart() {
-        super.onStart();
-    }
+    private void setupChart() {
+        chart.setAutoScaleMinMaxEnabled(false);
+        chart.setDragEnabled(true);
+        chart.setScaleEnabled(true);
+        chart.setDrawGridBackground(false);
+        chart.setPinchZoom(true);
 
-    /**
-     * Called when the activity will start interacting with the user.
-     */
-    @Override
-    protected void onResume() {
-        super.onResume();
-    }
+        YAxis leftAxis = chart.getAxisLeft();
+        leftAxis.setDrawGridLines(false);
 
-    /**
-     * Called when the system is about to start resuming a previous activity.
-     */
-    @Override
-    protected void onPause() {
-        super.onPause();
-    }
+        XAxis xAxis = chart.getXAxis();
+        xAxis.setDrawGridLines(false);
+        xAxis.setPosition(XAxis.XAxisPosition.BOTTOM);
+        xAxis.setSpaceMin(15f);
+        xAxis.setSpaceMax(15f);
 
-    /**
-     * Called when the activity is no longer visible to the user.
-     */
-    @Override
-    protected void onStop() {
-        super.onStop();
-    }
-
-    /**
-     * The final call you receive before your activity is destroyed.
-     */
-    @Override
-    protected void onDestroy() {
-        super.onDestroy();
+        chart.getAxisRight().setEnabled(false);
+        chart.getLegend().setEnabled(false);
+        chart.getDescription().setEnabled(false);
     }
 
 
-    //onclick method for buttons
     @Override
-    public void onClick(View view) {
-
+    public void onClick(View v) {
+        isInitialLoad = false; // Disable initial zoom on subsequent clicks
+        int id = v.getId();
+        if (id == R.id.button5m) {
+            updateChartData(StockDataHelper.Timeframe.FIVE_MIN);
+        } else if (id == R.id.button15m) {
+            updateChartData(StockDataHelper.Timeframe.FIFTEEN_MIN);
+        } else if (id == R.id.button1h) {
+            updateChartData(StockDataHelper.Timeframe.HOURLY);
+        } else if (id == R.id.button1d) {
+            isInitialLoad = true;
+            updateChartData(StockDataHelper.Timeframe.DAILY);
+        }
     }
 }
