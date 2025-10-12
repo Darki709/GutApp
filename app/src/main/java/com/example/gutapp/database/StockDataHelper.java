@@ -20,7 +20,10 @@ public class StockDataHelper implements Table {
     private static final String TABLE_NAME = "stock_data";
     private static final String COLUMN_ID = "_id";
     private static final String COLUMN_SYMBOL = "symbol";
+
+    //should be removed keep until you start loading data on you own
     private static final String COLUMN_NAME = "name";
+    //
     private static final String COLUMN_DATE = "date";
     private static final String COLUMN_TIMEFRAME = "timeframe";
     private static final String COLUMN_OPEN = "open";

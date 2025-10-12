@@ -12,6 +12,9 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.GutApp">
         <activity
+            android:name=".ui.HomeActivity"
+            android:exported="false" />
+        <activity
             android:name=".ui.LoginPage"
             android:exported="true">
             <intent-filter>

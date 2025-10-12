@@ -1,6 +1,12 @@
 package com.example.gutapp.ui;
 
+import android.content.Intent;
 import android.os.Bundle;
+import android.view.View;
+import android.widget.Button;
+import android.widget.EditText;
+import android.widget.TextView;
+import android.widget.Toast;
 
 import androidx.activity.EdgeToEdge;
 import androidx.appcompat.app.AppCompatActivity;
@@ -10,10 +16,24 @@ import androidx.core.view.WindowInsetsCompat;
 
 import com.example.gutapp.R;
 import com.example.gutapp.database.DB_Helper;
+import com.example.gutapp.database.DB_Index;
+import com.example.gutapp.database.UserTableHelper;
 
-public class LoginPage extends AppCompatActivity {
+public class LoginPage extends AppCompatActivity implements View.OnClickListener {
 
-    private DB_Helper db_helper;
+    
+    //declaring global pointer to core elements of the page
+    DB_Helper db_helper;
+    UserTableHelper userTableHelper;
+    TextView textTitle;
+    EditText editTextUsername;
+    EditText editTextPassword;
+    TextView textDescription;
+    Button buttonLogin;
+    Button buttonRegister;
+
+    
+
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -25,5 +45,50 @@ public class LoginPage extends AppCompatActivity {
             v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom);
             return insets;
         });
+
+        db_helper = new DB_Helper(this);
+        userTableHelper = (UserTableHelper)db_helper.getHelper(DB_Index.USER_TABLE);
+        
+        //bind pointers to elements
+        textTitle = findViewById(R.id.textTitle);
+        editTextUsername = findViewById(R.id.editTextUsername);
+        editTextPassword = findViewById(R.id.editTextPassword);
+        textDescription = findViewById(R.id.textDescription);
+        buttonLogin = findViewById(R.id.buttonLogin);
+        buttonRegister = findViewById(R.id.buttonRegister);
+
+        buttonLogin.setOnClickListener(this);
+        buttonRegister.setOnClickListener(this);
+    }
+
+    @Override
+    public void onClick(View view) {
+        int id = view.getId();
+        if(id == R.id.buttonLogin){
+            UserLogin(editTextUsername.getText().toString(), editTextPassword.getText().toString());
+        }
+        else if(id == R.id.buttonRegister){
+            UserRegister(editTextUsername.getText().toString(), editTextPassword.getText().toString());
+        }
+    }
+
+    public void UserLogin(String username, String password){
+        if(!userTableHelper.validateUser(username, password)) {
+            Toast.makeText(this, "No Account with these credentials username or password" +
+                    ", if you haven't an account please use the register button", Toast.LENGTH_LONG).show();
+            return;
+        }
+        Intent intent = new Intent(this, ChartActivity.class);
+        startActivity(intent);
+    }
+
+    public void UserRegister(String username, String password){
+            if(!userTableHelper.insertUser(username, password)){
+                Toast.makeText(this, "Account with this username already exists", Toast.LENGTH_LONG).show();
+                return;
+            }
+            Toast.makeText(this, "Account created successfully", Toast.LENGTH_LONG).show();
+            Intent intent = new Intent(this, ChartActivity.class);
+            startActivity(intent);
     }
 }

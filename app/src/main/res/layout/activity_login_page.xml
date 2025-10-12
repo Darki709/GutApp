@@ -10,19 +10,16 @@
 
     <TextView
         android:id="@+id/textTitle"
-        android:layout_width="336dp"
-        android:layout_height="217dp"
-        android:layout_marginBottom="8dp"
+        android:layout_width="384dp"
+        android:layout_height="95dp"
         android:text="Welcome To"
         android:textAlignment="center"
         android:textColor="#FFFFFF"
         android:textSize="60sp"
-        app:layout_constraintBottom_toTopOf="@+id/textDescription"
+        app:layout_constraintBottom_toTopOf="@+id/imageViewLogo"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintHorizontal_bias="0.493"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="@+id/imageViewLogo"
-        app:layout_constraintVertical_bias="1.0" />
+        app:layout_constraintHorizontal_bias="0.592"
+        app:layout_constraintStart_toStartOf="parent" />
 
     <EditText
         android:id="@+id/editTextUsername"
@@ -47,6 +44,7 @@
         android:layout_marginBottom="16dp"
         android:text="Before using the app please login to your user or create a new one"
         android:textAlignment="center"
+        android:textColor="#FFFFFF"
         app:layout_constraintBottom_toTopOf="@+id/editTextUsername"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent" />
@@ -69,13 +67,20 @@
 
     <ImageView
         android:id="@+id/imageViewLogo"
-        android:layout_width="279dp"
-        android:layout_height="282dp"
+        android:layout_width="127dp"
+        android:layout_height="89dp"
+        android:layout_marginBottom="5dp"
+        android:adjustViewBounds="false"
+        android:contentDescription="logo"
+        android:cropToPadding="true"
+        android:scaleType="centerCrop"
+        android:scaleX="3"
+        android:scaleY="3"
+        app:layout_constraintBottom_toTopOf="@+id/textDescription"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintHorizontal_bias="0.484"
+        app:layout_constraintHorizontal_bias="0.489"
         app:layout_constraintStart_toStartOf="parent"
-        app:srcCompat="@drawable/logo"
-        tools:layout_editor_absoluteY="73dp" />
+        app:srcCompat="@drawable/logo" />
 
     <Button
         android:id="@+id/buttonLogin"
@@ -84,6 +89,7 @@
         android:layout_marginTop="16dp"
         android:text="Log in"
         android:textAllCaps="false"
+        android:textColor="#FFFFFF"
         android:textSize="24sp"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintHorizontal_bias="0.498"
@@ -98,6 +104,7 @@
         android:background="@android:color/transparent"
         android:text="Click here to create new account"
         android:textAllCaps="false"
+        android:textColor="#FFFFFF"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent" />

@@ -37,11 +37,12 @@ public class UserTableHelper implements Table{
             Log.e(DB_HELPER.DB_LOG_TAG, "error " + e.getMessage());
             throw e;
         }
+        //returns false if an account with the same username already exist in the database
         if (cursor.getCount() > 0) {
             return false;
         }
         //if there was no user with the same username on the database already inserts new user
-        // to the databasegit
+        // to the database
         cursor.close();
         String insertQuery = "INSERT INTO " + TABLE_NAME + " (" + COLUMN_USERNAME + ", " +
                 COLUMN_PASSWORD + ") VALUES (?, ?)";
