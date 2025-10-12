@@ -12,12 +12,19 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.GutApp">
         <activity
-            android:name=".ui.ChartActivity"
+            android:name=".ui.LoginPage"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
 
                 <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+        <activity
+            android:name=".ui.ChartActivity"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
             </intent-filter>
         </activity>
     </application>

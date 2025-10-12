@@ -154,10 +154,10 @@ public class ChartActivity extends AppCompatActivity implements View.OnClickList
         chart.setPinchZoom(true);
 
         YAxis leftAxis = chart.getAxisLeft();
-        leftAxis.setDrawGridLines(false);
+        leftAxis.setDrawGridLines(true);
 
         XAxis xAxis = chart.getXAxis();
-        xAxis.setDrawGridLines(false);
+        xAxis.setDrawGridLines(true);
         xAxis.setPosition(XAxis.XAxisPosition.BOTTOM);
         xAxis.setSpaceMin(15f);
         xAxis.setSpaceMax(15f);

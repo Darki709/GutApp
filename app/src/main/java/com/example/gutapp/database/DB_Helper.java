@@ -21,7 +21,8 @@ public class DB_Helper extends SQLiteOpenHelper {
         super(context, DB_NAME, null, DB_VERSION);
         StockDataHelper stockDataHelper = new StockDataHelper(context, this);
         tables.add(stockDataHelper);
-
+        UserTableHelper userTableHelper = new UserTableHelper(this);
+        tables.add(userTableHelper);
     }
 
     public Table getHelper(DB_Index index){

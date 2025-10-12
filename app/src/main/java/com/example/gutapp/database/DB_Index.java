@@ -1,5 +1,6 @@
 package com.example.gutapp.database;
 
 public enum DB_Index {
-    STOCK_TABLE;
+    STOCK_TABLE,
+    USER_TABLE;
 }
