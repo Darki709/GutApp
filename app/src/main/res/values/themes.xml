@@ -4,7 +4,7 @@
         <!-- Primary brand color. -->
         <item name="colorPrimary">#383636</item>
         <item name="colorPrimaryVariant">#191C81</item>
-        <item name="colorOnPrimary">@color/white</item>
+        <item name="colorOnPrimary">#1B1A1A</item>
         <item name="android:textColor">@color/white</item>
         <item name="android:textColorHint">@color/white</item>
         <!-- Secondary brand color. -->
@@ -14,5 +14,16 @@
         <!-- Status bar color. -->
         <item name="android:statusBarColor">?attr/colorPrimaryVariant</item>
         <!-- Customize your theme here. -->
+    </style>
+    <!-- ... your main app theme ... -->
+    <style name="Theme.App.Starting" parent="Theme.SplashScreen">
+    <!-- Set the splash screen background. -->
+        <item name="windowSplashScreenBackground">#121212</item>
+
+    <!-- Set a drawable or animated drawable for the icon. -->
+        <item name="windowSplashScreenAnimatedIcon">@drawable/logo</item>
+
+    <!-- Specify the theme to be applied AFTER the splash screen. -->
+        <item name="postSplashScreenTheme">@style/Theme.GutApp</item>
     </style>
 </resources>
