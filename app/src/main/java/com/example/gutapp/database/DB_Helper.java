@@ -13,7 +13,7 @@ public class DB_Helper extends SQLiteOpenHelper {
     private static final String DB_NAME = "Gut";
     private static final int DB_VERSION = 1;
 
-    private static ArrayList<Table> tables = new ArrayList<>();
+    private ArrayList<Table> tables = new ArrayList<>();
     public static final String DB_LOG_TAG = "GutDB";
 
 
@@ -34,7 +34,7 @@ public class DB_Helper extends SQLiteOpenHelper {
     public void onCreate(SQLiteDatabase sqLiteDatabase) {
 
         Log.i(DB_LOG_TAG, "start create db");
-        for(Table table:this.tables){
+        for(Table table: this.tables){
             try {
                 String createStockTable = table.createTable();
                 sqLiteDatabase.execSQL(createStockTable);

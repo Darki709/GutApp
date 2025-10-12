@@ -47,6 +47,7 @@ public class LoginPage extends AppCompatActivity implements View.OnClickListener
         });
 
         db_helper = new DB_Helper(this);
+        db_helper.getWritableDatabase();
         userTableHelper = (UserTableHelper)db_helper.getHelper(DB_Index.USER_TABLE);
         
         //bind pointers to elements
@@ -74,11 +75,10 @@ public class LoginPage extends AppCompatActivity implements View.OnClickListener
 
     public void UserLogin(String username, String password){
         if(!userTableHelper.validateUser(username, password)) {
-            Toast.makeText(this, "No Account with these credentials username or password" +
-                    ", if you haven't an account please use the register button", Toast.LENGTH_LONG).show();
+            Toast.makeText(this, "No Account with these 2 credentials", Toast.LENGTH_LONG).show();
             return;
         }
-        Intent intent = new Intent(this, ChartActivity.class);
+        Intent intent = new Intent(this, HomeActivity.class);
         startActivity(intent);
     }
 
@@ -88,7 +88,7 @@ public class LoginPage extends AppCompatActivity implements View.OnClickListener
                 return;
             }
             Toast.makeText(this, "Account created successfully", Toast.LENGTH_LONG).show();
-            Intent intent = new Intent(this, ChartActivity.class);
+            Intent intent = new Intent(this, HomeActivity.class);
             startActivity(intent);
     }
 }

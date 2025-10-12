@@ -58,10 +58,11 @@ public class UserTableHelper implements Table{
         args = new String[]{username};
         try{
             cursor = db.rawQuery(query, args);
+            cursor.moveToFirst();
             Log.i(DB_HELPER.DB_LOG_TAG, "id retrieved " + cursor.getString(0));
         }
         catch (Exception e) {
-            Log.e(DB_HELPER.DB_LOG_TAG, "error create table " + e.getMessage());
+            Log.e(DB_HELPER.DB_LOG_TAG, "error fetching id" + e.getMessage());
             throw e;
         }
         //inserts the logged in user data to the user globals class
@@ -80,7 +81,6 @@ public class UserTableHelper implements Table{
         Cursor cursor;
         try{
             cursor = db.rawQuery(query, args);
-            Log.i(DB_HELPER.DB_LOG_TAG, "user validated, user id " + cursor.getString(0));
         }
         catch (Exception e) {
             Log.e(DB_HELPER.DB_LOG_TAG, "error on validate user " + e.getMessage());
@@ -88,12 +88,20 @@ public class UserTableHelper implements Table{
         }
         //checks if cursor has arguments, if it has then there is a line in the data base with the
         // inputted username and password, inserts user data to user global class
-        if(cursor.getCount() > 0){
-            UserGlobals.USER_NAME = username;
-            UserGlobals.ID = cursor.getString(0);
-            UserGlobals.LOGGED_IN = true;
-            cursor.close();
-            return true;
+        try {
+            if (cursor.getCount() > 0) {
+                UserGlobals.USER_NAME = username;
+                cursor.moveToFirst();
+                UserGlobals.ID = cursor.getString(0);
+                UserGlobals.LOGGED_IN = true;
+                Log.i(DB_HELPER.DB_LOG_TAG, "user validated, user id " + cursor.getString(0));
+                cursor.close();
+                return true;
+            }
+        }
+        catch (Exception e){
+            Log.e(DB_HELPER.DB_LOG_TAG, "error on validate user " + e.getMessage());
+            throw e;
         }
         return false;
     }
