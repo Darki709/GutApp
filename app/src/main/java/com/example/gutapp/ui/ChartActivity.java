@@ -55,10 +55,9 @@ public class ChartActivity extends AppCompatActivity implements View.OnClickList
         //loading chart symbol from the caller
         Intent intent = getIntent();
         symbol = intent.getStringExtra("symbol");
+        String name = intent.getStringExtra("name");
 
-
-
-
+        //initialize important database objects
         db_helper = new DB_Helper(this);
         stockDataHelper = (StockDataHelper) db_helper.getHelper(DB_Index.STOCK_TABLE);
 
@@ -80,7 +79,6 @@ public class ChartActivity extends AppCompatActivity implements View.OnClickList
             stockData = stockDataHelper.getCachedStockData(symbol, timeframe);
         } catch (Exception e) {
             Log.e(db_helper.DB_LOG_TAG, "Error getting stock data: " + e.getMessage());
-            e.printStackTrace();
             return;
         }
 

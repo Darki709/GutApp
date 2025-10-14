@@ -1,16 +1,17 @@
 package com.example.gutapp.ui;
 
+import android.annotation.SuppressLint;
+import android.content.Intent;
 import android.database.Cursor;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.os.Bundle;
 import android.util.Log;
+import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.LinearLayout;
-import android.widget.TableLayout;
-import android.widget.TableRow;
 import android.widget.TextView;
 
 import androidx.activity.EdgeToEdge;
@@ -20,6 +21,7 @@ import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
 
 import com.example.gutapp.R;
+import com.example.gutapp.data.UserGlobals;
 import com.example.gutapp.database.DB_Helper;
 import com.example.gutapp.database.DB_Index;
 import com.example.gutapp.database.StockDataHelper;
@@ -29,8 +31,8 @@ import java.util.Locale;
 
 public class HomeActivity extends AppCompatActivity {
 
+    //load global pointers
     LinearLayout stockContainer;
-
     DB_Helper db_helper;
 
     @Override
@@ -47,7 +49,15 @@ public class HomeActivity extends AppCompatActivity {
 
         stockContainer = findViewById(R.id.stockContainer);
 
+        //ready the home page for presentation
+        setUserTitle();
         loadStockList();
+    }
+
+    private void setUserTitle(){
+        TextView userTitle = findViewById(R.id.textViewUserTitle);
+        if(UserGlobals.LOGGED_IN)
+            userTitle.setText("Hello " + UserGlobals.USER_NAME + "!");
     }
 
     private void loadStockList() {
@@ -72,10 +82,16 @@ public class HomeActivity extends AppCompatActivity {
     private View createStockRow(String name, String symbol, float price, boolean isUp) {
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.HORIZONTAL);
-        row.setPadding(0, 20, 0, 20);
+        row.setPadding(20, 24, 20, 24);
         row.setGravity(Gravity.CENTER_VERTICAL);
+        row.setClickable(true);
 
-        // Stock name + symbol (left)
+        // Add a modern ripple effect for clicks
+        TypedValue outValue = new TypedValue();
+        getTheme().resolveAttribute(android.R.attr.selectableItemBackground, outValue, true);
+        row.setBackgroundResource(outValue.resourceId);
+
+        // Stock name + symbol
         LinearLayout textGroup = new LinearLayout(this);
         textGroup.setOrientation(LinearLayout.VERTICAL);
         textGroup.setLayoutParams(new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
@@ -93,7 +109,7 @@ public class HomeActivity extends AppCompatActivity {
         textGroup.addView(nameView);
         textGroup.addView(symbolView);
 
-        // Price (right)
+        // Price
         TextView priceView = new TextView(this);
         priceView.setText(String.format(Locale.US, "%.2f", price));
         priceView.setTextSize(17);
@@ -103,7 +119,15 @@ public class HomeActivity extends AppCompatActivity {
         row.addView(textGroup);
         row.addView(priceView);
 
-        // Optional subtle divider
+        // 🔹 Handle click → go to ChartActivity
+        row.setOnClickListener(v -> {
+            Intent intent = new Intent(this, ChartActivity.class);
+            intent.putExtra("symbol", symbol);
+            intent.putExtra("name", name);
+            startActivity(intent);
+        });
+
+        // Divider
         View divider = new View(this);
         divider.setLayoutParams(new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 1));
         divider.setBackgroundColor(Color.parseColor("#222222"));

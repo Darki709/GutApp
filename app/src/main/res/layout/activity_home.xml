@@ -12,10 +12,12 @@
         android:id="@+id/scrollView2"
         android:layout_width="412dp"
         android:layout_height="575dp"
-        android:background="@android:color/transparent"
+        android:layout_marginTop="250dp"
+        android:background="@color/default_bg"
         android:padding="16dp"
-        tools:layout_editor_absoluteX="0dp"
-        tools:layout_editor_absoluteY="316dp">
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/textViewUserTitle">
 
         <LinearLayout
             android:id="@+id/stockContainer"
@@ -45,7 +47,6 @@
         android:textSize="24sp"
         app:layout_constraintBottom_toTopOf="@+id/scrollView2"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintHorizontal_bias="0.493"
         app:layout_constraintStart_toStartOf="parent" />
 
     <TextView
