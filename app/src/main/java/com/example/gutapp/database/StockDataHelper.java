@@ -3,6 +3,7 @@ package com.example.gutapp.database;
 import android.content.Context;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
+import android.text.TextUtils;
 import android.util.Log;
 
 import com.github.mikephil.charting.data.CandleEntry;
@@ -18,19 +19,19 @@ import java.util.Locale;
 
 public class StockDataHelper implements Table {
     private static final String TABLE_NAME = "stock_data";
-    private static final String COLUMN_ID = "_id";
-    private static final String COLUMN_SYMBOL = "symbol";
+    public static final String COLUMN_ID = "_id";
+    public static final String COLUMN_SYMBOL = "symbol";
 
     //should be removed keep until you start loading data on you own
-    private static final String COLUMN_NAME = "name";
+    public static final String COLUMN_NAME = "name";
     //
-    private static final String COLUMN_DATE = "date";
-    private static final String COLUMN_TIMEFRAME = "timeframe";
-    private static final String COLUMN_OPEN = "open";
-    private static final String COLUMN_HIGH = "high";
-    private static final String COLUMN_LOW = "low";
-    private static final String COLUMN_CLOSE = "close";
-    private static final String COLUMN_VOLUME = "volume";
+    public static final String COLUMN_DATE = "date";
+    public static final String COLUMN_TIMEFRAME = "timeframe";
+    public static final String COLUMN_OPEN = "open";
+    public static final String COLUMN_HIGH = "high";
+    public static final String COLUMN_LOW = "low";
+    public static final String COLUMN_CLOSE = "close";
+    public static final String COLUMN_VOLUME = "volume";
 
     private DB_Helper DB_HELPER;
     private Context context;
@@ -127,4 +128,78 @@ public class StockDataHelper implements Table {
     public String getName() {
         return TABLE_NAME;
     }
+
+
+
+    //modular retrieval from database method
+    public Cursor readFromDB(
+            String[] columns,
+            String selection,
+            String[] selectionArgs,
+            String orderBy,
+            Integer limit) {
+
+
+        // Validate column names
+        if (columns != null) {
+            for (String col : columns) {
+                if (!col.matches("[A-Za-z0-9_]+")) {
+                    throw new IllegalArgumentException("Invalid column name: " + col);
+                }
+            }
+        }
+
+        // Validate ORDER BY (optional, must be safe keyword or column)
+        if (orderBy != null && !orderBy.isEmpty()) {
+            // Allow only column names and ASC/DESC keywords
+            if (!orderBy.matches("[A-Za-z0-9_]+(\\s+(ASC|DESC))?")) {
+                throw new IllegalArgumentException("Invalid orderBy clause: " + orderBy);
+            }
+        }
+
+        //Build the query string safely
+        StringBuilder query = new StringBuilder();
+        query.append("SELECT ");
+
+        if (columns != null && columns.length > 0) {
+            query.append(TextUtils.join(", ", columns));
+        } else {
+            query.append("*");
+        }
+
+        query.append(" FROM ").append(TABLE_NAME);
+
+        if (selection != null && !selection.isEmpty()) {
+            query.append(" WHERE ").append(selection);
+        }
+
+        if (orderBy != null && !orderBy.isEmpty()) {
+            query.append(" ORDER BY ").append(orderBy);
+        }
+
+        if (limit != null && limit > 0) {
+            query.append(" LIMIT ").append(limit);
+        }
+
+        // Execute safely — placeholders handled via selectionArgs
+        return DB_HELPER.getReadableDatabase().rawQuery(query.toString(), selectionArgs);
+    }
+
+
+    public double getLatestPrice(String symbol) {
+        try {
+            Cursor cursor = readFromDB(new String[]{StockDataHelper.COLUMN_CLOSE}, "symbol = ?",
+                    new String[]{symbol}, "date DESC", 2);
+            cursor.moveToFirst();
+            int current = cursor.getInt(0);
+            cursor.moveToNext();
+            int before = cursor.getInt(0);
+            return (current > before) ? current : -1 * current;
+        }
+        catch (Exception e){
+            Log.e(DB_Helper.DB_LOG_TAG, "Error getting latest price: " + e.getMessage());
+            throw e;
+        }
+    }
+
 }

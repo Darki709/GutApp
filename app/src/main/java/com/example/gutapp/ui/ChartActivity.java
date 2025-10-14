@@ -1,5 +1,6 @@
 package com.example.gutapp.ui;
 
+import android.content.Intent;
 import android.graphics.Color;
 import android.graphics.Paint;
 import android.os.Bundle;
@@ -38,7 +39,7 @@ public class ChartActivity extends AppCompatActivity implements View.OnClickList
     private DB_Helper db_helper;
     private StockDataHelper stockDataHelper;
     private CombinedChart chart;
-    private String symbol = "IBM"; // Default symbol
+    private String symbol; // Default symbol
     private boolean isInitialLoad = true;
 
     @Override
@@ -51,6 +52,12 @@ public class ChartActivity extends AppCompatActivity implements View.OnClickList
             v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom);
             return insets;
         });
+        //loading chart symbol from the caller
+        Intent intent = getIntent();
+        symbol = intent.getStringExtra("symbol");
+
+
+
 
         db_helper = new DB_Helper(this);
         stockDataHelper = (StockDataHelper) db_helper.getHelper(DB_Index.STOCK_TABLE);

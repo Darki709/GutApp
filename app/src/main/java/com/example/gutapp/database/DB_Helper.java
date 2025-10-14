@@ -19,10 +19,14 @@ public class DB_Helper extends SQLiteOpenHelper {
 
     public DB_Helper(@Nullable Context context) {
         super(context, DB_NAME, null, DB_VERSION);
+        //instatciate table helpers and store them inside he object
+        //context is needed for a temporary loading method because of database content erased when switching emulators
         StockDataHelper stockDataHelper = new StockDataHelper(context, this);
         tables.add(stockDataHelper);
         UserTableHelper userTableHelper = new UserTableHelper(this);
         tables.add(userTableHelper);
+        SymbolsTableHelper symbolsTableHelper = new SymbolsTableHelper(this);
+        tables.add(symbolsTableHelper);
     }
 
     public Table getHelper(DB_Index index){
@@ -38,6 +42,7 @@ public class DB_Helper extends SQLiteOpenHelper {
             try {
                 String createStockTable = table.createTable();
                 sqLiteDatabase.execSQL(createStockTable);
+                Log.i(DB_LOG_TAG, "finished create table " + table.getName());
             }
             catch (Exception e){
                 Log.e(DB_LOG_TAG, "error create table " + table.getName() + e.getMessage());
