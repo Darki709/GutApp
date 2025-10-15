@@ -1,5 +1,6 @@
 package com.example.gutapp.ui;
 
+import android.annotation.SuppressLint;
 import android.content.Intent;
 import android.graphics.Color;
 import android.graphics.Paint;
@@ -7,6 +8,8 @@ import android.os.Bundle;
 import android.util.Log;
 import android.view.View;
 import android.widget.Button;
+import android.widget.ImageButton;
+import android.widget.TextView;
 
 import androidx.activity.EdgeToEdge;
 import androidx.appcompat.app.AppCompatActivity;
@@ -36,12 +39,17 @@ import java.util.Locale;
 
 public class ChartActivity extends AppCompatActivity implements View.OnClickListener {
 
+    public static final String CHART_LOG_TAG = "GutChart";
+
     private DB_Helper db_helper;
     private StockDataHelper stockDataHelper;
     private CombinedChart chart;
     private String symbol; // Default symbol
     private boolean isInitialLoad = true;
 
+    private TextView textViewTitle;
+
+    @SuppressLint("SetTextI18n")
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -63,11 +71,22 @@ public class ChartActivity extends AppCompatActivity implements View.OnClickList
 
         chart = findViewById(R.id.stockChart);
 
+
         // Set up button listeners
         findViewById(R.id.button5m).setOnClickListener(this);
         findViewById(R.id.button15m).setOnClickListener(this);
         findViewById(R.id.button1h).setOnClickListener(this);
         findViewById(R.id.button1d).setOnClickListener(this);
+
+        textViewTitle = findViewById(R.id.textViewTitle);
+
+        ImageButton buttonHome = findViewById(R.id.buttonHome);
+        buttonHome.setOnClickListener(this);
+
+
+        // Set up the chart
+        setupChart();
+        formatTile("1d");
 
         // Initial chart load with daily data
         updateChartData(StockDataHelper.Timeframe.DAILY);
@@ -146,7 +165,6 @@ public class ChartActivity extends AppCompatActivity implements View.OnClickList
             isInitialLoad = false;
         }
 
-
         chart.invalidate(); // Refresh the chart
         Log.i(db_helper.DB_LOG_TAG, "Chart updated for timeframe: " + timeframe.name());
     }
@@ -179,13 +197,25 @@ public class ChartActivity extends AppCompatActivity implements View.OnClickList
         int id = v.getId();
         if (id == R.id.button5m) {
             updateChartData(StockDataHelper.Timeframe.FIVE_MIN);
+            formatTile("5m");;
         } else if (id == R.id.button15m) {
             updateChartData(StockDataHelper.Timeframe.FIFTEEN_MIN);
+            formatTile("15m");
         } else if (id == R.id.button1h) {
             updateChartData(StockDataHelper.Timeframe.HOURLY);
+            formatTile("1h");
         } else if (id == R.id.button1d) {
             isInitialLoad = true;
             updateChartData(StockDataHelper.Timeframe.DAILY);
+            formatTile("1d");
         }
+        else if (id == R.id.buttonHome) {
+            Intent intent = new Intent(this, HomeActivity.class);
+            startActivity(intent);
+        }
+    }
+
+    public void formatTile(String timeFrame){
+        textViewTitle.setText(symbol + " (" + timeFrame + ")");
     }
 }

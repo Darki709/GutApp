@@ -7,6 +7,8 @@ import android.util.Log;
 
 import androidx.annotation.Nullable;
 
+import com.example.gutapp.database.indicatorHelpers.SMA_DBHelper;
+
 import java.util.ArrayList;
 
 public class DB_Helper extends SQLiteOpenHelper {
@@ -27,6 +29,8 @@ public class DB_Helper extends SQLiteOpenHelper {
         tables.add(userTableHelper);
         SymbolsTableHelper symbolsTableHelper = new SymbolsTableHelper(this);
         tables.add(symbolsTableHelper);
+        SMA_DBHelper sma_dbHelper = new SMA_DBHelper(this);
+        tables.add(sma_dbHelper);
     }
 
     public Table getHelper(DB_Index index){
