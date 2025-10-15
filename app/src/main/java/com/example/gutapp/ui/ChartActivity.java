@@ -6,18 +6,30 @@ import android.graphics.Color;
 import android.graphics.Paint;
 import android.os.Bundle;
 import android.util.Log;
+import android.view.Gravity;
+import android.view.LayoutInflater;
 import android.view.View;
+import android.view.ViewGroup;
 import android.widget.Button;
 import android.widget.ImageButton;
+import android.widget.PopupWindow;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import androidx.activity.EdgeToEdge;
+import androidx.annotation.NonNull;
+import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
+import androidx.recyclerview.widget.LinearLayoutManager;
+import androidx.recyclerview.widget.RecyclerView;
 
 import com.example.gutapp.R;
+import com.example.gutapp.data.chart.Indicator;
+import com.example.gutapp.data.chart.IndicatorManager;
+import com.example.gutapp.data.chart.Indicators;
 import com.example.gutapp.database.DB_Helper;
 import com.example.gutapp.database.DB_Index;
 import com.example.gutapp.database.StockDataHelper;
@@ -35,6 +47,7 @@ import com.github.mikephil.charting.formatter.ValueFormatter;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
+import java.util.List;
 import java.util.Locale;
 
 public class ChartActivity extends AppCompatActivity implements View.OnClickListener {
@@ -48,6 +61,12 @@ public class ChartActivity extends AppCompatActivity implements View.OnClickList
     private boolean isInitialLoad = true;
 
     private TextView textViewTitle;
+
+//indicator management
+    private IndicatorManager indicatorManager;
+    private AvailableIndicatorsAdapter availableIndicatorsAdapter;
+    private ActiveIndicatorsAdapter activeIndicatorsAdapter;
+    private PopupWindow indicatorPopupWindow;
 
     @SuppressLint("SetTextI18n")
     @Override
@@ -77,11 +96,16 @@ public class ChartActivity extends AppCompatActivity implements View.OnClickList
         findViewById(R.id.button15m).setOnClickListener(this);
         findViewById(R.id.button1h).setOnClickListener(this);
         findViewById(R.id.button1d).setOnClickListener(this);
+        findViewById(R.id.indicatorsButton).setOnClickListener(this);
+
 
         textViewTitle = findViewById(R.id.textViewTitle);
 
         ImageButton buttonHome = findViewById(R.id.buttonHome);
         buttonHome.setOnClickListener(this);
+
+        //initialize indicator manager
+        indicatorManager = new IndicatorManager(chart, db_helper, symbol);
 
 
         // Set up the chart
@@ -164,6 +188,7 @@ public class ChartActivity extends AppCompatActivity implements View.OnClickList
             }
             isInitialLoad = false;
         }
+        indicatorManager.setCurrentTimeframe(timeframe);
 
         chart.invalidate(); // Refresh the chart
         Log.i(db_helper.DB_LOG_TAG, "Chart updated for timeframe: " + timeframe.name());
@@ -205,7 +230,6 @@ public class ChartActivity extends AppCompatActivity implements View.OnClickList
             updateChartData(StockDataHelper.Timeframe.HOURLY);
             formatTile("1h");
         } else if (id == R.id.button1d) {
-            isInitialLoad = true;
             updateChartData(StockDataHelper.Timeframe.DAILY);
             formatTile("1d");
         }
@@ -213,9 +237,158 @@ public class ChartActivity extends AppCompatActivity implements View.OnClickList
             Intent intent = new Intent(this, HomeActivity.class);
             startActivity(intent);
         }
+        else if (id == R.id.indicatorsButton) {
+            showIndicatorsPopup();
+            Log.i(CHART_LOG_TAG, "Indicators button clicked");
+        }
     }
 
     public void formatTile(String timeFrame){
         textViewTitle.setText(symbol + " (" + timeFrame + ")");
+    }
+
+    //indicator management section
+
+    // --- NEW: INDICATOR POPUP METHOD ---
+    private void showIndicatorsPopup() {
+        LayoutInflater inflater = (LayoutInflater) getSystemService(LAYOUT_INFLATER_SERVICE);
+        View popupView = inflater.inflate(R.layout.popup_indicators, null);
+
+        indicatorPopupWindow = new PopupWindow(popupView,
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT, true);
+
+        RecyclerView availableRv = popupView.findViewById(R.id.availableIndicatorsRecyclerView);
+        availableRv.setLayoutManager(new LinearLayoutManager(this));
+        availableIndicatorsAdapter = new AvailableIndicatorsAdapter();
+        availableRv.setAdapter(availableIndicatorsAdapter);
+
+        RecyclerView activeRv = popupView.findViewById(R.id.activeIndicatorsRecyclerView);
+        activeRv.setLayoutManager(new LinearLayoutManager(this));
+        activeIndicatorsAdapter = new ActiveIndicatorsAdapter();
+        activeRv.setAdapter(activeIndicatorsAdapter);
+
+        popupView.findViewById(R.id.closePopupButton).setOnClickListener(v -> indicatorPopupWindow.dismiss());
+
+        indicatorPopupWindow.showAtLocation(findViewById(R.id.main), Gravity.CENTER, 0, 0);
+
+        // Make sure active indicators list is up-to-date when opening
+        activeIndicatorsAdapter.updateData(new ArrayList<>(indicatorManager.getAllIndicators().values()));
+    }
+
+    // --- NEW: RECYCLERVIEW ADAPTERS AND VIEW HOLDERS ---
+
+    // Adapter for the list of available indicators
+    private class AvailableIndicatorsAdapter extends RecyclerView.Adapter<IndicatorViewHolder> {
+        private final Indicators[] available = Indicators.values();
+
+        @NonNull
+        @Override
+        public IndicatorViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
+            View view = LayoutInflater.from(parent.getContext()).inflate(R.layout.item_indicator, parent, false);
+            return new IndicatorViewHolder(view);
+        }
+
+        @Override
+        public void onBindViewHolder(@NonNull IndicatorViewHolder holder, int position) {
+            Indicators indicatorType = available[position];
+            holder.indicatorName.setText(indicatorType.name());
+            holder.buttonAction1.setText("Add");
+            holder.buttonAction2.setText("Settings");
+
+            holder.buttonAction1.setOnClickListener(v -> {
+                // Add with default settings, e.g., SMA(20)
+                float[] defaultParams = {Color.YELLOW, 20, 1f}; // color, period, width
+                indicatorManager.createIndicator(indicatorType, defaultParams);
+                activeIndicatorsAdapter.updateData(new ArrayList<>(indicatorManager.getAllIndicators().values()));
+                Toast.makeText(ChartActivity.this, indicatorType.name() + " added.", Toast.LENGTH_SHORT).show();
+            });
+            holder.buttonAction2.setOnClickListener(v -> showSettingsDialog(indicatorType));
+        }
+
+        @Override
+        public int getItemCount() {
+            return available.length;
+        }
+    }
+
+    // Adapter for the list of currently active indicators on the chart
+    private class ActiveIndicatorsAdapter extends RecyclerView.Adapter<IndicatorViewHolder> {
+        private List<Indicator> activeList = new ArrayList<>();
+
+        void updateData(List<Indicator> newData) {
+            this.activeList = newData;
+            notifyDataSetChanged();
+        }
+
+        @NonNull
+        @Override
+        public IndicatorViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
+            View view = LayoutInflater.from(parent.getContext()).inflate(R.layout.item_indicator, parent, false);
+            return new IndicatorViewHolder(view);
+        }
+
+        @Override
+        public void onBindViewHolder(@NonNull IndicatorViewHolder holder, int position) {
+            Indicator indicator = activeList.get(position);
+            holder.indicatorName.setText(indicator.getType().name() + " (" + indicator.getID() + ")");
+            holder.buttonAction1.setText("Settings");
+            holder.buttonAction2.setText("Remove");
+
+            holder.buttonAction1.setOnClickListener(v -> showSettingsDialog(indicator));
+            holder.buttonAction2.setOnClickListener(v -> {
+                indicatorManager.deleteIndicator(indicator.getID());
+                updateData(new ArrayList<>(indicatorManager.getAllIndicators().values())); // Refresh list
+            });
+        }
+
+        @Override
+        public int getItemCount() {
+            return activeList.size();
+        }
+    }
+
+    // ViewHolder used by both adapters
+    private static class IndicatorViewHolder extends RecyclerView.ViewHolder {
+        TextView indicatorName;
+        Button buttonAction1, buttonAction2;
+        IndicatorViewHolder(@NonNull View itemView) {
+            super(itemView);
+            indicatorName = itemView.findViewById(R.id.indicatorName);
+            buttonAction1 = itemView.findViewById(R.id.buttonAction1);
+            buttonAction2 = itemView.findViewById(R.id.buttonAction2);
+        }
+    }
+
+    // --- NEW: SETTINGS DIALOGS (PLACEHOLDERS) ---
+
+    // For a new indicator
+    private void showSettingsDialog(Indicators type) {
+        // Here you would inflate a custom layout with EditTexts for period, color pickers, etc.
+        // For now, we'll just use a simple AlertDialog.
+        new AlertDialog.Builder(this)
+                .setTitle("Settings for " + type.name())
+                .setMessage("Settings dialog not yet implemented. Adding with default values.")
+                .setPositiveButton("Add", (dialog, which) -> {
+                    float[] defaultParams = {Color.CYAN, 50, 3f}; // Different defaults for settings
+                    indicatorManager.createIndicator(type, defaultParams);
+                    activeIndicatorsAdapter.updateData(new ArrayList<>(indicatorManager.getAllIndicators().values()));
+                })
+                .setNegativeButton("Cancel", null)
+                .show();
+    }
+
+    // For an existing, active indicator
+    private void showSettingsDialog(Indicator indicator) {
+        // Again, this should be a custom dialog.
+        new AlertDialog.Builder(this)
+                .setTitle("Change Settings for " + indicator.getType().name() + " (" + indicator.getID() + ")")
+                .setMessage("Settings dialog not yet implemented. No changes made.")
+                .setPositiveButton("Apply", (dialog, which) -> {
+                    // Example of changing settings
+                    // float[] newParams = {Color.MAGENTA, 100, 4f};
+                    // indicatorManager.changeSettings(indicator.getID(), newParams);
+                })
+                .setNegativeButton("Cancel", null)
+                .show();
     }
 }

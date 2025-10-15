@@ -3,6 +3,7 @@ package com.example.gutapp.data.chart;
 import android.database.sqlite.SQLiteDatabase;
 
 import com.example.gutapp.database.DB_Helper;
+import com.example.gutapp.database.StockDataHelper;
 import com.example.gutapp.database.indicatorHelpers.SMA_DBHelper;
 import com.github.mikephil.charting.data.Entry;
 import com.github.mikephil.charting.data.LineDataSet;
@@ -12,22 +13,29 @@ import java.util.List;
 
 public class IndicatorUtil {
 
-
-    public static LineDataSet movingAverageDataSet(SQLiteDatabase db, List<float[]> prices, int period, String symbol, String id) {
+    public static LineDataSet movingAverageDataSet(SQLiteDatabase db, List<float[]> prices, int period, String symbol, String id, StockDataHelper.Timeframe timeframe) {
         List<Entry> entries = new ArrayList<>();
         if (prices == null || prices.size() < period) return new LineDataSet(entries, symbol);
 
-        for (int i = period - 1; i < prices.size(); i++) {
-            float sum = 0f;
-            for (int j = i - period + 1; j <= i; j++) {
-                sum += prices.get(j)[1]; // sum y-values
-            }
-            float avg = sum / period;
+        // --- PERFORMANCE FIX: WRAP LOOP IN A TRANSACTION ---
+        db.beginTransaction(); // <-- 1. Begin the transaction
+        try {
+            for (int i = period - 1; i < prices.size(); i++) {
+                float sum = 0f;
+                for (int j = i - period + 1; j <= i; j++) {
+                    sum += prices.get(j)[1]; // sum y-values
+                }
+                float avg = sum / period;
 
-            //cache data to the dedicated table
-            SMA_DBHelper.insertSMA(db, symbol, prices.get(i)[0], avg, period);
-            entries.add(new Entry(prices.get(i)[0], avg)); // x = last index, y = avg
+                // Pass timeframe when caching data (this is now extremely fast)
+                SMA_DBHelper.insertSMA(db, symbol, i, avg, period, timeframe);
+                entries.add(new Entry(prices.get(i)[0], avg));
+            }
+            db.setTransactionSuccessful(); // <-- 2. Mark transaction as successful
+        } finally {
+            db.endTransaction(); // <-- 3. End the transaction (commits if successful, rolls back otherwise)
         }
+        // ----------------------------------------------------
 
         LineDataSet set = new LineDataSet(entries, id);
         return set;
