@@ -45,7 +45,7 @@ public class PresetManager {
                         String params = cursor.getString(cursor.getColumnIndexOrThrow("params"));
                         float[] paramsArray = parseParams(params);
                         Indicator indicator = IndicatorFactory.createIndicator(Indicators.fromInt(type),
-                                Integer.toString(i), this.symbol, StockDataHelper.Timeframe.DAILY, paramsArray, this.db_helper);
+                                Integer.toString(j), this.symbol, StockDataHelper.Timeframe.DAILY, paramsArray, this.db_helper);
                         presets[i].put(Integer.toString(j), indicator);
                         j++;
                     } while (cursor.moveToNext());
