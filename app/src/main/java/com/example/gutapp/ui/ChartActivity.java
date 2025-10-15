@@ -255,7 +255,7 @@ public class ChartActivity extends AppCompatActivity implements View.OnClickList
         View popupView = inflater.inflate(R.layout.popup_indicators, null);
 
         indicatorPopupWindow = new PopupWindow(popupView,
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT, true);
+                ViewGroup.LayoutParams.MATCH_PARENT, 800 , true);
 
         RecyclerView availableRv = popupView.findViewById(R.id.availableIndicatorsRecyclerView);
         availableRv.setLayoutManager(new LinearLayoutManager(this));
