@@ -172,4 +172,8 @@ public LineDataSet calculateSMA(String symbol, int period, StockDataHelper.Timef
             combinedChart.invalidate();
         }
     }
+    @Override
+    public String getParams(){
+        return Integer.toString(this.color) + ":" + Integer.toString(this.period) + ":" + Float.toString(this.width);
+    }
 }

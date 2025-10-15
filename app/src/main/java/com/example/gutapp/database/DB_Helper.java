@@ -29,8 +29,8 @@ public class DB_Helper extends SQLiteOpenHelper {
         tables.add(userTableHelper);
         SymbolsTableHelper symbolsTableHelper = new SymbolsTableHelper(this);
         tables.add(symbolsTableHelper);
-        SMA_DBHelper sma_dbHelper = new SMA_DBHelper(this);
-        tables.add(sma_dbHelper);
+        ChartPresetHelper chartPresetHelper = new ChartPresetHelper(this);
+        tables.add(chartPresetHelper);
     }
 
     public Table getHelper(DB_Index index){

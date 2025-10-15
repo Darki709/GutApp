@@ -18,19 +18,47 @@ public class IndicatorManager {
     private String symbol; //symbol of the stock indicators will be drawn for
 
     private StockDataHelper.Timeframe currentTimeframe;
-
-
     private int autoincrementID; //works like the PRIMARY KEY AUTOINCREMENT in sql
+    private PresetManager presetManager;
+
+    private int currentPresetID = 1;
 
     public IndicatorManager(CombinedChart combinedChart, DB_Helper db_helper, String symbol) {
         this.symbol = symbol;
         this.combinedChart = combinedChart;
         this.indicators = new HashMap<>(); // Initialize as a HashMap
         this.db_helper = db_helper;
-        autoincrementID = 0;
+        this.autoincrementID = 0;
         this.currentTimeframe = StockDataHelper.Timeframe.DAILY;
         Log.i(ChartActivity.CHART_LOG_TAG, currentTimeframe.name());// Initialize with DAILY
+        this.presetManager = new PresetManager(db_helper, symbol);
+        this.presetManager.loadPresets();
+        //loads default preset to graph on creation
+        this.loadPreset(currentPresetID);
+
+        Log.i(ChartActivity.CHART_LOG_TAG, "IndicatorManager initialized for symbol: " + symbol);
     }
+
+    //load preset by preset_id
+    public void loadPreset(int preset_id){
+        //loads the preset from preset manager
+        this.indicators = presetManager.getPreset(preset_id);
+        Log.i(ChartActivity.CHART_LOG_TAG, "Preset loaded successfully to indicator manager" + indicators.toString());
+        this.autoincrementID = indicators.size();
+        //draws the indicators
+        for(Indicator indicator : this.indicators.values()){
+            this.addIndicator2Graph(indicator);
+            Log.i(ChartActivity.CHART_LOG_TAG, "Indicator loaded successfully" + indicator.toString());
+        }
+        Log.i(ChartActivity.CHART_LOG_TAG, "Preset loaded successfully to indicator manager");
+    }
+
+
+    public void storePresets(){
+        Log.i(DB_Helper.DB_LOG_TAG, "Storing presets" + this.indicators.toString());
+        presetManager.storePresets();
+    }
+
 
     public void setCurrentTimeframe(StockDataHelper.Timeframe timeframe) {
         // 1. Update the manager's internal timeframe state

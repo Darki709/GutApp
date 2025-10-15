@@ -59,8 +59,8 @@ public class ChartActivity extends AppCompatActivity implements View.OnClickList
     private CombinedChart chart;
     private String symbol; // Default symbol
     private boolean isInitialLoad = true;
-
     private TextView textViewTitle;
+    private String timeframe = "1d";
 
 //indicator management
     private IndicatorManager indicatorManager;
@@ -114,6 +114,14 @@ public class ChartActivity extends AppCompatActivity implements View.OnClickList
 
         // Initial chart load with daily data
         updateChartData(StockDataHelper.Timeframe.DAILY);
+    }
+
+    @Override
+    protected void onStop(){
+        super.onStop();
+        indicatorManager.storePresets();
+        Toast.makeText(this, "All presets saved", Toast.LENGTH_SHORT).show();
+        Log.i(CHART_LOG_TAG, "All presets saved");
     }
 
     private void updateChartData(StockDataHelper.Timeframe timeframe) {
@@ -201,6 +209,14 @@ public class ChartActivity extends AppCompatActivity implements View.OnClickList
         chart.setDrawGridBackground(false);
         chart.setPinchZoom(true);
 
+        chart.setDrawOrder(new CombinedChart.DrawOrder[]{
+                CombinedChart.DrawOrder.BAR,
+                CombinedChart.DrawOrder.BUBBLE,
+                CombinedChart.DrawOrder.LINE,
+                CombinedChart.DrawOrder.SCATTER,
+                CombinedChart.DrawOrder.CANDLE // Draw CandleData last (on top)
+        });
+
         YAxis leftAxis = chart.getAxisLeft();
         leftAxis.setDrawGridLines(true);
 
@@ -222,15 +238,19 @@ public class ChartActivity extends AppCompatActivity implements View.OnClickList
         int id = v.getId();
         if (id == R.id.button5m) {
             updateChartData(StockDataHelper.Timeframe.FIVE_MIN);
+            timeframe = "5m";
             formatTile("5m");;
         } else if (id == R.id.button15m) {
             updateChartData(StockDataHelper.Timeframe.FIFTEEN_MIN);
+            timeframe = "15m";
             formatTile("15m");
         } else if (id == R.id.button1h) {
             updateChartData(StockDataHelper.Timeframe.HOURLY);
+            timeframe = "1h";
             formatTile("1h");
         } else if (id == R.id.button1d) {
             updateChartData(StockDataHelper.Timeframe.DAILY);
+            timeframe = "1d";
             formatTile("1d");
         }
         else if (id == R.id.buttonHome) {

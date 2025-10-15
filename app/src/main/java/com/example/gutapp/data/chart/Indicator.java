@@ -60,4 +60,6 @@ public abstract class Indicator {
     public Indicators getType() {
         return this.type;
     }
+
+    public abstract String getParams();
 }
