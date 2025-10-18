@@ -81,7 +81,7 @@ public class ChartPresetHelper implements Table {
                 values.put(COLUMN_USER_ID, user_id);
                 values.put(COLUMN_PRESET_ID, preset_id);
                 values.put(COLUMN_SYMBOL, symbol);
-                values.put(COLUMN_TYPE, entry.getValue().getType().name());
+                values.put(COLUMN_TYPE, entry.getValue().getType().ordinal());
                 values.put(COLUMN_PARAMS, entry.getValue().getParams());
                 db.insert(TABLE_NAME, null, values);
             }

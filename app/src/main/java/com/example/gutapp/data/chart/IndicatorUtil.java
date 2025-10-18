@@ -54,7 +54,7 @@ public class IndicatorUtil {
             IndicatorDBHelper.insertIndicatorData(db, symbol, 0, ema, period, timeframe, indicatorName);
             entries.add(new Entry(prices.get(0)[0], ema));
 
-            for (int i = 1; i < prices.size(); i++) {
+            for (int i = period - 1; i < prices.size(); i++) {
                 ema = (prices.get(i)[1] - ema) * multiplier + ema;
                 IndicatorDBHelper.insertIndicatorData(db, symbol, i, ema, period, timeframe, indicatorName);
                 entries.add(new Entry(prices.get(i)[0], ema));
