@@ -11,6 +11,7 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
+import android.widget.EditText;
 import android.widget.ImageButton;
 import android.widget.PopupWindow;
 import android.widget.TextView;
@@ -379,36 +380,135 @@ public class ChartActivity extends AppCompatActivity implements View.OnClickList
         }
     }
 
-    // --- NEW: SETTINGS DIALOGS (PLACEHOLDERS) ---
-
     // For a new indicator
     private void showSettingsDialog(Indicators type) {
-        // Here you would inflate a custom layout with EditTexts for period, color pickers, etc.
-        // For now, we'll just use a simple AlertDialog.
-        new AlertDialog.Builder(this)
-                .setTitle("Settings for " + type.name())
-                .setMessage("Settings dialog not yet implemented. Adding with default values.")
-                .setPositiveButton("Add", (dialog, which) -> {
-                    float[] defaultParams = {Color.CYAN, 50, 3f}; // Different defaults for settings
-                    indicatorManager.createIndicator(type, defaultParams);
-                    activeIndicatorsAdapter.updateData(new ArrayList<>(indicatorManager.getAllIndicators().values()));
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        LayoutInflater inflater = this.getLayoutInflater();
+        View dialogView = inflater.inflate(R.layout.popup_indicator_settings, null);
+        builder.setView(dialogView);
+        builder.setTitle("Settings for " + type.name());
+
+        final EditText editTextPeriod = dialogView.findViewById(R.id.edit_text_period);
+        final EditText editTextWidth = dialogView.findViewById(R.id.edit_text_width);
+        final Button buttonColorPicker = dialogView.findViewById(R.id.button_color_picker);
+        final Button buttonApply = dialogView.findViewById(R.id.button_apply);
+        buttonApply.setText("Add"); // Change button text
+
+        // Default settings
+        final int defaultColor = Color.YELLOW;
+        final int defaultPeriod = 20;
+        final float defaultWidth = 2f;
+
+        final int[] selectedColor = { defaultColor };
+
+        editTextPeriod.setText(String.valueOf(defaultPeriod));
+        editTextWidth.setText(String.valueOf(defaultWidth));
+        buttonColorPicker.setBackgroundColor(selectedColor[0]);
+
+        final AlertDialog dialog = builder.create();
+
+        buttonColorPicker.setOnClickListener(v -> {
+            final String[] colorNames = {"Red", "Green", "Blue", "Yellow", "Cyan", "Magenta"};
+            final int[] colors = {Color.RED, Color.GREEN, Color.BLUE, Color.YELLOW, Color.CYAN, Color.MAGENTA};
+
+            new AlertDialog.Builder(ChartActivity.this)
+                .setTitle("Choose a color")
+                .setItems(colorNames, (d, which) -> {
+                    selectedColor[0] = colors[which];
+                    buttonColorPicker.setBackgroundColor(selectedColor[0]);
                 })
-                .setNegativeButton("Cancel", null)
                 .show();
+        });
+
+        buttonApply.setOnClickListener(v -> {
+            try {
+                String periodText = editTextPeriod.getText().toString();
+                String widthText = editTextWidth.getText().toString();
+
+                if (periodText.isEmpty() || widthText.isEmpty()) {
+                    Toast.makeText(ChartActivity.this, "Fields cannot be empty.", Toast.LENGTH_SHORT).show();
+                    return;
+                }
+
+                int newPeriod = Integer.parseInt(periodText);
+                float newWidth = Float.parseFloat(widthText);
+
+                float[] newParams = {(float) selectedColor[0], (float) newPeriod, newWidth};
+                indicatorManager.createIndicator(type, newParams);
+                
+                activeIndicatorsAdapter.updateData(new ArrayList<>(indicatorManager.getAllIndicators().values()));
+                Toast.makeText(ChartActivity.this, type.name() + " added.", Toast.LENGTH_SHORT).show();
+                dialog.dismiss();
+            } catch (NumberFormatException e) {
+                Toast.makeText(ChartActivity.this, "Invalid number format.", Toast.LENGTH_SHORT).show();
+            }
+        });
+
+        dialog.show();
     }
 
     // For an existing, active indicator
     private void showSettingsDialog(Indicator indicator) {
-        // Again, this should be a custom dialog.
-        new AlertDialog.Builder(this)
-                .setTitle("Change Settings for " + indicator.getType().name() + " (" + indicator.getID() + ")")
-                .setMessage("Settings dialog not yet implemented. No changes made.")
-                .setPositiveButton("Apply", (dialog, which) -> {
-                    // Example of changing settings
-                    // float[] newParams = {Color.MAGENTA, 100, 4f};
-                    // indicatorManager.changeSettings(indicator.getID(), newParams);
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        LayoutInflater inflater = this.getLayoutInflater();
+        View dialogView = inflater.inflate(R.layout.popup_indicator_settings, null);
+        builder.setView(dialogView);
+        builder.setTitle("Change Settings for " + indicator.getType().name());
+
+        final EditText editTextPeriod = dialogView.findViewById(R.id.edit_text_period);
+        final EditText editTextWidth = dialogView.findViewById(R.id.edit_text_width);
+        final Button buttonColorPicker = dialogView.findViewById(R.id.button_color_picker);
+        final Button buttonApply = dialogView.findViewById(R.id.button_apply);
+
+        // Parse current settings
+        String[] params = indicator.getParams().split(":");
+        final int currentColor = Integer.parseInt(params[0]);
+        int currentPeriod = Integer.parseInt(params[1]);
+        float currentWidth = Float.parseFloat(params[2]);
+
+        final int[] selectedColor = { currentColor }; // Use an array to be final and mutable
+
+        editTextPeriod.setText(String.valueOf(currentPeriod));
+        editTextWidth.setText(String.valueOf(currentWidth));
+        buttonColorPicker.setBackgroundColor(selectedColor[0]);
+
+        final AlertDialog dialog = builder.create();
+
+        buttonColorPicker.setOnClickListener(v -> {
+            final String[] colorNames = {"Red", "Green", "Blue", "Yellow", "Cyan", "Magenta"};
+            final int[] colors = {Color.RED, Color.GREEN, Color.BLUE, Color.YELLOW, Color.CYAN, Color.MAGENTA};
+
+            new AlertDialog.Builder(ChartActivity.this)
+                .setTitle("Choose a color")
+                .setItems(colorNames, (d, which) -> {
+                    selectedColor[0] = colors[which];
+                    buttonColorPicker.setBackgroundColor(selectedColor[0]);
                 })
-                .setNegativeButton("Cancel", null)
                 .show();
+        });
+
+        buttonApply.setOnClickListener(v -> {
+            try {
+                String periodText = editTextPeriod.getText().toString();
+                String widthText = editTextWidth.getText().toString();
+
+                if (periodText.isEmpty() || widthText.isEmpty()) {
+                    Toast.makeText(ChartActivity.this, "Fields cannot be empty.", Toast.LENGTH_SHORT).show();
+                    return;
+                }
+
+                int newPeriod = Integer.parseInt(periodText);
+                float newWidth = Float.parseFloat(widthText);
+
+                float[] newParams = {(float) selectedColor[0], (float) newPeriod, newWidth};
+                indicator.changeSettings(newParams, chart);
+                Toast.makeText(ChartActivity.this, "Indicator updated.", Toast.LENGTH_SHORT).show();
+                dialog.dismiss();
+            } catch (NumberFormatException e) {
+                Toast.makeText(ChartActivity.this, "Invalid number format.", Toast.LENGTH_SHORT).show();
+            }
+        });
+
+        dialog.show();
     }
 }
