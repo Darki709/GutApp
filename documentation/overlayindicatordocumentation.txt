@@ -1,0 +1,114 @@
+### **Documentation: How to Add a New Overlay Indicator**
+
+This guide outlines the four main steps required to create, integrate, and display a new technical indicator on the stock chart. The architecture is designed to be modular, ensuring that new indicators can be added without modifying the core chart or activity logic.
+
+#### **Core Concept: The `Indicator` Abstract Class**
+
+Any new indicator must be a concrete implementation of the `com.example.gutapp.data.chart.Indicator` abstract class. This class provides the foundational structure and contract for all indicators.
+
+**Key Responsibilities of a Concrete Indicator Class:**
+
+*   **Constructor:** Your constructor must call `super()`, passing the required base parameters. For a typical overlay indicator, the `isOverlay` parameter should be `true`.
+    ```java
+    public MyIndicator(DB_Helper db_helper, /*...other params...*/, String id, Indicators type, String symbol, StockDataHelper.Timeframe timeframe) {
+        super(id, type, timeframe, true, symbol, color);
+        // ... initialize your indicator's specific fields
+    }
+    ```
+
+*   **`draw(CombinedChart chart)`:** The primary method for rendering. Its job is to:
+    1.  Call a calculation method (e.g., `calculateMyIndicator()`).
+    2.  This calculation method should first attempt to fetch cached data using `IndicatorDBHelper`. If no data is found, it calculates the values (ideally using a function in `IndicatorUtil`) and caches the new results.
+    3.  The method returns a `LineDataSet`.
+    4.  Configure the `LineDataSet` (color, width, etc.) and add it to the chart's `CombinedData`.
+    5.  Refresh the chart.
+
+*   **`remove(CombinedChart chart)`:** Must cleanly remove the indicator's specific `LineDataSet` from the chart's data. This is crucial for preventing visual artifacts when settings change or the indicator is deleted.
+
+*   **`changeSettings(float[] params, CombinedChart chart)`:** Called when the user modifies the indicator's parameters. It should update the indicator's internal state (e.g., `period`, `width`), and then call `draw(chart)` to reflect the changes.
+
+*   **`getParams()`:** Must return a colon-separated string of the indicator's current parameters (e.g., `"color:period:width"`). This is essential for the `PresetManager` to save the indicator's state.
+
+---
+
+### **Implementation Steps**
+
+#### **Step 1: Create the Indicator Class**
+
+Create a new Java class for your indicator in the following directory:
+`app/src/main/java/com/example/gutapp/data/chart/indicators/`
+
+This class must extend `Indicator` and implement all abstract methods. Use `SMA.java` or `EMA.java` as a template.
+
+#### **Step 2: Add Calculation Logic to `IndicatorUtil` (Recommended)**
+
+For maintainability and code reuse, place the core mathematical calculation for your indicator in a `static` method inside `IndicatorUtil.java`.
+
+*   **Location:** `app/src/main/java/com/example/gutapp/data/chart/IndicatorUtil.java`
+*   **Function:** This utility method will take the raw price data and other parameters, perform the calculation, and use `IndicatorDBHelper.insertIndicatorData()` to cache the results within a database transaction for optimal performance. It should return a fully populated `LineDataSet`.
+    ```java
+    // Inside IndicatorUtil.java
+    public static LineDataSet myIndicatorDataSet(SQLiteDatabase db, List<float[]> prices, int period, /*...other params...*/) {
+        // ... calculation logic ...
+        db.beginTransaction();
+        try {
+            // ... loop, calculate, and call...
+            IndicatorDBHelper.insertIndicatorData(db, /*...args...*/);
+            db.setTransactionSuccessful();
+        } finally {
+            db.endTransaction();
+        }
+        // ... return new LineDataSet(entries, id);
+    }
+    ```
+
+#### **Step 3: Register the Indicator in the `Indicators` Enum**
+
+To make the new indicator available for creation within the app, add its name to the `Indicators` enum.
+
+*   **Location:** `app/src/main/java/com/example/gutapp/data/chart/Indicators.java`
+*   **Action:** Add the new enum constant.
+    ```java
+    // Inside Indicators.java
+    public enum Indicators {
+        SMA,
+        EMA,
+        MY_INDICATOR; // Add your new indicator here
+        // ...
+    }
+    ```
+
+#### **Step 4: Update the `IndicatorFactory`**
+
+The factory is responsible for instantiating indicators. You must add a `case` for your new indicator type in the `createIndicator` method.
+
+*   **Location:** `app/src/main/java/com/example/gutapp/data/chart/IndicatorFactory.java`
+*   **Action:** Add a new `case` to the `switch` statement that calls your new indicator's constructor.
+    ```java
+    // Inside IndicatorFactory.java
+    public static Indicator createIndicator(Indicators type, /*...args...*/) {
+        switch (type) {
+            case SMA:
+                // ...
+            case EMA:
+                // ...
+            case MY_INDICATOR: // Your new case
+                return new MyIndicator(db_helper, (int)params[0], (int)params[1], params[2], id, type, symbol, timeframe);
+        }
+        return null;
+    }
+    ```
+
+---
+
+### **Summary of Key External Class APIs**
+
+When developing an indicator, you will primarily interact with the following classes from the application's framework and libraries:
+
+*   **`com.github.mikephil.charting.charts.CombinedChart`**: The chart object itself, used in `draw`, `remove`, and `changeSettings`.
+*   **`com.github.mikephil.charting.data.LineDataSet`**: The object representing your indicator's line on the chart. Your `calculate` method will create and return this.
+*   **`com.example.gutapp.database.IndicatorDBHelper`**: Handles all database interactions for caching indicator data.
+    *   `fetchIndicatorData(...)`: Use this to retrieve cached indicator values.
+    *   `insertIndicatorData(...)`: Use this inside your `IndicatorUtil` calculation method to store computed values.
+*   **`com.example.gutapp.database.DB_Helper`**: The main database helper, passed via the constructor to your indicator to get a database instance.
+*   **`com.example.gutapp.database.StockDataHelper.Timeframe`**: An enum representing the current chart timeframe (e.g., DAILY, WEEKLY), essential for fetching and caching the correct data.
