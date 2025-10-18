@@ -7,8 +7,6 @@ import android.util.Log;
 
 import androidx.annotation.Nullable;
 
-import com.example.gutapp.database.indicatorHelpers.SMA_DBHelper;
-
 import java.util.ArrayList;
 
 public class DB_Helper extends SQLiteOpenHelper {
@@ -54,6 +52,8 @@ public class DB_Helper extends SQLiteOpenHelper {
             }
         }
         Log.i(DB_LOG_TAG, "end create db");
+        ((StockDataHelper) this.getHelper(DB_Index.STOCK_TABLE)).loadStockDataFromAssets(sqLiteDatabase);
+        ((SymbolsTableHelper) this.getHelper(DB_Index.SYMBOL_TABLE)).loadDefaultSymbols(sqLiteDatabase);
     }
 
     @Override

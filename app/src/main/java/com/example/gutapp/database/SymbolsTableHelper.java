@@ -14,13 +14,11 @@ public class SymbolsTableHelper implements Table{
 
     public SymbolsTableHelper(DB_Helper db_helper) {
         this.db_helper = db_helper;
-
     }
 
 
 
-    public boolean insertSymbol(String symbol, String name) {
-        SQLiteDatabase db = db_helper.getWritableDatabase();
+    public boolean insertSymbol(String symbol, String name, SQLiteDatabase db) {
         String sql = "INSERT INTO " + TABLE_NAME + " (" + COLUMN_SYMBOL + ", " + COLUMN_NAME + ") VALUES (?, ?)";
         try {
             db.execSQL(sql, new String[]{symbol, name});
@@ -46,13 +44,13 @@ public class SymbolsTableHelper implements Table{
         return null;
     }
 
-    public void loadDefaultSymbols() {
-        insertSymbol("IBM", "International Business Machines");
-        insertSymbol("TSLA", "Tesla, Inc.");
-        insertSymbol("GOOG", "Alphabet Inc.");
-        insertSymbol("AAPL", "Apple Inc.");
-        insertSymbol("^GSPC", "S&P 500");
-        insertSymbol("AD.AS", "Ahold Delhaize");
+    public void loadDefaultSymbols(SQLiteDatabase db) {
+        insertSymbol("IBM", "International Business Machines", db);
+        insertSymbol("TSLA", "Tesla, Inc.", db);
+        insertSymbol("GOOG", "Alphabet Inc.", db);
+        insertSymbol("AAPL", "Apple Inc.", db);
+        insertSymbol("^GSPC", "S&P 500", db);
+        insertSymbol("AD.AS", "Ahold Delhaize", db);
     }
 
 

@@ -58,8 +58,7 @@ public class StockDataHelper implements Table {
         DB_HELPER = db_helper;
     }
 
-    public void loadStockDataFromAssets() {
-        SQLiteDatabase db = DB_HELPER.getWritableDatabase();
+    public void loadStockDataFromAssets(SQLiteDatabase db) {
         try {
             InputStream inputStream = context.getAssets().open("Gut_db-stock_data.sql");
             BufferedReader bufferedReader = new BufferedReader(new InputStreamReader(inputStream));
