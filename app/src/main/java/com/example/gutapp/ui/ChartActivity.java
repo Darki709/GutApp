@@ -34,6 +34,7 @@ import com.example.gutapp.data.chart.Indicators;
 import com.example.gutapp.database.DB_Helper;
 import com.example.gutapp.database.DB_Index;
 import com.example.gutapp.database.StockDataHelper;
+import com.example.gutapp.database.indicatorHelpers.BollingerBands_DBHelper; // Import for clearing
 
 import com.github.mikephil.charting.charts.CombinedChart;
 import com.github.mikephil.charting.components.AxisBase;
@@ -69,7 +70,7 @@ public class ChartActivity extends AppCompatActivity implements View.OnClickList
     private ActiveIndicatorsAdapter activeIndicatorsAdapter;
     private PopupWindow indicatorPopupWindow;
 
-    @SuppressLint("SetTextI18n")
+    @SuppressLint("SetTextI11n")
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -87,6 +88,7 @@ public class ChartActivity extends AppCompatActivity implements View.OnClickList
 
         //initialize important database objects
         db_helper = new DB_Helper(this);
+
         stockDataHelper = (StockDataHelper) db_helper.getHelper(DB_Index.STOCK_TABLE);
 
         chart = findViewById(R.id.stockChart);
@@ -317,8 +319,12 @@ public class ChartActivity extends AppCompatActivity implements View.OnClickList
             holder.buttonAction2.setText("Settings");
 
             holder.buttonAction1.setOnClickListener(v -> {
-                // Add with default settings, e.g., SMA(20)
-                float[] defaultParams = {Color.YELLOW, 20, 1f}; // color, period, width
+                float[] defaultParams;
+                if (indicatorType == Indicators.BOLLINGER_BANDS) {
+                    defaultParams = new float[]{Color.YELLOW, 20, 2.0f, 1f}; // color, period, stdDevMultiplier, width
+                } else {
+                    defaultParams = new float[]{Color.YELLOW, 20, 1f}; // color, period, width (for SMA, EMA)
+                }
                 indicatorManager.createIndicator(indicatorType, defaultParams);
                 activeIndicatorsAdapter.updateData(new ArrayList<>(indicatorManager.getAllIndicators().values()));
                 Toast.makeText(ChartActivity.this, indicatorType.name() + " added.", Toast.LENGTH_SHORT).show();
@@ -398,12 +404,22 @@ public class ChartActivity extends AppCompatActivity implements View.OnClickList
         final int defaultColor = Color.YELLOW;
         final int defaultPeriod = 20;
         final float defaultWidth = 2f;
+        final float defaultStdDevMultiplier = 2.0f; // Default for Bollinger Bands
 
         final int[] selectedColor = { defaultColor };
 
         editTextPeriod.setText(String.valueOf(defaultPeriod));
         editTextWidth.setText(String.valueOf(defaultWidth));
         buttonColorPicker.setBackgroundColor(selectedColor[0]);
+
+        // Conditionally show/hide and set text for stdDevMultiplier
+        final EditText editTextStdDevMultiplier = dialogView.findViewById(R.id.edit_text_std_dev_multiplier);
+        if (type == Indicators.BOLLINGER_BANDS) {
+            editTextStdDevMultiplier.setVisibility(View.VISIBLE);
+            editTextStdDevMultiplier.setText(String.valueOf(defaultStdDevMultiplier));
+        } else {
+            editTextStdDevMultiplier.setVisibility(View.GONE);
+        }
 
         final AlertDialog dialog = builder.create();
 
@@ -433,7 +449,19 @@ public class ChartActivity extends AppCompatActivity implements View.OnClickList
                 int newPeriod = Integer.parseInt(periodText);
                 float newWidth = Float.parseFloat(widthText);
 
-                float[] newParams = {(float) selectedColor[0], (float) newPeriod, newWidth};
+                float[] newParams;
+                if (type == Indicators.BOLLINGER_BANDS) {
+                    String stdDevText = editTextStdDevMultiplier.getText().toString();
+                    if (stdDevText.isEmpty()) {
+                        Toast.makeText(ChartActivity.this, "Standard Deviation Multiplier cannot be empty.", Toast.LENGTH_SHORT).show();
+                        return;
+                    }
+                    float newStdDevMultiplier = Float.parseFloat(stdDevText);
+                    newParams = new float[]{(float) selectedColor[0], (float) newPeriod, newStdDevMultiplier, newWidth};
+                } else {
+                    newParams = new float[]{(float) selectedColor[0], (float) newPeriod, newWidth};
+                }
+
                 indicatorManager.createIndicator(type, newParams);
                 
                 activeIndicatorsAdapter.updateData(new ArrayList<>(indicatorManager.getAllIndicators().values()));
@@ -464,13 +492,30 @@ public class ChartActivity extends AppCompatActivity implements View.OnClickList
         String[] params = indicator.getParams().split(":");
         final int currentColor = Integer.parseInt(params[0]);
         int currentPeriod = Integer.parseInt(params[1]);
-        float currentWidth = Float.parseFloat(params[2]);
+        float currentWidth;
+        float currentStdDevMultiplier = 0f; // Initialize for Bollinger Bands
+
+        // Conditionally parse based on indicator type
+        if (indicator.getType() == Indicators.BOLLINGER_BANDS) {
+            currentStdDevMultiplier = Float.parseFloat(params[2]);
+            currentWidth = Float.parseFloat(params[3]);
+        } else {
+            currentWidth = Float.parseFloat(params[2]);
+        }
 
         final int[] selectedColor = { currentColor }; // Use an array to be final and mutable
 
         editTextPeriod.setText(String.valueOf(currentPeriod));
         editTextWidth.setText(String.valueOf(currentWidth));
         buttonColorPicker.setBackgroundColor(selectedColor[0]);
+
+        final EditText editTextStdDevMultiplier = dialogView.findViewById(R.id.edit_text_std_dev_multiplier);
+        if (indicator.getType() == Indicators.BOLLINGER_BANDS) {
+            editTextStdDevMultiplier.setVisibility(View.VISIBLE);
+            editTextStdDevMultiplier.setText(String.valueOf(currentStdDevMultiplier));
+        } else {
+            editTextStdDevMultiplier.setVisibility(View.GONE);
+        }
 
         final AlertDialog dialog = builder.create();
 
@@ -500,7 +545,19 @@ public class ChartActivity extends AppCompatActivity implements View.OnClickList
                 int newPeriod = Integer.parseInt(periodText);
                 float newWidth = Float.parseFloat(widthText);
 
-                float[] newParams = {(float) selectedColor[0], (float) newPeriod, newWidth};
+                float[] newParams;
+                if (indicator.getType() == Indicators.BOLLINGER_BANDS) {
+                    String stdDevText = editTextStdDevMultiplier.getText().toString();
+                    if (stdDevText.isEmpty()) {
+                        Toast.makeText(ChartActivity.this, "Standard Deviation Multiplier cannot be empty.", Toast.LENGTH_SHORT).show();
+                        return;
+                    }
+                    float newStdDevMultiplier = Float.parseFloat(stdDevText);
+                    newParams = new float[]{(float) selectedColor[0], (float) newPeriod, newStdDevMultiplier, newWidth};
+                } else {
+                    newParams = new float[]{(float) selectedColor[0], (float) newPeriod, newWidth};
+                }
+
                 indicator.changeSettings(newParams, chart);
                 Toast.makeText(ChartActivity.this, "Indicator updated.", Toast.LENGTH_SHORT).show();
                 dialog.dismiss();

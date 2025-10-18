@@ -2,7 +2,8 @@ package com.example.gutapp.data.chart;
 
 public enum Indicators {
     SMA,
-    EMA;
+    EMA,
+    BOLLINGER_BANDS;
 
     public static Indicators fromInt(int i) {
         Indicators[] values = Indicators.values();

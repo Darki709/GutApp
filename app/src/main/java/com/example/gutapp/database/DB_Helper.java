@@ -7,6 +7,8 @@ import android.util.Log;
 
 import androidx.annotation.Nullable;
 
+import com.example.gutapp.database.indicatorHelpers.BollingerBands_DBHelper;
+
 import java.util.ArrayList;
 
 public class DB_Helper extends SQLiteOpenHelper {
@@ -31,6 +33,8 @@ public class DB_Helper extends SQLiteOpenHelper {
         tables.add(chartPresetHelper);
         IndicatorDBHelper indicatorDBHelper = new IndicatorDBHelper(this);
         tables.add(indicatorDBHelper);
+        BollingerBands_DBHelper bollingerBandsDBHelper = new BollingerBands_DBHelper(this);
+        tables.add(bollingerBandsDBHelper);
         Log.i(DB_LOG_TAG, "db helper created " + tables.toString());
     }
 

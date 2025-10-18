@@ -1,10 +1,12 @@
 package com.example.gutapp.data.chart;
 
 import android.database.sqlite.SQLiteDatabase;
+import android.util.Log;
 
 import com.example.gutapp.database.DB_Helper;
 import com.example.gutapp.database.StockDataHelper;
 import com.example.gutapp.database.IndicatorDBHelper;
+import com.example.gutapp.database.indicatorHelpers.BollingerBands_DBHelper;
 import com.github.mikephil.charting.data.Entry;
 import com.github.mikephil.charting.data.LineDataSet;
 
@@ -66,5 +68,61 @@ public class IndicatorUtil {
 
         LineDataSet set = new LineDataSet(entries, id);
         return set;
+    }
+
+    public static List<LineDataSet> bollingerBandsDataSet(SQLiteDatabase db, List<float[]> prices, int period, float stdDevMultiplier, String symbol, String id, StockDataHelper.Timeframe timeframe) {
+        List<Entry> middleBandEntries = new ArrayList<>();
+        List<Entry> upperBandEntries = new ArrayList<>();
+        List<Entry> lowerBandEntries = new ArrayList<>();
+        List<LineDataSet> allBandsDataSets = new ArrayList<>();
+
+        if (prices == null || prices.size() < period) {
+            allBandsDataSets.add(new LineDataSet(middleBandEntries, id + "_middle"));
+            allBandsDataSets.add(new LineDataSet(upperBandEntries, id + "_upper"));
+            allBandsDataSets.add(new LineDataSet(lowerBandEntries, id + "_lower"));
+            return allBandsDataSets;
+        }
+
+        db.beginTransaction();
+        try {
+            for (int i = period - 1; i < prices.size(); i++) {
+                // Calculate SMA (Middle Band)
+                float sum = 0f;
+                for (int j = i - period + 1; j <= i; j++) {
+                    sum += prices.get(j)[1];
+                }
+                float middleBand = sum / period;
+
+                // Calculate Standard Deviation
+                float varianceSum = 0f;
+                for (int j = i - period + 1; j <= i; j++) {
+                    varianceSum += Math.pow(prices.get(j)[1] - middleBand, 2);
+                }
+                float standardDeviation = (float) Math.sqrt(varianceSum / period);
+
+                // Calculate Upper and Lower Bands
+                float upperBand = middleBand + (standardDeviation * stdDevMultiplier);
+                float lowerBand = middleBand - (standardDeviation * stdDevMultiplier);
+
+                // Cache the result (using sequential index 'i' as x-value)
+                BollingerBands_DBHelper.insertBollingerBands(
+                        db, symbol, i, middleBand, upperBand, lowerBand,
+                        period, stdDevMultiplier, timeframe
+                );
+
+                // Add to entries list (using sequential index 'i' as x-value)
+                middleBandEntries.add(new Entry(i, middleBand));
+                upperBandEntries.add(new Entry(i, upperBand));
+                lowerBandEntries.add(new Entry(i, lowerBand));
+            }
+            db.setTransactionSuccessful();
+        } finally {
+            db.endTransaction();
+        }
+
+        allBandsDataSets.add(new LineDataSet(middleBandEntries, id + "_middle"));
+        allBandsDataSets.add(new LineDataSet(upperBandEntries, id + "_upper"));
+        allBandsDataSets.add(new LineDataSet(lowerBandEntries, id + "_lower"));
+        return allBandsDataSets;
     }
 }
