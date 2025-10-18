@@ -2,7 +2,6 @@ package com.example.gutapp.data.chart.indicators;
 
 import android.database.Cursor;
 import android.graphics.Color;
-import android.util.Log;
 
 import com.example.gutapp.data.chart.Indicator;
 import com.example.gutapp.data.chart.IndicatorUtil;
@@ -55,18 +54,12 @@ public class BollingerBands extends Indicator {
         List<List<Entry>> cachedData = dbHelper.fetchBollingerBands(symbol, period, stdDevMultiplier, timeframe);
 
         if (!cachedData.get(0).isEmpty()) {
-            Log.i(ChartActivity.CHART_LOG_TAG,
-                    "Returning cached Bollinger Bands data for " + symbol + " " + timeframe.name() +
-                    " size: " + cachedData.get(0).size());
             List<LineDataSet> dataSets = new ArrayList<>();
             dataSets.add(new LineDataSet(cachedData.get(0), middleBandId));
             dataSets.add(new LineDataSet(cachedData.get(1), upperBandId));
             dataSets.add(new LineDataSet(cachedData.get(2), lowerBandId));
             return dataSets;
         } else {
-            Log.i(ChartActivity.CHART_LOG_TAG,
-                    "Calculating Bollinger Bands for " + symbol + " " + timeframe.name());
-
             List<float[]> prices = new ArrayList<>();
 
             try (Cursor cursor = ((StockDataHelper) db_helper.getHelper(DB_Index.STOCK_TABLE))
@@ -84,9 +77,6 @@ public class BollingerBands extends Indicator {
                         prices.add(new float[]{date, close});
                         cursor.moveToNext();
                     }
-                    Log.i(DB_Helper.DB_LOG_TAG,
-                            "Fetched " + prices.size() + " entries for symbol " + symbol);
-
                     return IndicatorUtil.bollingerBandsDataSet(
                             db_helper.getWritableDatabase(),
                             prices,
@@ -98,8 +88,6 @@ public class BollingerBands extends Indicator {
                     );
                 }
             } catch (Exception e) {
-                Log.e(DB_Helper.DB_LOG_TAG,
-                        "Error fetching stock data for Bollinger Bands: " + e.getMessage(), e);
             }
             List<LineDataSet> emptyDataSets = new ArrayList<>();
             emptyDataSets.add(new LineDataSet(new ArrayList<>(), middleBandId + "_error"));
@@ -111,7 +99,6 @@ public class BollingerBands extends Indicator {
 
     @Override
     public void draw(CombinedChart combinedChart) {
-        Log.i(ChartActivity.CHART_LOG_TAG, "BollingerBands: draw() called for ID: " + getID());
         remove(combinedChart);
 
         List<LineDataSet> bollingerBandsDataSets = calculateBollingerBands(
@@ -122,10 +109,8 @@ public class BollingerBands extends Indicator {
         );
 
         if (bollingerBandsDataSets == null || bollingerBandsDataSets.isEmpty() || bollingerBandsDataSets.get(0).getEntryCount() == 0) {
-            Log.w(ChartActivity.CHART_LOG_TAG, "BollingerBands: No data to draw for ID: " + getID());
             return;
         }
-        Log.d(ChartActivity.CHART_LOG_TAG, "BollingerBands: Data sets returned. Middle Band entries: " + bollingerBandsDataSets.get(0).getEntryCount());
 
         // Configure visual properties for Middle Band
         LineDataSet middleBandDataSet = bollingerBandsDataSets.get(0);
@@ -134,7 +119,6 @@ public class BollingerBands extends Indicator {
         middleBandDataSet.setDrawCircles(false);
         middleBandDataSet.setDrawValues(false);
         middleBandDataSet.setHighlightEnabled(false);
-        Log.d(ChartActivity.CHART_LOG_TAG, "BollingerBands: Middle Band configured. Color: " + this.color + ", Width: " + this.width);
 
         // Configure visual properties for Upper Band
         LineDataSet upperBandDataSet = bollingerBandsDataSets.get(1);
@@ -143,7 +127,6 @@ public class BollingerBands extends Indicator {
         upperBandDataSet.setDrawCircles(false);
         upperBandDataSet.setDrawValues(false);
         upperBandDataSet.setHighlightEnabled(false);
-        Log.d(ChartActivity.CHART_LOG_TAG, "BollingerBands: Upper Band configured. Color: " + Color.BLUE + ", Width: " + this.width);
 
         // Configure visual properties for Lower Band
         LineDataSet lowerBandDataSet = bollingerBandsDataSets.get(2);
@@ -152,48 +135,37 @@ public class BollingerBands extends Indicator {
         lowerBandDataSet.setDrawCircles(false);
         lowerBandDataSet.setDrawValues(false);
         lowerBandDataSet.setHighlightEnabled(false);
-        Log.d(ChartActivity.CHART_LOG_TAG, "BollingerBands: Lower Band configured. Color: " + Color.BLUE + ", Width: " + this.width);
 
         CombinedData combinedData = combinedChart.getData();
         if (combinedData == null) {
-            Log.e(ChartActivity.CHART_LOG_TAG, "BollingerBands: CombinedData is null. Cannot draw indicator.");
             return;
         }
-        Log.d(ChartActivity.CHART_LOG_TAG, "BollingerBands: CombinedData is not null.");
 
         LineData lineData = combinedData.getLineData();
         if (lineData == null) {
             lineData = new LineData();
-            Log.d(ChartActivity.CHART_LOG_TAG, "BollingerBands: LineData was null, new one created.");
         }
 
         lineData.addDataSet(middleBandDataSet);
         lineData.addDataSet(upperBandDataSet);
         lineData.addDataSet(lowerBandDataSet);
-        Log.d(ChartActivity.CHART_LOG_TAG, "BollingerBands: DataSets added to LineData. Total LineData sets: " + lineData.getDataSetCount());
 
         combinedData.setData(lineData);
-        Log.d(ChartActivity.CHART_LOG_TAG, "BollingerBands: LineData set to CombinedData.");
         combinedChart.setData(combinedData);
-        Log.d(ChartActivity.CHART_LOG_TAG, "BollingerBands: CombinedData set to chart.");
 
         combinedChart.notifyDataSetChanged();
         combinedChart.invalidate();
-        Log.i(ChartActivity.CHART_LOG_TAG, "BollingerBands: Chart notified and invalidated for ID: " + getID());
     }
 
     @Override
     public void remove(CombinedChart combinedChart) {
-        Log.i(ChartActivity.CHART_LOG_TAG, "BollingerBands: remove() called for ID: " + getID());
         CombinedData data = combinedChart.getData();
         if (data == null) {
-            Log.d(ChartActivity.CHART_LOG_TAG, "BollingerBands: remove() - CombinedData is null.");
             return;
         }
 
         LineData lineData = data.getLineData();
         if (lineData == null) {
-            Log.d(ChartActivity.CHART_LOG_TAG, "BollingerBands: remove() - LineData is null.");
             return;
         }
 
@@ -203,25 +175,20 @@ public class BollingerBands extends Indicator {
 
         if (middleSet != null) {
             lineData.removeDataSet(middleSet);
-            Log.d(ChartActivity.CHART_LOG_TAG, "BollingerBands: Removed Middle Band: " + middleBandId);
         }
         if (upperSet != null) {
             lineData.removeDataSet(upperSet);
-            Log.d(ChartActivity.CHART_LOG_TAG, "BollingerBands: Removed Upper Band: " + upperBandId);
         }
         if (lowerSet != null) {
             lineData.removeDataSet(lowerSet);
-            Log.d(ChartActivity.CHART_LOG_TAG, "BollingerBands: Removed Lower Band: " + lowerBandId);
         }
 
         combinedChart.notifyDataSetChanged();
         combinedChart.invalidate();
-        Log.i(ChartActivity.CHART_LOG_TAG, "BollingerBands: Chart refreshed after remove for ID: " + getID());
     }
 
     @Override
     public void changeSettings(float[] params, CombinedChart combinedChart) {
-        Log.i(ChartActivity.CHART_LOG_TAG, "BollingerBands: changeSettings() called for ID: " + getID());
         this.remove(combinedChart);
 
         this.color = (int) params[0];
@@ -230,7 +197,6 @@ public class BollingerBands extends Indicator {
         this.width = params[3];
 
         this.draw(combinedChart);
-        Log.i(ChartActivity.CHART_LOG_TAG, "BollingerBands: Settings changed and redrawn for ID: " + getID());
     }
 
     @Override

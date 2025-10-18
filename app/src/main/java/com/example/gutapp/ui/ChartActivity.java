@@ -4,6 +4,7 @@ import android.annotation.SuppressLint;
 import android.content.Intent;
 import android.graphics.Color;
 import android.graphics.Paint;
+import android.graphics.drawable.ColorDrawable;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.Gravity;
@@ -34,7 +35,6 @@ import com.example.gutapp.data.chart.Indicators;
 import com.example.gutapp.database.DB_Helper;
 import com.example.gutapp.database.DB_Index;
 import com.example.gutapp.database.StockDataHelper;
-import com.example.gutapp.database.indicatorHelpers.BollingerBands_DBHelper; // Import for clearing
 
 import com.github.mikephil.charting.charts.CombinedChart;
 import com.github.mikephil.charting.components.AxisBase;
@@ -69,6 +69,7 @@ public class ChartActivity extends AppCompatActivity implements View.OnClickList
     private AvailableIndicatorsAdapter availableIndicatorsAdapter;
     private ActiveIndicatorsAdapter activeIndicatorsAdapter;
     private PopupWindow indicatorPopupWindow;
+    private PopupWindow settingsPopupWindow; // Declare settings PopupWindow
 
     @SuppressLint("SetTextI11n")
     @Override
@@ -247,11 +248,13 @@ public class ChartActivity extends AppCompatActivity implements View.OnClickList
             updateChartData(StockDataHelper.Timeframe.FIFTEEN_MIN);
             timeframe = "15m";
             formatTile("15m");
-        } else if (id == R.id.button1h) {
+        }
+        else if (id == R.id.button1h) {
             updateChartData(StockDataHelper.Timeframe.HOURLY);
             timeframe = "1h";
             formatTile("1h");
-        } else if (id == R.id.button1d) {
+        }
+        else if (id == R.id.button1d) {
             updateChartData(StockDataHelper.Timeframe.DAILY);
             timeframe = "1d";
             formatTile("1d");
@@ -279,6 +282,7 @@ public class ChartActivity extends AppCompatActivity implements View.OnClickList
 
         indicatorPopupWindow = new PopupWindow(popupView,
                 ViewGroup.LayoutParams.MATCH_PARENT, 800 , true);
+        indicatorPopupWindow.setElevation(10f); // Added elevation
 
         RecyclerView availableRv = popupView.findViewById(R.id.availableIndicatorsRecyclerView);
         availableRv.setLayoutManager(new LinearLayoutManager(this));
@@ -388,17 +392,28 @@ public class ChartActivity extends AppCompatActivity implements View.OnClickList
 
     // For a new indicator
     private void showSettingsDialog(Indicators type) {
-        AlertDialog.Builder builder = new AlertDialog.Builder(this);
-        LayoutInflater inflater = this.getLayoutInflater();
-        View dialogView = inflater.inflate(R.layout.popup_indicator_settings, null);
-        builder.setView(dialogView);
-        builder.setTitle("Settings for " + type.name());
+        LayoutInflater inflater = (LayoutInflater) getSystemService(LAYOUT_INFLATER_SERVICE);
+        View popupView = inflater.inflate(R.layout.popup_indicator_settings, null);
 
-        final EditText editTextPeriod = dialogView.findViewById(R.id.edit_text_period);
-        final EditText editTextWidth = dialogView.findViewById(R.id.edit_text_width);
-        final Button buttonColorPicker = dialogView.findViewById(R.id.button_color_picker);
-        final Button buttonApply = dialogView.findViewById(R.id.button_apply);
-        buttonApply.setText("Add"); // Change button text
+        // Set up the PopupWindow
+        settingsPopupWindow = new PopupWindow(popupView,
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, true);
+        settingsPopupWindow.setFocusable(true);
+        settingsPopupWindow.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT)); // Important for custom background
+        settingsPopupWindow.setElevation(10f); // Added elevation
+        settingsPopupWindow.showAtLocation(findViewById(R.id.main), Gravity.CENTER, 0, 0);
+
+        // Get references to views in the popup
+        TextView dialogTitle = popupView.findViewById(R.id.dialog_title); // Assuming you add a TextView with this ID in XML
+        if (dialogTitle != null) {
+            dialogTitle.setText("Settings for " + type.name());
+        }
+
+        final EditText editTextPeriod = popupView.findViewById(R.id.edit_text_period);
+        final EditText editTextWidth = popupView.findViewById(R.id.edit_text_width);
+        final Button buttonColorPicker = popupView.findViewById(R.id.button_color_picker);
+        final Button buttonCancel = popupView.findViewById(R.id.button_cancel);
+        final Button buttonApply = popupView.findViewById(R.id.button_apply);
 
         // Default settings
         final int defaultColor = Color.YELLOW;
@@ -413,15 +428,13 @@ public class ChartActivity extends AppCompatActivity implements View.OnClickList
         buttonColorPicker.setBackgroundColor(selectedColor[0]);
 
         // Conditionally show/hide and set text for stdDevMultiplier
-        final EditText editTextStdDevMultiplier = dialogView.findViewById(R.id.edit_text_std_dev_multiplier);
+        final EditText editTextStdDevMultiplier = popupView.findViewById(R.id.edit_text_std_dev_multiplier);
         if (type == Indicators.BOLLINGER_BANDS) {
             editTextStdDevMultiplier.setVisibility(View.VISIBLE);
             editTextStdDevMultiplier.setText(String.valueOf(defaultStdDevMultiplier));
         } else {
             editTextStdDevMultiplier.setVisibility(View.GONE);
         }
-
-        final AlertDialog dialog = builder.create();
 
         buttonColorPicker.setOnClickListener(v -> {
             final String[] colorNames = {"Red", "Green", "Blue", "Yellow", "Cyan", "Magenta"};
@@ -466,27 +479,39 @@ public class ChartActivity extends AppCompatActivity implements View.OnClickList
                 
                 activeIndicatorsAdapter.updateData(new ArrayList<>(indicatorManager.getAllIndicators().values()));
                 Toast.makeText(ChartActivity.this, type.name() + " added.", Toast.LENGTH_SHORT).show();
-                dialog.dismiss();
+                settingsPopupWindow.dismiss(); // Dismiss the popup
             } catch (NumberFormatException e) {
                 Toast.makeText(ChartActivity.this, "Invalid number format.", Toast.LENGTH_SHORT).show();
             }
         });
 
-        dialog.show();
+        buttonCancel.setOnClickListener(v -> settingsPopupWindow.dismiss()); // Dismiss on cancel
     }
 
     // For an existing, active indicator
     private void showSettingsDialog(Indicator indicator) {
-        AlertDialog.Builder builder = new AlertDialog.Builder(this);
-        LayoutInflater inflater = this.getLayoutInflater();
-        View dialogView = inflater.inflate(R.layout.popup_indicator_settings, null);
-        builder.setView(dialogView);
-        builder.setTitle("Change Settings for " + indicator.getType().name());
+        LayoutInflater inflater = (LayoutInflater) getSystemService(LAYOUT_INFLATER_SERVICE);
+        View popupView = inflater.inflate(R.layout.popup_indicator_settings, null);
 
-        final EditText editTextPeriod = dialogView.findViewById(R.id.edit_text_period);
-        final EditText editTextWidth = dialogView.findViewById(R.id.edit_text_width);
-        final Button buttonColorPicker = dialogView.findViewById(R.id.button_color_picker);
-        final Button buttonApply = dialogView.findViewById(R.id.button_apply);
+        // Set up the PopupWindow
+        settingsPopupWindow = new PopupWindow(popupView,
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, true);
+        settingsPopupWindow.setFocusable(true);
+        settingsPopupWindow.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT)); // Important for custom background
+        settingsPopupWindow.setElevation(10f); // Added elevation
+        settingsPopupWindow.showAtLocation(findViewById(R.id.main), Gravity.CENTER, 0, 0);
+
+        // Get references to views in the popup
+        TextView dialogTitle = popupView.findViewById(R.id.dialog_title); // Assuming you add a TextView with this ID in XML
+        if (dialogTitle != null) {
+            dialogTitle.setText("Change Settings for " + indicator.getType().name());
+        }
+
+        final EditText editTextPeriod = popupView.findViewById(R.id.edit_text_period);
+        final EditText editTextWidth = popupView.findViewById(R.id.edit_text_width);
+        final Button buttonColorPicker = popupView.findViewById(R.id.button_color_picker);
+        final Button buttonCancel = popupView.findViewById(R.id.button_cancel);
+        final Button buttonApply = popupView.findViewById(R.id.button_apply);
 
         // Parse current settings
         String[] params = indicator.getParams().split(":");
@@ -509,15 +534,13 @@ public class ChartActivity extends AppCompatActivity implements View.OnClickList
         editTextWidth.setText(String.valueOf(currentWidth));
         buttonColorPicker.setBackgroundColor(selectedColor[0]);
 
-        final EditText editTextStdDevMultiplier = dialogView.findViewById(R.id.edit_text_std_dev_multiplier);
+        final EditText editTextStdDevMultiplier = popupView.findViewById(R.id.edit_text_std_dev_multiplier);
         if (indicator.getType() == Indicators.BOLLINGER_BANDS) {
             editTextStdDevMultiplier.setVisibility(View.VISIBLE);
             editTextStdDevMultiplier.setText(String.valueOf(currentStdDevMultiplier));
         } else {
             editTextStdDevMultiplier.setVisibility(View.GONE);
         }
-
-        final AlertDialog dialog = builder.create();
 
         buttonColorPicker.setOnClickListener(v -> {
             final String[] colorNames = {"Red", "Green", "Blue", "Yellow", "Cyan", "Magenta"};
@@ -560,12 +583,12 @@ public class ChartActivity extends AppCompatActivity implements View.OnClickList
 
                 indicator.changeSettings(newParams, chart);
                 Toast.makeText(ChartActivity.this, "Indicator updated.", Toast.LENGTH_SHORT).show();
-                dialog.dismiss();
+                settingsPopupWindow.dismiss(); // Dismiss the popup
             } catch (NumberFormatException e) {
                 Toast.makeText(ChartActivity.this, "Invalid number format.", Toast.LENGTH_SHORT).show();
             }
         });
 
-        dialog.show();
+        buttonCancel.setOnClickListener(v -> settingsPopupWindow.dismiss()); // Dismiss on cancel
     }
 }
