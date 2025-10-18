@@ -4,7 +4,7 @@ import android.database.sqlite.SQLiteDatabase;
 
 import com.example.gutapp.database.DB_Helper;
 import com.example.gutapp.database.StockDataHelper;
-import com.example.gutapp.database.indicatorHelpers.SMA_DBHelper;
+import com.example.gutapp.database.IndicatorDBHelper;
 import com.github.mikephil.charting.data.Entry;
 import com.github.mikephil.charting.data.LineDataSet;
 
@@ -13,7 +13,7 @@ import java.util.List;
 
 public class IndicatorUtil {
 
-    public static LineDataSet movingAverageDataSet(SQLiteDatabase db, List<float[]> prices, int period, String symbol, String id, StockDataHelper.Timeframe timeframe) {
+    public static LineDataSet movingAverageDataSet(SQLiteDatabase db, List<float[]> prices, int period, String symbol, String id, StockDataHelper.Timeframe timeframe, String indicatorName) {
         List<Entry> entries = new ArrayList<>();
         if (prices == null || prices.size() < period) return new LineDataSet(entries, symbol);
 
@@ -28,7 +28,7 @@ public class IndicatorUtil {
                 float avg = sum / period;
 
                 // Pass timeframe when caching data (this is now extremely fast)
-                SMA_DBHelper.insertSMA(db, symbol, i, avg, period, timeframe);
+                IndicatorDBHelper.insertIndicatorData(db, symbol, i, avg, period, timeframe, indicatorName);
                 entries.add(new Entry(prices.get(i)[0], avg));
             }
             db.setTransactionSuccessful(); // <-- 2. Mark transaction as successful

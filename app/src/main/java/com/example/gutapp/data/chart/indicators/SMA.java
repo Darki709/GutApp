@@ -10,7 +10,7 @@ import com.example.gutapp.data.chart.Indicators;
 import com.example.gutapp.database.DB_Helper;
 import com.example.gutapp.database.DB_Index;
 import com.example.gutapp.database.StockDataHelper;
-import com.example.gutapp.database.indicatorHelpers.SMA_DBHelper;
+import com.example.gutapp.database.IndicatorDBHelper;
 import com.example.gutapp.ui.ChartActivity;
 import com.github.mikephil.charting.charts.CombinedChart;
 import com.github.mikephil.charting.data.CombinedData;
@@ -28,7 +28,7 @@ public class SMA extends Indicator {
     private int period;
     //num 2 parameter
     private float width;
-    private SMA_DBHelper sma_dbHelper;
+    private IndicatorDBHelper indicatorDBHelper;
     private DB_Helper db_helper;
 
     public SMA(DB_Helper db_helper,int color,int period, float width,String id, Indicators type, String symbol, StockDataHelper.Timeframe timeframe) {
@@ -37,7 +37,7 @@ public class SMA extends Indicator {
         this.period = period;
         this.width = width;
         this.db_helper = db_helper;
-        this.sma_dbHelper = new SMA_DBHelper(db_helper);
+        this.indicatorDBHelper = new IndicatorDBHelper(db_helper);
     }
 
 //    public LineDataSet calculateSMA(String symbol, int period) {
@@ -67,7 +67,7 @@ public class SMA extends Indicator {
 //    // In SMA.java
 public LineDataSet calculateSMA(String symbol, int period, StockDataHelper.Timeframe timeframe) {
     // Pass timeframe to the database helper
-    List<Entry> entries = sma_dbHelper.fetchSMA(symbol, period, timeframe);
+    List<Entry> entries = indicatorDBHelper.fetchIndicatorData(symbol, period, timeframe, "SMA");
     if (entries.isEmpty()) {
         Log.i(ChartActivity.CHART_LOG_TAG, "Calculating SMA for" + symbol + " " + timeframe.name());
         List<float[]> prices = new ArrayList<>();
@@ -90,7 +90,7 @@ public LineDataSet calculateSMA(String symbol, int period, StockDataHelper.Timef
                 }
                 Log.i(DB_Helper.DB_LOG_TAG, "Fetched " + prices.size() + " entries for symbol " + symbol);
                 // Pass timeframe to the calculation utility
-                return IndicatorUtil.movingAverageDataSet(db_helper.getWritableDatabase(), prices, period, symbol, getID(), timeframe);
+                return IndicatorUtil.movingAverageDataSet(db_helper.getWritableDatabase(), prices, period, symbol, getID(), timeframe, "SMA");
             }
         } catch (Exception e) {
             Log.e(DB_Helper.DB_LOG_TAG, "Error fetching stock data for SMA: " + e.getMessage(), e);

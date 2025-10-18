@@ -29,6 +29,9 @@ public class DB_Helper extends SQLiteOpenHelper {
         tables.add(symbolsTableHelper);
         ChartPresetHelper chartPresetHelper = new ChartPresetHelper(this);
         tables.add(chartPresetHelper);
+        IndicatorDBHelper indicatorDBHelper = new IndicatorDBHelper(this);
+        tables.add(indicatorDBHelper);
+        Log.i(DB_LOG_TAG, "db helper created " + tables.toString());
     }
 
     public Table getHelper(DB_Index index){
@@ -39,8 +42,8 @@ public class DB_Helper extends SQLiteOpenHelper {
     @Override
     public void onCreate(SQLiteDatabase sqLiteDatabase) {
 
-        Log.i(DB_LOG_TAG, "start create db");
-        for(Table table: this.tables){
+        Log.i(DB_LOG_TAG, "start create db " + tables.toString());
+        for(Table table: tables){
             try {
                 String createStockTable = table.createTable();
                 sqLiteDatabase.execSQL(createStockTable);

@@ -18,14 +18,12 @@ public class SymbolsTableHelper implements Table{
 
 
 
-    public boolean insertSymbol(String symbol, String name, SQLiteDatabase db) {
+    public void insertSymbol(String symbol, String name, SQLiteDatabase db) {
         String sql = "INSERT INTO " + TABLE_NAME + " (" + COLUMN_SYMBOL + ", " + COLUMN_NAME + ") VALUES (?, ?)";
         try {
             db.execSQL(sql, new String[]{symbol, name});
-            return true;
         } catch (Exception e) {
             Log.e(DB_Helper.DB_LOG_TAG, "Error inserting symbol", e);
-            return false;
         }
     }
 
