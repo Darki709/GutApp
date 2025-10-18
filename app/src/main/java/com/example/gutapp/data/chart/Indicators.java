@@ -1,7 +1,8 @@
 package com.example.gutapp.data.chart;
 
 public enum Indicators {
-    SMA;
+    SMA,
+    EMA;
 
     public static Indicators fromInt(int i) {
         Indicators[] values = Indicators.values();

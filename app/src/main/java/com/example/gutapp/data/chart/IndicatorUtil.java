@@ -40,4 +40,31 @@ public class IndicatorUtil {
         LineDataSet set = new LineDataSet(entries, id);
         return set;
     }
+
+    public static LineDataSet exponentialMovingAverageDataSet(SQLiteDatabase db, List<float[]> prices, int period, String symbol, String id, StockDataHelper.Timeframe timeframe, String indicatorName) {
+        List<Entry> entries = new ArrayList<>();
+        if (prices == null || prices.isEmpty()) return new LineDataSet(entries, symbol);
+
+        float multiplier = 2.0f / (period + 1);
+        float ema = prices.get(0)[1]; // Start with the first price
+
+        db.beginTransaction();
+        try {
+            // Insert the first EMA value
+            IndicatorDBHelper.insertIndicatorData(db, symbol, 0, ema, period, timeframe, indicatorName);
+            entries.add(new Entry(prices.get(0)[0], ema));
+
+            for (int i = 1; i < prices.size(); i++) {
+                ema = (prices.get(i)[1] - ema) * multiplier + ema;
+                IndicatorDBHelper.insertIndicatorData(db, symbol, i, ema, period, timeframe, indicatorName);
+                entries.add(new Entry(prices.get(i)[0], ema));
+            }
+            db.setTransactionSuccessful();
+        } finally {
+            db.endTransaction();
+        }
+
+        LineDataSet set = new LineDataSet(entries, id);
+        return set;
+    }
 }

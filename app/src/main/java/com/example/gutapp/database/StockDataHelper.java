@@ -185,6 +185,8 @@ public class StockDataHelper implements Table {
     }
 
 
+
+    //logic problem please fix when you have the time
     public double getLatestPrice(String symbol) {
         try {
             Cursor cursor = readFromDB(new String[]{StockDataHelper.COLUMN_CLOSE}, "symbol = ?",
