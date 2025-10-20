@@ -535,11 +535,14 @@ public class ChartActivity extends AppCompatActivity implements View.OnClickList
         buttonColorPicker.setBackgroundColor(selectedColor[0]);
 
         final EditText editTextStdDevMultiplier = popupView.findViewById(R.id.edit_text_std_dev_multiplier);
+        final TextView textStdDevMultiplier = popupView.findViewById(R.id.text_std_dev_multiplier);
         if (indicator.getType() == Indicators.BOLLINGER_BANDS) {
             editTextStdDevMultiplier.setVisibility(View.VISIBLE);
+            textStdDevMultiplier.setVisibility(View.VISIBLE);
             editTextStdDevMultiplier.setText(String.valueOf(currentStdDevMultiplier));
         } else {
             editTextStdDevMultiplier.setVisibility(View.GONE);
+            textStdDevMultiplier.setVisibility(View.GONE);
         }
 
         buttonColorPicker.setOnClickListener(v -> {
