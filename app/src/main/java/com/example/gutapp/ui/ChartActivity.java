@@ -429,11 +429,13 @@ public class ChartActivity extends AppCompatActivity implements View.OnClickList
 
         // Conditionally show/hide and set text for stdDevMultiplier
         final EditText editTextStdDevMultiplier = popupView.findViewById(R.id.edit_text_std_dev_multiplier);
+        final TextView textStdDevMultiplier = popupView.findViewById(R.id.text_std_dev_multiplier);
         if (type == Indicators.BOLLINGER_BANDS) {
             editTextStdDevMultiplier.setVisibility(View.VISIBLE);
             editTextStdDevMultiplier.setText(String.valueOf(defaultStdDevMultiplier));
         } else {
             editTextStdDevMultiplier.setVisibility(View.GONE);
+            textStdDevMultiplier.setVisibility(View.GONE);
         }
 
         buttonColorPicker.setOnClickListener(v -> {
