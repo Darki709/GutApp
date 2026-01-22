@@ -19,6 +19,8 @@ import com.example.gutapp.R;
 import com.example.gutapp.database.DB_Helper;
 import com.example.gutapp.database.DB_Index;
 import com.example.gutapp.database.UserTableHelper;
+import com.example.gutapp.session.NetworkClient;
+import com.example.gutapp.session.SessionManager;
 
 public class LoginPage extends AppCompatActivity implements View.OnClickListener {
 
@@ -62,6 +64,8 @@ public class LoginPage extends AppCompatActivity implements View.OnClickListener
 
         buttonLogin.setOnClickListener(this);
         buttonRegister.setOnClickListener(this);
+
+        NetworkClient.getInstance().start();
     }
 
     @Override
