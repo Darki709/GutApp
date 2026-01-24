@@ -1,6 +1,9 @@
 package com.example.gutapp.session;
 
+import static com.example.gutapp.session.Connection.NETWORK_LOG_TAG;
+
 import android.util.Base64;
+import android.util.Log;
 
 import javax.crypto.Cipher;
 import javax.crypto.KeyGenerator;
@@ -103,28 +106,32 @@ public class CryptoUtility {
 
     public static byte[] decryptAESGCM(byte[] encryptedPayload, CryptoContext ctx) throws Exception {
 
-        // 1. Prepare the 12-byte IV from the current recv_nonce
-        long recv_nonce = ctx.recvNonce;
-        byte[] iv = new byte[12];
-        ByteBuffer ivBuffer = ByteBuffer.wrap(iv);
-        ivBuffer.order(ByteOrder.BIG_ENDIAN);
-        ivBuffer.position(4);
-        ivBuffer.putLong(recv_nonce);
+        //Prepare the 12-byte IV from the current recv_nonce
+        byte[] recv_nonce = ctx.getNextRecvNonce();
 
 
         // 2. Initialize Cipher (GCM/NoPadding)
         Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
 
         // 128-bit authentication tag length
-        GCMParameterSpec spec = new GCMParameterSpec(128, iv);
+        GCMParameterSpec spec = new GCMParameterSpec(128, recv_nonce);
 
         SecretKey key = ctx.aesKey;
         cipher.init(Cipher.DECRYPT_MODE, key, spec);
-
-        ctx.recvNonce++;
-
+        Log.i(NETWORK_LOG_TAG, "decrypted with nonce: " + (ctx.recvNonce-1));
         // 3. Decrypt and verify tag
         return cipher.doFinal(encryptedPayload);
+    }
+
+    public static byte[] encryptAESGCM(byte[] payload, CryptoContext ctx) throws Exception {
+        byte[] send_nonce = ctx.getNextSendNonce();
+        Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
+        // 128-bit authentication tag length
+        GCMParameterSpec spec = new GCMParameterSpec(128, send_nonce);
+        SecretKey key = ctx.aesKey;
+        cipher.init(Cipher.ENCRYPT_MODE, key, spec);
+        Log.i(NETWORK_LOG_TAG, "encrypted with nonce: " + (ctx.sendNonce-1));
+        return cipher.doFinal(payload);
     }
 
 }
