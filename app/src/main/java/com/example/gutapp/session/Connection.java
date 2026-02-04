@@ -1,8 +1,5 @@
 package com.example.gutapp.session;
 
-import static java.lang.System.in;
-import static java.lang.System.out;
-
 import android.util.Log;
 
 import java.io.DataInputStream;
@@ -12,7 +9,7 @@ import java.net.Socket;
 
 
 //class to wrap the socket api
-public class Connection {
+public class Connection implements AutoCloseable{
     public static final String NETWORK_LOG_TAG = "GutNetwork";
     final static int PORT = 6767;
     final static String SERVER_IP = "10.0.2.2";
@@ -75,15 +72,21 @@ public class Connection {
         }
     }
 
-
-    protected void finalize() {
+    @Override
+    public void close() {
         try {
-            socket.close();
+            if (socket != null && !socket.isClosed()) {
+                socket.shutdownOutput();
+                if (outgoing != null) outgoing.close();
+                if (incoming != null) incoming.close();
+                socket.close();
+            }
         } catch (IOException e) {
-            Log.e(NETWORK_LOG_TAG, "Error connecting to server: " + e.getMessage());
-            throw new RuntimeException(e);
+            Log.e(NETWORK_LOG_TAG, "Error closing connection: " + e.getMessage());
         }
     }
+
+
 
 
 }

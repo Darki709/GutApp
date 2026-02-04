@@ -19,8 +19,6 @@ import androidx.core.view.WindowInsetsCompat;
 import com.example.gutapp.R;
 import com.example.gutapp.data.UserGlobals;
 import com.example.gutapp.database.DB_Helper;
-import com.example.gutapp.database.DB_Index;
-import com.example.gutapp.database.UserTableHelper;
 import com.example.gutapp.session.NetworkClient;
 import com.example.gutapp.session.Responses.LoginResponse;
 import com.example.gutapp.session.SessionCallback;

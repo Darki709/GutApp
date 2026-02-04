@@ -44,7 +44,7 @@ public class BollingerBands_DBHelper implements Table {
         values.put(COLUMN_LOWER_BAND_VALUE, lowerBandValue);
         values.put(COLUMN_PERIOD, period);
         values.put(COLUMN_STD_DEV_MULTIPLIER, stdDevMultiplier);
-        values.put(COLUMN_TIMEFRAME, timeframe.getValue());
+        values.put(COLUMN_TIMEFRAME, timeframe.value);
 
         try {
             db.insert(TABLE_NAME, null, values);
@@ -66,7 +66,7 @@ public class BollingerBands_DBHelper implements Table {
                       COLUMN_PERIOD + " = ? AND " +
                       COLUMN_STD_DEV_MULTIPLIER + " = ? AND " +
                       COLUMN_TIMEFRAME + " = ?";
-        String[] args = {symbol, String.valueOf(period), String.valueOf(stdDevMultiplier), timeframe.getValue()};
+        String[] args = {symbol, String.valueOf(period), String.valueOf(stdDevMultiplier), timeframe.value};
 
         List<Entry> middleBandData = new ArrayList<>();
         List<Entry> upperBandData = new ArrayList<>();

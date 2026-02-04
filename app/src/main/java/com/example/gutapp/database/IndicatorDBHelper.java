@@ -37,7 +37,7 @@ public class IndicatorDBHelper implements Table {
         values.put(COLUMN_DATE, date);
         values.put(COLUMN_INDICATOR_VALUE, value);
         values.put(COLUMN_INDICATOR_PERIOD, period);
-        values.put(COLUMN_TIMEFRAME, timeframe.getValue());
+        values.put(COLUMN_TIMEFRAME, timeframe.value);
         values.put(COLUMN_INDICATOR_NAME, indicatorName);
         try{
             db.insert(TABLE_NAME, null, values);
@@ -54,7 +54,7 @@ public class IndicatorDBHelper implements Table {
         SQLiteDatabase db = db_helper.getReadableDatabase();
         String query = "SELECT " + COLUMN_DATE + ", " + COLUMN_INDICATOR_VALUE + " FROM " + TABLE_NAME +
                 " WHERE " + COLUMN_SYMBOL + " = ? AND " + COLUMN_INDICATOR_PERIOD + " = ? AND " + COLUMN_TIMEFRAME + " = ? AND " + COLUMN_INDICATOR_NAME + " = ?";
-        String[] args = {symbol, String.valueOf(period), timeframe.getValue(), indicatorName};
+        String[] args = {symbol, String.valueOf(period), timeframe.value, indicatorName};
         List<Entry> indicatorData = new ArrayList<>();
 
         // Use try-with-resources to ensure the cursor is always closed.

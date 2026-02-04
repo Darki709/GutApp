@@ -1,6 +1,7 @@
 package com.example.gutapp.session;
 
 
+import java.nio.ByteBuffer;
 import java.security.SecureRandom;
 import java.util.Arrays;
 import java.util.stream.Stream;
@@ -10,6 +11,10 @@ public abstract class Request {
     public Request(){
         SecureRandom random = new SecureRandom();
         random.nextBytes(reqId);
+    }
+
+    public int getReqId() {
+        return ByteBuffer.wrap(reqId).getInt();
     }
 
     public abstract byte[] getBytes(); //returns the ready to go byte buffer of the request

@@ -1,12 +1,10 @@
 package com.example.gutapp.ui;
 
-import android.annotation.SuppressLint;
 import android.content.Intent;
 import android.database.Cursor;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.os.Bundle;
-import android.util.Log;
 import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.View;
@@ -23,13 +21,14 @@ import androidx.core.view.WindowInsetsCompat;
 import com.example.gutapp.R;
 import com.example.gutapp.data.UserGlobals;
 import com.example.gutapp.database.DB_Helper;
-import com.example.gutapp.database.DB_Index;
 import com.example.gutapp.database.StockDataHelper;
-import com.example.gutapp.database.SymbolsTableHelper;
+import com.example.gutapp.database.LastFetchCacheHelper;
+import com.example.gutapp.session.NetworkClient;
+import com.example.gutapp.session.SessionCallback;
 
 import java.util.Locale;
 
-public class HomeActivity extends AppCompatActivity {
+public class HomeActivity extends AppCompatActivity implements SessionCallback {
 
     //load global pointers
     LinearLayout stockContainer;
@@ -45,13 +44,17 @@ public class HomeActivity extends AppCompatActivity {
             v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom);
             return insets;
         });
-        db_helper = new DB_Helper(this);
+
+        db_helper = DB_Helper.getInstance(this);//make sure db is ready
 
         stockContainer = findViewById(R.id.stockContainer);
 
         //ready the home page for presentation
         setUserTitle();
         loadStockList();
+
+        //set the session caller to this activity
+        NetworkClient.getInstance(this).getSessionManager().setCallback(this);
     }
 
     private void setUserTitle(){
@@ -61,7 +64,7 @@ public class HomeActivity extends AppCompatActivity {
     }
 
     private void loadStockList() {
-        Cursor cursor = ((SymbolsTableHelper)db_helper.getHelper(DB_Index.SYMBOL_TABLE)).getStocks();
+        Cursor cursor = (new LastFetchCacheHelper(db_helper)).getStocks();
         LinearLayout container = findViewById(R.id.stockContainer);
         container.removeAllViews();
 
@@ -69,7 +72,7 @@ public class HomeActivity extends AppCompatActivity {
             do {
                 String symbol = cursor.getString(cursor.getColumnIndexOrThrow("symbol"));
                 String name = cursor.getString(cursor.getColumnIndexOrThrow("name"));
-                float close = (float)((StockDataHelper)db_helper.getHelper(DB_Index.STOCK_TABLE)).getLatestPrice(symbol);
+                float close = (float)(new StockDataHelper(db_helper)).getLatestPrice(symbol);
                 boolean isUp = close > 0;
                 close = Math.abs(close);
 
@@ -138,5 +141,15 @@ public class HomeActivity extends AppCompatActivity {
         wrapper.addView(divider);
 
         return wrapper;
+    }
+
+    @Override
+    public void onDataReceived(int msgType, Object parsedData) {
+        //currently not in use
+    }
+
+    @Override
+    public void onActionRequired(int actionType) {
+        //currently not in use
     }
 }

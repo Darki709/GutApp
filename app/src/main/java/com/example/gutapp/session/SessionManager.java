@@ -22,19 +22,23 @@ import com.example.gutapp.session.Responses.LoginResponse;
 import com.example.gutapp.session.Responses.RegisterResponse;
 
 import java.io.IOException;
+import java.lang.ref.ReferenceQueue;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayDeque;
 import java.util.Queue;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
 public class SessionManager implements Runnable {
     Connection connection; //connection to server, holding the socket
     Queue<Request> outgoinQueue; //this is where the other threads put requests for the server
     private volatile boolean running = true;
+    private volatile boolean working = false;
 
     private CryptoUtility.CryptoContext ctx; // holds the encryption data
     private Context appContext; //needed for shared preference
@@ -44,6 +48,12 @@ public class SessionManager implements Runnable {
     private final Handler uiHandler = new Handler(Looper.getMainLooper()); // The UI bridge
 
     private final BlockingQueue<AuthStruct> authQueue = new LinkedBlockingQueue<>();
+
+    private LinkedBlockingQueue<AsyncRequest> requestQueue;
+    private ConcurrentHashMap<Integer, AsyncRequest> pendingRequests;
+
+    private Thread sendThread = null;
+    private Thread recvThread = null;
 
     public class AuthStruct {
         public String username;
@@ -87,95 +97,104 @@ public class SessionManager implements Runnable {
 
     @Override
     public void run() {
-        while (running && !Thread.currentThread().isInterrupted()) {
-            try{
-                Log.i(NETWORK_LOG_TAG, "Connecting to server");
-                //create a tcp connection
-                connection = new Connection();
+        try {
+            while (running && !Thread.currentThread().isInterrupted()) {
+                try {
+                    //make sure that any thread is closed before reconnecting
+                    this.working = false;
+                    if (sendThread != null) sendThread.interrupt();
+                    if (recvThread != null) recvThread.interrupt();
 
-                //perform key exchange with the server
-                performHandshake();
 
-                //check shared preferences for user credentials
-                int result = tryAutoLogin();
+                    Log.i(NETWORK_LOG_TAG, "Connecting to server");
+                    //create a tcp connection
+                    if (connection != null) connection.close();
+                    connection = new Connection();
 
-                //if authentication fails try to login manually
-                while (result != 0 && running && !Thread.currentThread().isInterrupted()) {
-                    //tell activity to show login ui
-                    notifyUI(cb -> cb.onActionRequired(ACTION_SHOW_LOGIN_UI));
-                    AuthStruct authStruct = authQueue.take();
-                    byte[] buffer;
-                    if (authStruct.mode == 0) {
-                        //register
-                        RegisterRequest registerRequest = new RegisterRequest(authStruct.username, authStruct.password);
-                        byte[] registerRequestBytes = encrypt(registerRequest.getBytes());
-                        debugLogEncryptedMessage(NETWORK_LOG_TAG, registerRequestBytes);
-                        connection.send(registerRequestBytes);
+                    //perform key exchange with the server
+                    performHandshake();
+
+                    //check shared preferences for user credentials
+                    int result = tryAutoLogin();
+
+                    //if authentication fails try to login manually
+                    while (result != 0 && running && !Thread.currentThread().isInterrupted()) {
+                        //tell activity to show login ui
+                        notifyUI(cb -> cb.onActionRequired(ACTION_SHOW_LOGIN_UI));
+                        AuthStruct authStruct = authQueue.take();
+                        byte[] buffer;
+                        if (authStruct.mode == 0) {
+                            //register
+                            RegisterRequest registerRequest = new RegisterRequest(authStruct.username, authStruct.password);
+                            byte[] registerRequestBytes = encrypt(registerRequest.getBytes());
+                            debugLogEncryptedMessage(NETWORK_LOG_TAG, registerRequestBytes);
+                            connection.send(registerRequestBytes);
+                            buffer = connection.receive();
+                            buffer = unframe(buffer);
+                            debugLogResponseDecrypted(NETWORK_LOG_TAG, buffer);
+                            RegisterResponse registerResponse = new RegisterResponse(buffer);
+                            if (registerResponse.getState() != RegisterResponse.SUCCESS) {
+                                notifyUI(cb -> cb.onDataReceived(TYPE_REGISTER_ERROR, registerResponse.getFeedback()));
+                                continue; //user needs to check register credentials so thread must wait for more input
+                            }
+                        }
+                        LoginRequest loginRequest = new LoginRequest(authStruct.username, authStruct.password);
+                        byte[] loginRequestBytes = loginRequest.getBytes();
+                        debugLogMessage(NETWORK_LOG_TAG, loginRequestBytes);
+                        connection.send(encrypt(loginRequestBytes));
                         buffer = connection.receive();
                         buffer = unframe(buffer);
                         debugLogResponseDecrypted(NETWORK_LOG_TAG, buffer);
-                        RegisterResponse registerResponse = new RegisterResponse(buffer);
-                        if(registerResponse.getState() !=  RegisterResponse.SUCCESS){
-                            notifyUI(cb -> cb.onDataReceived(TYPE_REGISTER_ERROR, registerResponse.getFeedback()));
-                            continue; //user needs to check register credentials so thread must wait for more input
+                        LoginResponse loginResponse = new LoginResponse(buffer);
+                        try {
+                            loginRequest.handle(loginResponse);
+                        } catch (Exception e) {
+                            Log.e(NETWORK_LOG_TAG, "Error logging in: " + e.getMessage());
+                        }
+                        if (loginResponse.getState() != LoginResponse.LoginState.SUCCESS) {
+                            notifyUI(cb -> cb.onDataReceived(TYPE_LOGIN_ERROR, loginResponse.getState() == LoginResponse.LoginState.INVALIDUSER ? "no such user" : "wrong password"));
+                        } else {
+                            result = 0;
+                            saveCredentials(authStruct.username, authStruct.password);
                         }
                     }
-                    LoginRequest loginRequest = new LoginRequest(authStruct.username, authStruct.password);
-                    byte[] loginRequestBytes = loginRequest.getBytes();
-                    debugLogMessage(NETWORK_LOG_TAG, loginRequestBytes);
-                    connection.send(encrypt(loginRequestBytes));
-                    buffer = connection.receive();
-                    buffer = unframe(buffer);
-                    debugLogResponseDecrypted(NETWORK_LOG_TAG, buffer);
-                    LoginResponse loginResponse = new LoginResponse(buffer);
-                    try{
-                        loginRequest.handle(loginResponse);
-                    }catch(Exception e){
-                        Log.e(NETWORK_LOG_TAG, "Error logging in: " + e.getMessage());
-                    }
-                    if(loginResponse.getState() != LoginResponse.LoginState.SUCCESS){
-                        notifyUI(cb -> cb.onDataReceived(TYPE_LOGIN_ERROR, loginResponse.getState() == LoginResponse.LoginState.INVALIDUSER ? "no such user" : "wrong password"));
-                    }
-                    else{
-                        result = 0;
-                        saveCredentials(authStruct.username, authStruct.password);
-                    }
-                }
-                //notify login page that login is successful
-                notifyUI(cb -> cb.onDataReceived(TYPE_AUTH_SUCCESS, null));
+                    //notify login page that login is successful
+                    notifyUI(cb -> cb.onDataReceived(TYPE_AUTH_SUCCESS, null));
 
 
-                //start sending and receiving messages
-                work();
+                    //start sending and receiving messages
+                    work();
 
-            }
-            catch (IOException e) {
-                Log.i(NETWORK_LOG_TAG, "Error connecting to server: " + e + " retrying in 5 seconds");
-                try {
-                    Thread.sleep(5000);
-                } catch (InterruptedException ex) {
+                } catch (IOException e) {
+                    Log.i(NETWORK_LOG_TAG, "Error connecting to server: " + e + " retrying in 5 seconds");
+                    try {
+                        Thread.sleep(5000);
+                    } catch (InterruptedException ex) {
+                        Thread.currentThread().interrupt();
+                    }
+                } catch (RuntimeException e) {
+                    Log.e(NETWORK_LOG_TAG, "Error connecting to server: " + e.getStackTrace());
+                } catch (NoSuchAlgorithmException e) {
+                    Log.e(NETWORK_LOG_TAG, "cannot find encryption/decryption algorithm: " + e);
+                    this.running = false;
                     Thread.currentThread().interrupt();
+                    //terminates network thread due to a fatal system requirements error
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    break;
                 }
-            } catch (RuntimeException e) {
-                Log.e(NETWORK_LOG_TAG, "Error connecting to server: " + e.getStackTrace());
             }
-            catch (NoSuchAlgorithmException e) {
-                Log.e(NETWORK_LOG_TAG, "cannot find encryption/decryption algorithm: " + e);
-                this.running = false;
-                Thread.currentThread().interrupt();
-                //terminates network thread due to a fatal system requirements error
-            }
-            catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                break;
-            }
+        }
+        finally {
+            if (connection != null) connection.close();
         }
     }
 
     //orchestrates the handshake with the server sends and receives the handshake requests and blocks until it is completed
     //if handshake fails the server sever's the connection and the session manager will reconnect to the server and try to perform key exchange again
     private void performHandshake() throws NoSuchAlgorithmException, IOException, RuntimeException {
-        //generate public&private key pair
+        //generate public&private key pair and format nonces (the user might be trying to reconnect and we need new nonces)
+        this.ctx = new CryptoUtility.CryptoContext();
         this.ctx.keyPair = CryptoUtility.generateKeyPair();
         //form a handshake request
         Request handshakeRequest = new HandShakeHello(ctx);
@@ -285,9 +304,72 @@ public class SessionManager implements Runnable {
 
     //the loop where the session manager sends and receives messages
     private void work() throws IOException, RuntimeException{
-        while(running && !Thread.currentThread().isInterrupted())
-        {
+        Log.i(NETWORK_LOG_TAG, "Starting work loop");
+        this.requestQueue = new LinkedBlockingQueue<>();
+        this.pendingRequests = new ConcurrentHashMap<>();
+        this.working = true;
+        sendThread = new Thread(this::sendLoop);
+        recvThread = new Thread(this::recvLoop);
+        sendThread.start();
+        recvThread.start();
+        while(running && working && !Thread.currentThread().isInterrupted()){
+            try {
+                Thread.sleep(100); // Check 10 times per second instead of millions
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        }
+        if(sendThread != null) sendThread.interrupt();
+        if(recvThread != null) recvThread.interrupt();
+    }
 
+    private void sendLoop(){
+        Log.i(NETWORK_LOG_TAG, "Starting send loop");
+        while (running && working && !Thread.currentThread().isInterrupted()){
+            AsyncRequest request = null;
+            try{
+                request = requestQueue.take();
+                byte[] buffer = request.getBytes();
+                debugLogMessage(NETWORK_LOG_TAG, buffer);
+                buffer = encrypt(buffer);
+                debugLogEncryptedMessage(NETWORK_LOG_TAG, buffer);
+                connection.send(buffer);
+                pendingRequests.putIfAbsent(request.getReqId(), request);
+            }
+            catch (Exception e){
+                Log.e(NETWORK_LOG_TAG, "Error sending message: " + e.getMessage());
+                if(request != null) request.getCaller().onDataReceived(TYPE_ERROR, e.getMessage());
+                this.working = false;
+                Thread.currentThread().interrupt();
+            }
+        }
+    }
+
+    private void recvLoop(){
+        Log.i(NETWORK_LOG_TAG, "Starting recv loop");
+        while (running && working && !Thread.currentThread().isInterrupted()) {
+            try{
+                byte[] buffer = connection.receive();
+                buffer = unframe(buffer);
+                debugLogResponseDecrypted(NETWORK_LOG_TAG, buffer);
+                AsyncResponse response = ResponseFactory.createResponse(buffer);
+                AsyncRequest request = pendingRequests.get(response.getReqId());
+                if(request != null){
+                    request.handle(response);
+                    if(request.isDone()){
+                        pendingRequests.remove(request.getReqId());
+                    }
+                }
+                else {
+                    // 3. Log it and move on. Don't let the thread die.
+                    Log.w(NETWORK_LOG_TAG, "Discarding packet for unknown ReqID: " + response.getReqId());
+                }
+            }
+             catch (Exception e) {
+                Log.e(NETWORK_LOG_TAG, "Error receiving message: " + e.getMessage());
+                this.working = false;
+                Thread.currentThread().interrupt();
+            }
         }
     }
 
@@ -322,7 +404,6 @@ public class SessionManager implements Runnable {
 
         editor.putString(KEY_USER, username);
         editor.putString(KEY_PASS, password);
-
         // Use apply() for asynchronous saving (better for performance)
         editor.apply();
     }
@@ -372,6 +453,17 @@ public class SessionManager implements Runnable {
             // If the thread is interrupted during the put, reset the interrupt flag
             Thread.currentThread().interrupt();
             Log.e(NETWORK_LOG_TAG, "Failed to push credentials to queue", e);
+        }
+    }
+
+    public void pushRequest(AsyncRequest request){
+        try{
+            if(!requestQueue.offer(request)){
+                request.getCaller().onDataReceived(TYPE_ERROR, "Failed to send request, retry later");
+            }
+        }catch (Exception e){
+            Log.e(NETWORK_LOG_TAG, "Failed to push request to queue", e);
+            request.getCaller().onDataReceived(TYPE_ERROR, e.getMessage());
         }
     }
 
