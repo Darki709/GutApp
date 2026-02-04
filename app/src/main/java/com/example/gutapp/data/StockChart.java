@@ -83,7 +83,13 @@ public class StockChart implements SessionCallback {
         // Essential: Keep the internal list sorted by timestamp
         Collections.sort(allCandles, (c1, c2) -> Long.compare(c1.timestamp, c2.timestamp));
 
-        updateChartData();
+        chart.post(() -> {
+            try {
+                updateChartData();
+            } catch (Exception e) {
+                Log.e(CHART_LOG_TAG, "Crash during UI update: " + e.getMessage());
+            }
+        });
     }
 
     private void updateChartData() {
@@ -118,6 +124,25 @@ public class StockChart implements SessionCallback {
                 }
             }
         });
+
+        if(!allCandles.isEmpty()){
+            float desiredVisibleRange = 60f;
+            if(allCandles.size() > desiredVisibleRange){
+                float scaleX = allCandles.size() / desiredVisibleRange;
+                float xCenter = allCandles.size() - (desiredVisibleRange /  2f);
+                int centerIndex = (int)xCenter;
+                if(centerIndex >= 0 && centerIndex < allCandles.size()){
+                    Candle centerEntry = allCandles.get(centerIndex);
+                    float yCenter = (float)centerEntry.close;
+                    if (chart.getWidth() > 0) {
+                        chart.zoom(scaleX, 1f, xCenter, yCenter, YAxis.AxisDependency.LEFT);
+                    }
+                }
+            }
+            else{
+                chart.fitScreen();
+            }
+        }
 
         // Tell the chart the data has changed and refresh
         chart.notifyDataSetChanged();

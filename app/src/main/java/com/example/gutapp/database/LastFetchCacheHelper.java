@@ -106,11 +106,11 @@ public class LastFetchCacheHelper{
 
     public static String createTable() {
         return "CREATE TABLE " + TABLE_NAME + " (" +
-                COLUMN_SYMBOL + " TEXT PRIMARY KEY," +
+                COLUMN_SYMBOL + " TEXT, " +
                 COLUMN_NAME + " TEXT, " +
                 COLUMN_INTERVAL + " TEXT, " +
-                COLUMN_LAST_FETCH + " BIGINT" + //saved in unix ts
-                ")";
+                COLUMN_LAST_FETCH + " BIGINT, " + //saved in unix ts
+                "PRIMARY KEY (" + COLUMN_SYMBOL + ", " + COLUMN_INTERVAL + "))";
     }
 
     public String getName() {
@@ -121,7 +121,7 @@ public class LastFetchCacheHelper{
     //loading all the symbol and name data mainly used for home activity
     public Cursor getStocks(){
         SQLiteDatabase db = db_helper.getReadableDatabase();
-        String sql = "SELECT " + COLUMN_SYMBOL + ", " + COLUMN_NAME + " FROM " + TABLE_NAME + " LIMIT 50";
+        String sql = "SELECT DISTINCT " + COLUMN_SYMBOL + ", " + COLUMN_NAME + " FROM " + TABLE_NAME + " LIMIT 50";
         try{
             Cursor cursor = db.rawQuery(sql, null);
             Log.i(DB_Helper.DB_LOG_TAG, "Successfully fetched symbols and names");

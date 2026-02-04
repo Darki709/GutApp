@@ -6,11 +6,13 @@ import android.database.sqlite.SQLiteOpenHelper;
 import android.util.Log;
 
 import androidx.annotation.Nullable;
+import androidx.sqlite.db.SupportSQLiteOpenHelper;
+import androidx.sqlite.driver.bundled.BundledSQLiteDriver;
 
 import java.util.ArrayList;
 
 public class DB_Helper extends SQLiteOpenHelper {
-    private static final String DB_NAME = "Gut";
+    private static final String DB_NAME = "Gut.db";
     private static final int DB_VERSION = 1;
 
     private static DB_Helper instance;

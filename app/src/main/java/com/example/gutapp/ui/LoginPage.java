@@ -46,6 +46,8 @@ public class LoginPage extends AppCompatActivity implements View.OnClickListener
             return insets;
         });
 
+        DB_Helper.getInstance(this);//make sure db is ready
+
         //bind pointers to elements
         textTitle = findViewById(R.id.textTitle);
         editTextUsername = findViewById(R.id.editTextUsername);

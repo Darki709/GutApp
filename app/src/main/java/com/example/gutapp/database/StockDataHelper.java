@@ -100,14 +100,18 @@ public class StockDataHelper {
 
             //the timestamp of the last entry in the new data is the fetch time
             long last_update = stockData.get(stockData.size() - 1).timestamp;
-
-            String metaSql = "INSERT OR REPLACE INTO " + LastFetchCacheHelper.TABLE_NAME + " ("+ LastFetchCacheHelper.COLUMN_SYMBOL +" , " + LastFetchCacheHelper.COLUMN_INTERVAL + ", "+ LastFetchCacheHelper.COLUMN_NAME +", " + LastFetchCacheHelper.COLUMN_LAST_FETCH + ")"+" VALUES (?, ?, ?, ?)";
-            SQLiteStatement metaStmt = db.compileStatement(metaSql);
-            metaStmt.bindString(1, symbol);
-            metaStmt.bindString(2, timeframe.value);
-            metaStmt.bindString(3, symbol_name);
-            metaStmt.bindLong(4, last_update);
-            metaStmt.executeInsert();
+            long recorded_last_fetch = cacheHelper.getLastFetchTime(symbol, timeframe);
+            if (last_update > recorded_last_fetch)
+            {
+                String query = "INSERT OR REPLACE INTO " + LastFetchCacheHelper.TABLE_NAME + " (" + LastFetchCacheHelper.COLUMN_SYMBOL + ", " + LastFetchCacheHelper.COLUMN_INTERVAL + ", " +
+                     LastFetchCacheHelper.COLUMN_NAME + ", " + LastFetchCacheHelper.COLUMN_LAST_FETCH + ") VALUES (?, ?, ?, ?)";
+                SQLiteStatement metaStmt = db.compileStatement(query);
+                metaStmt.bindString(1, symbol);
+                metaStmt.bindString(2, timeframe.value);
+                metaStmt.bindString(3, symbol_name);
+                metaStmt.bindLong(4, last_update);
+                metaStmt.executeInsert();
+            }
 
             db.setTransactionSuccessful();
         }catch (Exception e){
@@ -115,7 +119,6 @@ public class StockDataHelper {
         }
         finally {
             db.endTransaction();
-            db.close();
             Log.i(db_helper.DB_LOG_TAG, "Finished saving data for symbol " + symbol + " and timeframe " + timeframe.value);
         }
     }

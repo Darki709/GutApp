@@ -65,7 +65,7 @@ public class RequestTickerData extends AsyncRequest {
         buf.putLong(endTs);                 // end_ts (?)
         buf.put(flags);                     // flags (?)
         
-        Log.i(NETWORK_LOG_TAG, "RequestTickerData: " + symbol + interval);
+        Log.i(NETWORK_LOG_TAG, "RequestTickerData: " + symbol + interval + startTs + endTs + flags);
         return buf.array();
     }
 
@@ -82,7 +82,7 @@ public class RequestTickerData extends AsyncRequest {
                 ArrayList<Candle> entries = snapshotResponse.getEntries();
                 int reqId = snapshotResponse.getReqId();
                 StockChart.PriceChunk priceChunk = new StockChart.PriceChunk(reqId, entries);
-                mainHandler.post(() -> caller.onDataReceived(StockChart.Actions.SNAPSHOT.value, priceChunk));
+                caller.onDataReceived(StockChart.Actions.SNAPSHOT.value, priceChunk);
                 //cache the price data for future requests
                 Thread cacheThread = new Thread( () -> cachePriceData(entries));
                 cacheThread.start();

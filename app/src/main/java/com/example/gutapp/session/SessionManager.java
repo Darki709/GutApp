@@ -351,7 +351,7 @@ public class SessionManager implements Runnable {
             try{
                 byte[] buffer = connection.receive();
                 buffer = unframe(buffer);
-                debugLogResponseDecrypted(NETWORK_LOG_TAG, buffer);
+                //debugLogResponseDecrypted(NETWORK_LOG_TAG, buffer);
                 AsyncResponse response = ResponseFactory.createResponse(buffer);
                 AsyncRequest request = pendingRequests.get(response.getReqId());
                 if(request != null){

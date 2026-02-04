@@ -32,7 +32,6 @@ public class HomeActivity extends AppCompatActivity implements SessionCallback {
 
     //load global pointers
     LinearLayout stockContainer;
-    DB_Helper db_helper;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -44,8 +43,6 @@ public class HomeActivity extends AppCompatActivity implements SessionCallback {
             v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom);
             return insets;
         });
-
-        db_helper = DB_Helper.getInstance(this);//make sure db is ready
 
         stockContainer = findViewById(R.id.stockContainer);
 
@@ -64,7 +61,7 @@ public class HomeActivity extends AppCompatActivity implements SessionCallback {
     }
 
     private void loadStockList() {
-        Cursor cursor = (new LastFetchCacheHelper(db_helper)).getStocks();
+        Cursor cursor = (new LastFetchCacheHelper(DB_Helper.getInstance(this)).getStocks());
         LinearLayout container = findViewById(R.id.stockContainer);
         container.removeAllViews();
 
@@ -72,7 +69,7 @@ public class HomeActivity extends AppCompatActivity implements SessionCallback {
             do {
                 String symbol = cursor.getString(cursor.getColumnIndexOrThrow("symbol"));
                 String name = cursor.getString(cursor.getColumnIndexOrThrow("name"));
-                float close = (float)(new StockDataHelper(db_helper)).getLatestPrice(symbol);
+                float close = (float)(new StockDataHelper(DB_Helper.getInstance(this))).getLatestPrice(symbol);
                 boolean isUp = close > 0;
                 close = Math.abs(close);
 

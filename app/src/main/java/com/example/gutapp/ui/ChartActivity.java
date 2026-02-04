@@ -162,7 +162,7 @@ public class ChartActivity extends AppCompatActivity implements View.OnClickList
             if(stockData != null && stockData.size() > 0){
                 chartContainer.addChunk(stockData, interval);
             }
-            throw new Exception("Cache is empty");
+            else throw new Exception("Cache is empty");
         }
         catch (Exception e) {
             Log.e(DB_Helper.DB_LOG_TAG, "Error fetching cached stock data: " + e.getMessage());
@@ -172,7 +172,7 @@ public class ChartActivity extends AppCompatActivity implements View.OnClickList
     }
 
     private RequestTickerData getRequest(String symbol, StockDataHelper.Timeframe timeframe, long start_ts, long end_ts ,boolean isSnapshot, boolean IsStream, SessionCallback caller){
-        RequestTickerData request = new RequestTickerData(symbol, timeframe, start_ts, 0, isSnapshot, IsStream, caller);
+        RequestTickerData request = new RequestTickerData(symbol, timeframe, start_ts, end_ts, isSnapshot, IsStream, caller);
         chartContainer.addToCurrentRequest(request.getReqId());
         return request;
     }
