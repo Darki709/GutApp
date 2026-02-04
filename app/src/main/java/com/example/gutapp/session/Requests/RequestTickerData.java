@@ -81,7 +81,7 @@ public class RequestTickerData extends AsyncRequest {
                 SnapshotResponse snapshotResponse = (SnapshotResponse) response;
                 ArrayList<Candle> entries = snapshotResponse.getEntries();
                 int reqId = snapshotResponse.getReqId();
-                StockChart.PriceChunk priceChunk = new StockChart.PriceChunk(reqId, entries);
+                StockChart.PriceChunk priceChunk = new StockChart.PriceChunk(reqId, entries, snapshotResponse.isDone());
                 caller.onDataReceived(StockChart.Actions.SNAPSHOT.value, priceChunk);
                 //cache the price data for future requests
                 Thread cacheThread = new Thread( () -> cachePriceData(entries));

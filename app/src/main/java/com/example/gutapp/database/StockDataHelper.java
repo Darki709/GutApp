@@ -63,7 +63,7 @@ public class StockDataHelper {
                     int volume = cursor.getInt(cursor.getColumnIndexOrThrow(COLUMN_VOLUME));
 
 
-                    Candle candle = new Candle(date_ts, high, low, open, close, volume);
+                    Candle candle = new Candle(date_ts, open, high, low, close, volume);
                     stockData.add(candle);
                 } while (cursor.moveToNext());
             }

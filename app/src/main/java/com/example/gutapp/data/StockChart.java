@@ -4,6 +4,8 @@ package com.example.gutapp.data;
 import static com.example.gutapp.ui.ChartActivity.CHART_LOG_TAG;
 import static java.util.concurrent.ConcurrentHashMap.newKeySet;
 
+import android.graphics.Color;
+import android.graphics.Paint;
 import android.util.Log;
 
 import com.example.gutapp.data.models.Candle;
@@ -33,6 +35,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class StockChart implements SessionCallback {
@@ -40,6 +43,8 @@ public class StockChart implements SessionCallback {
     private final List<Candle> allCandles = new ArrayList<>();
     private final Set<Integer> reqIds = ConcurrentHashMap.<Integer>newKeySet(); ; //stores all requests that the chart sent
     private StockDataHelper.Timeframe interval;
+
+    private final AtomicBoolean isUpdatePending = new AtomicBoolean(false);
 
     public StockChart(CombinedChart chart) {
         this.chart = chart;
@@ -61,14 +66,27 @@ public class StockChart implements SessionCallback {
                 CombinedChart.DrawOrder.CANDLE // Draw CandleData last (on top)
         });
 
+        chart.setDrawGridBackground(false);
+
+        // Configure Left Axis (Price)
         YAxis leftAxis = chart.getAxisLeft();
         leftAxis.setDrawGridLines(true);
+        leftAxis.setLabelCount(5, false);
+        leftAxis.setTextColor(Color.WHITE);
+
+        // Configure Right Axis (Volume)
+        YAxis rightAxis = chart.getAxisRight();
+        rightAxis.setEnabled(true); // Enable it now
+        rightAxis.setDrawGridLines(false); // Keep it clean
+        rightAxis.setDrawLabels(false);   // Usually we don't show volume numbers on the side
+        rightAxis.setAxisMinimum(1000f);
 
         XAxis xAxis = chart.getXAxis();
-        xAxis.setDrawGridLines(true);
+        xAxis.setDrawGridLines(false);
         xAxis.setPosition(XAxis.XAxisPosition.BOTTOM);
         xAxis.setSpaceMin(15f);
         xAxis.setSpaceMax(15f);
+        xAxis.setTextColor(Color.WHITE);
 
         chart.getAxisRight().setEnabled(false);
         chart.getLegend().setEnabled(false);
@@ -80,16 +98,16 @@ public class StockChart implements SessionCallback {
         this.interval = interval;
         allCandles.addAll(chunk);
 
-        // Essential: Keep the internal list sorted by timestamp
-        Collections.sort(allCandles, (c1, c2) -> Long.compare(c1.timestamp, c2.timestamp));
-
-        chart.post(() -> {
-            try {
-                updateChartData();
-            } catch (Exception e) {
-                Log.e(CHART_LOG_TAG, "Crash during UI update: " + e.getMessage());
-            }
-        });
+        if (isUpdatePending.compareAndSet(false, true)) {
+            chart.postDelayed(() -> {
+                synchronized(this) {
+                    // Sort once before the UI update, not for every tiny chunk
+                    Collections.sort(allCandles, (c1, c2) -> Long.compare(c1.timestamp, c2.timestamp));
+                    updateChartData();
+                    isUpdatePending.set(false);
+                }
+            }, 150); // Delay refresh by 150ms to allow more chunks to arrive
+        }
     }
 
     private void updateChartData() {
@@ -109,18 +127,21 @@ public class StockChart implements SessionCallback {
             public String getAxisLabel(float value, AxisBase axis) {
                 // Since we passed 'timestamp' as the X-value in addChunk,
                 // the 'value' parameter IS the timestamp.
-                long timestamp = (long) value;
+                int index = (int) value;
 
-                // Your protocol sends timestamps in SECONDS,
-                // but Java Date needs MILLISECONDS.
+                // Safety check: index must be within the list bounds
+                if (index < 0 || index >= allCandles.size()) {
+                    return "";
+                }
+
+                long timestamp = allCandles.get(index).timestamp;
                 Date date = new Date(timestamp * 1000L);
 
-                // Logic to decide which format to use
-                // You can pass the current interval into the Manager to decide this
+                // Your date formatting logic
                 if (interval == StockDataHelper.Timeframe.DAILY) {
-                    return timeFormat.format(date);
+                    return dailyFormat.format(date); // Note: swapped these for logic
                 } else {
-                    return dailyFormat.format(date);
+                    return timeFormat.format(date);
                 }
             }
         });
@@ -144,6 +165,25 @@ public class StockChart implements SessionCallback {
             }
         }
 
+        chart.getAxisLeft().setStartAtZero(false); // Prices aren't zero-based
+        chart.calculateOffsets(); // Refresh the drawing margins
+        chart.getAxisLeft().calculate(data.getYMin(), data.getYMax());
+
+        //autoscale volume to the price
+        float maxVolume = 0;
+        for (Candle c : allCandles) {
+            if (c.volume > maxVolume) maxVolume = (float) c.volume;
+        }
+        YAxis rightAxis = chart.getAxisRight();
+        rightAxis.setAxisMaximum(maxVolume * 0.1f);
+
+        YAxis leftAxis = chart.getAxisLeft();
+        leftAxis.setDrawGridLines(true);
+        leftAxis.setEnabled(true); // Explicitly ensure it is on
+        leftAxis.setTextColor(android.graphics.Color.WHITE); // If using a dark theme
+        leftAxis.setSpaceBottom(25f);
+
+
         // Tell the chart the data has changed and refresh
         chart.notifyDataSetChanged();
         chart.invalidate();
@@ -151,30 +191,48 @@ public class StockChart implements SessionCallback {
 
     private CandleData generateCandleData() {
         List<CandleEntry> entries = new ArrayList<>();
-        for (Candle c : allCandles) {
-            // X-axis: Timestamp, Y-values: High, Low, Open, Close
-            entries.add(c.getEntry());
+        for (int i = 0; i < allCandles.size(); i++) {
+            Candle c = allCandles.get(i);
+            // Use 'i' as the X value (the index), not the timestamp
+            entries.add(new CandleEntry(i, (float)c.high, (float)c.low, (float)c.open, (float)c.close));
         }
 
-        CandleDataSet set = new CandleDataSet(entries, "Price");
-        set.setShadowColor(android.graphics.Color.DKGRAY);
-        set.setShadowWidth(0.7f);
-        set.setDecreasingColor(android.graphics.Color.RED);
-        set.setDecreasingPaintStyle(android.graphics.Paint.Style.FILL);
-        set.setIncreasingColor(android.graphics.Color.GREEN);
-        set.setIncreasingPaintStyle(android.graphics.Paint.Style.STROKE);
+        CandleDataSet set = new CandleDataSet(entries, "Prices");
+
+        // 1. Color Logic (Clean & Bold)
+        set.setDecreasingColor(Color.parseColor("#FF5252")); // Modern Red
+        set.setDecreasingPaintStyle(Paint.Style.FILL);
+        set.setIncreasingColor(Color.parseColor("#2ECC71")); // Modern Green
+        set.setIncreasingPaintStyle(Paint.Style.FILL);
+        set.setNeutralColor(Color.LTGRAY);
+
+// 2. Shadows & Wicks
+        set.setShadowColorSameAsCandle(true);
+        set.setShadowWidth(1.2f); // Thicker wicks for better visibility
+
+// 3. Spacing
+        set.setBarSpace(0.15f); // Adds a tiny gap between candles for clarity
+
+// 4. Disable clutter
+        set.setDrawValues(false); // Hide numbers on top of candles
 
         return new CandleData(set);
     }
 
     private BarData generateVolumeData() {
         List<BarEntry> entries = new ArrayList<>();
-        for (Candle c : allCandles) {
-            entries.add(c.getVolumeEntry());
+        for (int i = 0; i < allCandles.size(); i++) {
+            Candle c = allCandles.get(i);
+            // Again, use 'i' for the X value
+            entries.add(new BarEntry(i, (float)c.volume));
         }
 
         BarDataSet set = new BarDataSet(entries, "Volume");
-        int transparentBlue = android.graphics.Color.argb(120, 0, 0, 255);
+
+        //allows to scale the volume bars differently than the candles
+        set.setAxisDependency(YAxis.AxisDependency.RIGHT);
+
+        int transparentBlue = android.graphics.Color.argb(40, 0, 0, 255);
         set.setColor(transparentBlue);
         set.setDrawValues(false);
         return new BarData(set);
@@ -218,10 +276,12 @@ public class StockChart implements SessionCallback {
     public static class PriceChunk {
         public final int reqId;
         public final ArrayList<Candle> chunk;
+        public final boolean isLast;
 
-        public PriceChunk(int reqId, ArrayList<Candle> chunk) {
+        public PriceChunk(int reqId, ArrayList<Candle> chunk, boolean isLast) {
             this.reqId = reqId;
             this.chunk = chunk;
+            this.isLast = isLast;
         }
     }
 
