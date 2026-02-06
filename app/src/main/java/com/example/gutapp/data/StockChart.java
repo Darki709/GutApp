@@ -112,6 +112,7 @@ public class StockChart implements SessionCallback {
             @Override
             public void onValueSelected(Entry e, Highlight h) {
                 int index = (int) e.getX();
+                synchronized (allCandles){
                 if (index >= 0 && index < allCandles.size()) {
                     Candle c = allCandles.get(index);
 
@@ -126,7 +127,7 @@ public class StockChart implements SessionCallback {
 
                     candleDataTextView.setText(info);
                     candleDataTextView.setVisibility(View.VISIBLE);
-                }
+                }}
             }
 
             @Override
@@ -337,16 +338,28 @@ public class StockChart implements SessionCallback {
 
     private synchronized void streamUpdate(List<Candle> chunk){//when data type is stream list candle length is expected to be 1 if it is longer data will be ignored (shouldn't happen)
         Candle liveData = chunk.get(0);
+        long currentTs;
         synchronized (allCandles){
-            if(allCandles.get(allCandles.size() - 1).timestamp + interval.interval > liveData.timestamp){
-                Candle previousLiveData = allCandles.remove(allCandles.size() - 1);
-                //live data updates more frequently than the graphs timeframe so we must check whether the data is actually worth updating and use the ts based on the timeframe (jumps between candles should be interval seconds)
-                Candle newLiveData = new Candle(previousLiveData.timestamp, previousLiveData.open,Math.max(liveData.high, previousLiveData.high),Math.min(liveData.low, previousLiveData.low), liveData.close, liveData.volume);
-                allCandles.add(newLiveData);
-                updateChartData();
-            }
-            else addChunk(chunk);
+            currentTs = allCandles.get(allCandles.size() - 1).timestamp;
         }
+        if(currentTs + interval.interval > liveData.timestamp){
+            Candle previousLiveData;
+            synchronized (allCandles){
+                previousLiveData = allCandles.remove(allCandles.size() - 1);
+            }
+            //live data updates more frequently than the graphs timeframe so we must check whether the data is actually worth updating and use the ts based on the timeframe (jumps between candles should be interval seconds)
+            Candle newLiveData = new Candle(previousLiveData.timestamp, previousLiveData.open,Math.max(liveData.high, previousLiveData.high),Math.min(liveData.low, previousLiveData.low), liveData.close, liveData.volume);
+            allCandles.add(newLiveData);
+            updateChartData();
+        }
+        else{
+            //we need the time stamp to be in interval seconds gaps
+            Candle candle = new Candle(currentTs + interval.interval, chunk.get(0).open, chunk.get(0).high, chunk.get(0).low, chunk.get(0).close, chunk.get(0).volume);
+            chunk.remove(0);
+            chunk.add(candle);
+            addChunk(chunk);
+        }
+
     }
 
     public static class PriceChunk {
