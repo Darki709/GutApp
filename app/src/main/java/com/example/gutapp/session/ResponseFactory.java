@@ -12,7 +12,6 @@ public class ResponseFactory {
                 return new SnapshotResponse(response);
             default:
                 throw new RuntimeException("Unknown response type: " + response[0]);
-
         }
     }
 }

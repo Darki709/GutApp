@@ -27,6 +27,7 @@ import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayDeque;
+import java.util.List;
 import java.util.Queue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
@@ -334,7 +335,7 @@ public class SessionManager implements Runnable {
                 buffer = encrypt(buffer);
                 debugLogEncryptedMessage(NETWORK_LOG_TAG, buffer);
                 connection.send(buffer);
-                pendingRequests.putIfAbsent(request.getReqId(), request);
+                if(!request.isDone()) pendingRequests.putIfAbsent(request.getReqId(), request); //some request types don't require listening for response
             }
             catch (Exception e){
                 Log.e(NETWORK_LOG_TAG, "Error sending message: " + e.getMessage());
@@ -353,10 +354,13 @@ public class SessionManager implements Runnable {
                 buffer = unframe(buffer);
                 //debugLogResponseDecrypted(NETWORK_LOG_TAG, buffer);
                 AsyncResponse response = ResponseFactory.createResponse(buffer);
+                Log.i(NETWORK_LOG_TAG, "Received response: " + response.getType() + ", reqId: " + (response.getReqId() & 0xffffffffL));
+                //)
                 AsyncRequest request = pendingRequests.get(response.getReqId());
                 if(request != null){
                     request.handle(response);
                     if(request.isDone()){
+                        Log.i(NETWORK_LOG_TAG, "Request done: " + (response.getReqId() & 0xffffffffL));
                         pendingRequests.remove(request.getReqId());
                     }
                 }
@@ -464,6 +468,15 @@ public class SessionManager implements Runnable {
         }catch (Exception e){
             Log.e(NETWORK_LOG_TAG, "Failed to push request to queue", e);
             request.getCaller().onDataReceived(TYPE_ERROR, e.getMessage());
+        }
+    }
+
+    public void discardRequests(int[] reqIds) {
+        for (Integer reqId : reqIds) {
+            AsyncRequest request = pendingRequests.remove(reqId);
+            if (request != null){
+                request.discardRequest();
+            }
         }
     }
 

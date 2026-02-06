@@ -1,18 +1,25 @@
 package com.example.gutapp.data;
 
 
+import static android.opengl.ETC1.getHeight;
 import static com.example.gutapp.ui.ChartActivity.CHART_LOG_TAG;
 import static java.util.concurrent.ConcurrentHashMap.newKeySet;
 
+import android.content.Context;
 import android.graphics.Color;
 import android.graphics.Paint;
 import android.util.Log;
+import android.view.View;
+import android.widget.TextView;
 
+import com.example.gutapp.R;
 import com.example.gutapp.data.models.Candle;
 import com.example.gutapp.database.StockDataHelper;
+import com.example.gutapp.session.NetworkClient;
 import com.example.gutapp.session.SessionCallback;
 import com.github.mikephil.charting.charts.CombinedChart;
 import com.github.mikephil.charting.components.AxisBase;
+import com.github.mikephil.charting.components.MarkerView;
 import com.github.mikephil.charting.components.XAxis;
 import com.github.mikephil.charting.components.YAxis;
 import com.github.mikephil.charting.data.BarData;
@@ -22,7 +29,11 @@ import com.github.mikephil.charting.data.CandleData;
 import com.github.mikephil.charting.data.CandleDataSet;
 import com.github.mikephil.charting.data.CandleEntry;
 import com.github.mikephil.charting.data.CombinedData;
+import com.github.mikephil.charting.data.Entry;
 import com.github.mikephil.charting.formatter.ValueFormatter;
+import com.github.mikephil.charting.highlight.Highlight;
+import com.github.mikephil.charting.listener.OnChartValueSelectedListener;
+import com.github.mikephil.charting.utils.MPPointF;
 
 import java.nio.ByteBuffer;
 import java.text.SimpleDateFormat;
@@ -51,7 +62,7 @@ public class StockChart implements SessionCallback {
     }
 
     //set up chart with default settings
-    public void setupChart() {
+    public void setupChart(TextView candleDataTextView) {
         chart.setAutoScaleMinMaxEnabled(false);
         chart.setDragEnabled(true);
         chart.setScaleEnabled(true);
@@ -91,12 +102,52 @@ public class StockChart implements SessionCallback {
         chart.getAxisRight().setEnabled(false);
         chart.getLegend().setEnabled(false);
         chart.getDescription().setEnabled(false);
+
+        //Enable the crosshair/highlighting interaction
+        chart.setHighlightPerDragEnabled(true);
+        chart.setHighlightPerTapEnabled(true);
+        chart.setMaxHighlightDistance(20);
+
+        chart.setOnChartValueSelectedListener(new OnChartValueSelectedListener() {
+            @Override
+            public void onValueSelected(Entry e, Highlight h) {
+                int index = (int) e.getX();
+                if (index >= 0 && index < allCandles.size()) {
+                    Candle c = allCandles.get(index);
+
+                    // Format time
+                    SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.US);
+                    String dateStr = sdf.format(new Date(c.timestamp * 1000L));
+
+                    // Fix the Long/Float crash by casting volume to double
+                    String info = String.format(Locale.US,
+                            "Time: %s\nO: %.2f H: %.2f\nL: %.2f C: %.2f\nVol: %.0f",
+                            dateStr, c.open, c.high, c.low, c.close, (double)c.volume);
+
+                    candleDataTextView.setText(info);
+                    candleDataTextView.setVisibility(View.VISIBLE);
+                }
+            }
+
+            @Override
+            public void onNothingSelected() {
+                candleDataTextView.setVisibility(View.INVISIBLE);
+            }
+        });
     }
 
-    public synchronized void addChunk(List<Candle> chunk, StockDataHelper.Timeframe interval) {
+    public synchronized void addChunk(List<Candle> chunk) {
         if(chunk == null || chunk.isEmpty()) return;
-        this.interval = interval;
-        allCandles.addAll(chunk);
+        if(!allCandles.isEmpty()){
+            //check that last candle isn't written twice
+            Candle lastCandle = allCandles.remove(allCandles.size() - 1);
+            if(lastCandle.timestamp != chunk.get(0).timestamp){
+                allCandles.add(lastCandle);
+                allCandles.addAll(chunk);
+            }
+            else allCandles.addAll(chunk);
+        }
+        else allCandles.addAll(chunk);
 
         if (isUpdatePending.compareAndSet(false, true)) {
             chart.postDelayed(() -> {
@@ -110,12 +161,18 @@ public class StockChart implements SessionCallback {
         }
     }
 
-    private void updateChartData() {
+    private synchronized void updateChartData() {
         Log.i(CHART_LOG_TAG, "adding prices to chart");
         CombinedData data = new CombinedData();
 
-        data.setData(generateCandleData());
-        data.setData(generateVolumeData());
+        ArrayList<Candle> safeCopy;
+        synchronized (this.allCandles){
+            if (this.allCandles.isEmpty()) return;
+            safeCopy = new ArrayList<>(allCandles);
+        }
+
+        data.setData(generateCandleData(safeCopy));
+        data.setData(generateVolumeData(safeCopy));
 
         chart.setData(data);
 
@@ -130,11 +187,11 @@ public class StockChart implements SessionCallback {
                 int index = (int) value;
 
                 // Safety check: index must be within the list bounds
-                if (index < 0 || index >= allCandles.size()) {
+                if (index < 0 || index >= safeCopy.size()) {
                     return "";
                 }
 
-                long timestamp = allCandles.get(index).timestamp;
+                long timestamp = safeCopy.get(index).timestamp;
                 Date date = new Date(timestamp * 1000L);
 
                 // Your date formatting logic
@@ -146,21 +203,23 @@ public class StockChart implements SessionCallback {
             }
         });
 
-        if(!allCandles.isEmpty()){
-            float desiredVisibleRange = 60f;
-            if(allCandles.size() > desiredVisibleRange){
-                float scaleX = allCandles.size() / desiredVisibleRange;
-                float xCenter = allCandles.size() - (desiredVisibleRange /  2f);
-                int centerIndex = (int)xCenter;
-                if(centerIndex >= 0 && centerIndex < allCandles.size()){
-                    Candle centerEntry = allCandles.get(centerIndex);
-                    float yCenter = (float)centerEntry.close;
-                    if (chart.getWidth() > 0) {
-                        chart.zoom(scaleX, 1f, xCenter, yCenter, YAxis.AxisDependency.LEFT);
-                    }
-                }
-            }
-            else{
+        if (!safeCopy.isEmpty()) {
+            float desiredVisibleRange = 60f; // Shows last 60 candles
+            int totalCount = safeCopy.size();
+
+            if (totalCount > desiredVisibleRange) {
+                // 2. Fix the horizontal scale to show exactly 'desiredVisibleRange' candles
+                chart.setVisibleXRangeMaximum(desiredVisibleRange);
+                chart.setVisibleXRangeMinimum(desiredVisibleRange);
+
+                // 3. Move the view to the very end of the data (the most recent candle)
+                // We subtract 1 because indices are 0-based
+                chart.moveViewToX(totalCount - 1);
+
+                // 4. Aesthetic: Auto-scale the Y-axis to fit the visible prices
+                // TradingView handles this automatically; MPAndroidChart needs a nudge
+                chart.setAutoScaleMinMaxEnabled(true);
+            } else {
                 chart.fitScreen();
             }
         }
@@ -171,7 +230,7 @@ public class StockChart implements SessionCallback {
 
         //autoscale volume to the price
         float maxVolume = 0;
-        for (Candle c : allCandles) {
+        for (Candle c : safeCopy) {
             if (c.volume > maxVolume) maxVolume = (float) c.volume;
         }
         YAxis rightAxis = chart.getAxisRight();
@@ -189,7 +248,7 @@ public class StockChart implements SessionCallback {
         chart.invalidate();
     }
 
-    private CandleData generateCandleData() {
+    private CandleData generateCandleData(ArrayList<Candle> allCandles) {
         List<CandleEntry> entries = new ArrayList<>();
         for (int i = 0; i < allCandles.size(); i++) {
             Candle c = allCandles.get(i);
@@ -199,27 +258,31 @@ public class StockChart implements SessionCallback {
 
         CandleDataSet set = new CandleDataSet(entries, "Prices");
 
-        // 1. Color Logic (Clean & Bold)
+        //Colors
         set.setDecreasingColor(Color.parseColor("#FF5252")); // Modern Red
         set.setDecreasingPaintStyle(Paint.Style.FILL);
         set.setIncreasingColor(Color.parseColor("#2ECC71")); // Modern Green
         set.setIncreasingPaintStyle(Paint.Style.FILL);
         set.setNeutralColor(Color.LTGRAY);
-
-// 2. Shadows & Wicks
+        //Shadows & Wicks
         set.setShadowColorSameAsCandle(true);
         set.setShadowWidth(1.2f); // Thicker wicks for better visibility
-
-// 3. Spacing
+        //Spacing
         set.setBarSpace(0.15f); // Adds a tiny gap between candles for clarity
-
-// 4. Disable clutter
+        //Disable clutter
         set.setDrawValues(false); // Hide numbers on top of candles
+
+        //Interactive visuals with the cursor
+        set.setHighlightEnabled(true);
+        set.setHighLightColor(Color.WHITE); // Color of the crosshair lines
+        set.setDrawHorizontalHighlightIndicator(true);
+        set.setDrawVerticalHighlightIndicator(true);
+
 
         return new CandleData(set);
     }
 
-    private BarData generateVolumeData() {
+    private BarData generateVolumeData(ArrayList<Candle> allCandles) {
         List<BarEntry> entries = new ArrayList<>();
         for (int i = 0; i < allCandles.size(); i++) {
             Candle c = allCandles.get(i);
@@ -238,7 +301,9 @@ public class StockChart implements SessionCallback {
         return new BarData(set);
     }
 
-
+    public void clearChart(){
+        allCandles.clear();
+    }
 
     public enum Actions{
         STREAM(0),
@@ -266,11 +331,22 @@ public class StockChart implements SessionCallback {
     }
 
     public void flushRequests(){
+        NetworkClient.getInstance(null).getSessionManager().discardRequests(reqIds.stream().mapToInt(Integer::intValue).toArray());
         this.reqIds.clear();
     }
 
-    private void streamUpdate(List<Candle> chunk){
-
+    private synchronized void streamUpdate(List<Candle> chunk){//when data type is stream list candle length is expected to be 1 if it is longer data will be ignored (shouldn't happen)
+        Candle liveData = chunk.get(0);
+        synchronized (allCandles){
+            if(allCandles.get(allCandles.size() - 1).timestamp + interval.interval > liveData.timestamp){
+                Candle previousLiveData = allCandles.remove(allCandles.size() - 1);
+                //live data updates more frequently than the graphs timeframe so we must check whether the data is actually worth updating and use the ts based on the timeframe (jumps between candles should be interval seconds)
+                Candle newLiveData = new Candle(previousLiveData.timestamp, previousLiveData.open,Math.max(liveData.high, previousLiveData.high),Math.min(liveData.low, previousLiveData.low), liveData.close, liveData.volume);
+                allCandles.add(newLiveData);
+                updateChartData();
+            }
+            else addChunk(chunk);
+        }
     }
 
     public static class PriceChunk {
@@ -290,7 +366,6 @@ public class StockChart implements SessionCallback {
     //parsed data should be a PriceChunk object
     @Override
     public void onDataReceived(int msgType, Object parsedData) {
-        List<Candle> prices;
         Actions action = Actions.fromValue(msgType);
         PriceChunk chunk;
         if(action == null){
@@ -304,18 +379,23 @@ public class StockChart implements SessionCallback {
         if(!reqIds.contains(chunk.reqId)){
             return;
         }
-        prices = chunk.chunk;
         switch(action){
             case STREAM:
-                streamUpdate(prices);
+                streamUpdate(chunk.chunk);
                 break;
             case SNAPSHOT:
-                addChunk(prices, this.interval);
+                addChunk(chunk.chunk);
+                break;
+            case REQUESTDONE:
+                Log.i(CHART_LOG_TAG, "request done: " + (chunk.reqId & 0xffffffffL));
+                reqIds.remove(chunk.reqId);
                 break;
             default:
                 break;
         }
     }
+
+    public void setInterval(StockDataHelper.Timeframe interval){ this.interval = interval;}
 
     @Override
     public void onActionRequired(int actionType) {

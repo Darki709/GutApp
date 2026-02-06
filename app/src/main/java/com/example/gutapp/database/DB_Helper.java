@@ -17,7 +17,7 @@ public class DB_Helper extends SQLiteOpenHelper {
 
     private static DB_Helper instance;
 
-    private ArrayList<Table> tables = new ArrayList<>();
+
     public static final String DB_LOG_TAG = "GutDB";
 
     private final String[] table_initialize_query = {
@@ -43,7 +43,7 @@ public class DB_Helper extends SQLiteOpenHelper {
     @Override
     public void onCreate(SQLiteDatabase sqLiteDatabase) {
 
-        Log.i(DB_LOG_TAG, "start create db " + tables.toString());
+        Log.i(DB_LOG_TAG, "start create db");
         for(String query : table_initialize_query){
             try {
                 sqLiteDatabase.execSQL(query);

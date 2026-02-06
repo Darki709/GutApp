@@ -13,9 +13,11 @@ import com.example.gutapp.database.DB_Helper;
 import com.example.gutapp.database.StockDataHelper;
 import com.example.gutapp.session.AsyncRequest;
 import com.example.gutapp.session.Flag;
+import com.example.gutapp.session.NetworkClient;
 import com.example.gutapp.session.RequestType;
 import com.example.gutapp.session.Response;
 import com.example.gutapp.session.Responses.SnapshotResponse;
+import com.example.gutapp.session.Responses.StreamResponse;
 import com.example.gutapp.session.SessionCallback;
 
 import java.nio.charset.StandardCharsets;
@@ -86,11 +88,29 @@ public class RequestTickerData extends AsyncRequest {
                 //cache the price data for future requests
                 Thread cacheThread = new Thread( () -> cachePriceData(entries));
                 cacheThread.start();
+                if(snapshotResponse.isDone()){
+                    this.isDone = true;
+                    caller.onDataReceived(StockChart.Actions.REQUESTDONE.value, priceChunk);
+                }
                 break;
             case STREAM:
+                StreamResponse streamResponse = (StreamResponse) response;
+                Candle candle = streamResponse.getCandle();
+                ArrayList<Candle> streamEntries = new ArrayList<>();
+                streamEntries.add(candle);
+                StockChart.PriceChunk streamChunk = new StockChart.PriceChunk(streamResponse.getReqId(), streamEntries, false);
+                caller.onDataReceived(StockChart.Actions.STREAM.value, streamChunk);
+                Log.i(CHART_LOG_TAG, "Received stream data for " + symbol + " : open = " + candle.open + ", high = " + candle.high + ", low = " + candle.low + ", close = " + candle.close + ", volume = " + candle.volume + ", ts = " + candle.timestamp);
                 break;
     }
     }
+
+    @Override
+    public void discardRequest() {
+        super.discardRequest();
+        NetworkClient.getInstance(null).getSessionManager().pushRequest(new CancelTickerStream(reqId, symbol));
+    }
+
 
     private void cachePriceData(ArrayList<Candle> entries) {
         StockDataHelper stockDataHelper = new StockDataHelper(DB_Helper.getInstance(null));

@@ -20,16 +20,4 @@ public class Candle {
         this.close = close;
         this.volume = volume;
     }
-
-    public long getTimestamp() {
-        return timestamp;
-    }
-
-    public CandleEntry getEntry(){
-        return new CandleEntry(timestamp, (float)open, (float)high, (float)low, (float)close);
-    }
-
-    public BarEntry getVolumeEntry(){
-        return new BarEntry(timestamp, (float)volume);
-    }
 }

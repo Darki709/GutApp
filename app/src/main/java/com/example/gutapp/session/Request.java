@@ -1,6 +1,10 @@
 package com.example.gutapp.session;
 
 
+import static com.example.gutapp.session.Connection.NETWORK_LOG_TAG;
+
+import android.util.Log;
+
 import java.nio.ByteBuffer;
 import java.security.SecureRandom;
 import java.util.Arrays;
@@ -32,4 +36,7 @@ public abstract class Request {
 
     public abstract void handle(Response response); //only the corresponding request should handle the response
 
+    public void discardRequest(){
+        Log.i(NETWORK_LOG_TAG, "Request " + getReqId() + " discarded");
+    }
 }

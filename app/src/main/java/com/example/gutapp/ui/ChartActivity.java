@@ -88,7 +88,7 @@ public class ChartActivity extends AppCompatActivity implements View.OnClickList
         chart = findViewById(R.id.stockChart);
 
         chartContainer = new StockChart(chart);
-        chartContainer.setupChart();
+        chartContainer.setupChart(findViewById(R.id.candleDataTextView));
 
 
         // Set up button listeners
@@ -107,34 +107,30 @@ public class ChartActivity extends AppCompatActivity implements View.OnClickList
         formatTile(interval.value);
 
         this.interval = StockDataHelper.Timeframe.DAILY;
-        updateChartData(interval);
+        updateChartData();
         NetworkClient.getInstance(this).getSessionManager().setCallback(this);
     }
-
-
-
-
 
     @Override
     public void onClick(View v) {
         int id = v.getId();
         if (id == R.id.button5m) {
             interval = StockDataHelper.Timeframe.FIVE_MIN;
-            updateChartData(interval);
+            updateChartData();
             formatTile(interval.value);
         } else if (id == R.id.button15m) {
             interval = StockDataHelper.Timeframe.FIFTEEN_MIN;
-            updateChartData(interval);
+            updateChartData();
             formatTile(interval.value);
         }
         else if (id == R.id.button1h) {
             interval = StockDataHelper.Timeframe.HOURLY;
-            updateChartData(interval);
+            updateChartData();
             formatTile(interval.value);
         }
         else if (id == R.id.button1d) {
             interval = StockDataHelper.Timeframe.DAILY;
-            updateChartData(interval);
+            updateChartData();
             formatTile(interval.value);
         }
         else if (id == R.id.buttonHome) {
@@ -149,25 +145,32 @@ public class ChartActivity extends AppCompatActivity implements View.OnClickList
 
 
     //checks cache and asks server from data that isn't cached and returns cached data if available
-    private void updateChartData(StockDataHelper.Timeframe timeframe) {
+    private void updateChartData() {
+        chartContainer.setInterval(interval);
+        chartContainer.flushRequests();
+        chartContainer.clearChart();
         stockDataHelper = new StockDataHelper( db_helper);
         LastFetchCacheHelper cacheHelper = new LastFetchCacheHelper(db_helper);
         //first we check latest cached data on the device
-        long lastFetchTime = cacheHelper.getLastFetchTime(symbol, timeframe);
-        RequestTickerData request = getRequest(symbol, timeframe, lastFetchTime, 0, true, false,  chartContainer);
+        long lastFetchTime = cacheHelper.getLastFetchTime(symbol, interval);
+        RequestTickerData request = getRequest(symbol, interval, lastFetchTime, 0, true, false,  chartContainer); //lastfetchtime+1 makes sure that it wont return from the server data that is already in the cache
         NetworkClient.getInstance(this).getSessionManager().pushRequest(request);
+        RequestTickerData requestStream = getRequest(symbol, interval, 0, 0, false, true,  chartContainer);
+        NetworkClient.getInstance(this).getSessionManager().pushRequest(requestStream);
 
         try{
-         ArrayList<Candle> stockData = stockDataHelper.getCachedStockData(symbol, timeframe);
+         ArrayList<Candle> stockData = stockDataHelper.getCachedStockData(symbol, interval);
             if(stockData != null && stockData.size() > 0){
-                chartContainer.addChunk(stockData, interval);
+                chartContainer.addChunk(stockData);
             }
             else throw new Exception("Cache is empty");
         }
         catch (Exception e) {
             Log.e(DB_Helper.DB_LOG_TAG, "Error fetching cached stock data: " + e.getMessage());
-            RequestTickerData request2 = getRequest(symbol, timeframe, 0, lastFetchTime,true, false,  chartContainer);
-            NetworkClient.getInstance(this).getSessionManager().pushRequest(request2);
+            if(lastFetchTime != 0) {
+                RequestTickerData request2 = getRequest(symbol, interval, 0, lastFetchTime,true, false,  chartContainer);
+                NetworkClient.getInstance(this).getSessionManager().pushRequest(request2);
+            }
         }
     }
 
