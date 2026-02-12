@@ -19,6 +19,7 @@ import com.example.gutapp.session.Response;
 import com.example.gutapp.session.Responses.SnapshotResponse;
 import com.example.gutapp.session.Responses.StreamResponse;
 import com.example.gutapp.session.SessionCallback;
+import com.example.gutapp.ui.ChartActivity;
 
 import java.nio.charset.StandardCharsets;
 
@@ -81,6 +82,11 @@ public class RequestTickerData extends AsyncRequest {
         switch(response.getType()){
             case SNAPSHOT:
                 SnapshotResponse snapshotResponse = (SnapshotResponse) response;
+                if(snapshotResponse.isFetchError()){
+                    this.isDone = true;
+                    caller.onDataReceived(StockChart.Actions.ERROR.value, "No price data for " + symbol + " " + interval.value);
+                    return;
+                }
                 ArrayList<Candle> entries = snapshotResponse.getEntries();
                 int reqId = snapshotResponse.getReqId();
                 StockChart.PriceChunk priceChunk = new StockChart.PriceChunk(reqId, entries, snapshotResponse.isDone());

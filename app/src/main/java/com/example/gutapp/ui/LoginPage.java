@@ -12,7 +12,6 @@ import android.widget.Toast;
 import androidx.activity.EdgeToEdge;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.graphics.Insets;
-import androidx.core.splashscreen.SplashScreen;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
 
@@ -20,7 +19,6 @@ import com.example.gutapp.R;
 import com.example.gutapp.data.UserGlobals;
 import com.example.gutapp.database.DB_Helper;
 import com.example.gutapp.session.NetworkClient;
-import com.example.gutapp.session.Responses.LoginResponse;
 import com.example.gutapp.session.SessionCallback;
 import com.example.gutapp.session.SessionManager;
 
@@ -114,7 +112,7 @@ public class LoginPage extends AppCompatActivity implements View.OnClickListener
     }
 
     @Override
-    public void onActionRequired(int actionType) {
+    public void onActionRequired(int actionType, Object data) {
             switch(actionType){
                 case SessionManager.ACTION_SHOW_LOGIN_UI:
                     setLoading(false);
@@ -127,11 +125,5 @@ public class LoginPage extends AppCompatActivity implements View.OnClickListener
     private void setLoading(boolean loading) {
         if (loading) loadingOverlay.setVisibility(View.VISIBLE);
         else loadingOverlay.setVisibility(View.GONE);
-    }
-
-    @Override
-    protected void onStop(){
-        super.onStop();
-        NetworkClient.getInstance(this).getSessionManager().removeCallback();
     }
 }

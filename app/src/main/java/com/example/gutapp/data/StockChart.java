@@ -1,25 +1,26 @@
 package com.example.gutapp.data;
 
 
-import static android.opengl.ETC1.getHeight;
 import static com.example.gutapp.ui.ChartActivity.CHART_LOG_TAG;
 import static java.util.concurrent.ConcurrentHashMap.newKeySet;
 
 import android.content.Context;
 import android.graphics.Color;
 import android.graphics.Paint;
+import android.os.Handler;
+import android.os.Looper;
 import android.util.Log;
 import android.view.View;
 import android.widget.TextView;
+import android.widget.Toast;
 
-import com.example.gutapp.R;
 import com.example.gutapp.data.models.Candle;
 import com.example.gutapp.database.StockDataHelper;
+import com.example.gutapp.session.Connection;
 import com.example.gutapp.session.NetworkClient;
 import com.example.gutapp.session.SessionCallback;
 import com.github.mikephil.charting.charts.CombinedChart;
 import com.github.mikephil.charting.components.AxisBase;
-import com.github.mikephil.charting.components.MarkerView;
 import com.github.mikephil.charting.components.XAxis;
 import com.github.mikephil.charting.components.YAxis;
 import com.github.mikephil.charting.data.BarData;
@@ -33,21 +34,16 @@ import com.github.mikephil.charting.data.Entry;
 import com.github.mikephil.charting.formatter.ValueFormatter;
 import com.github.mikephil.charting.highlight.Highlight;
 import com.github.mikephil.charting.listener.OnChartValueSelectedListener;
-import com.github.mikephil.charting.utils.MPPointF;
 
-import java.nio.ByteBuffer;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.Date;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
 
 public class StockChart implements SessionCallback {
     private final CombinedChart chart;
@@ -57,8 +53,13 @@ public class StockChart implements SessionCallback {
 
     private final AtomicBoolean isUpdatePending = new AtomicBoolean(false);
 
-    public StockChart(CombinedChart chart) {
+    private final Context activityContext;
+
+    Handler mainHandler = new Handler(Looper.getMainLooper()); //used to send error messages to the UI thread
+
+    public StockChart(CombinedChart chart, Context context) {
         this.chart = chart;
+        this.activityContext = context;
     }
 
     //set up chart with default settings
@@ -117,12 +118,12 @@ public class StockChart implements SessionCallback {
                     Candle c = allCandles.get(index);
 
                     // Format time
-                    SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.US);
+                    SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault());
                     String dateStr = sdf.format(new Date(c.timestamp * 1000L));
 
                     // Fix the Long/Float crash by casting volume to double
                     String info = String.format(Locale.US,
-                            "Time: %s\nO: %.2f H: %.2f\nL: %.2f C: %.2f\nVol: %.0f",
+                            "Time: %s\nO: %.5f H: %.5f\nL: %.5f C: %.5f\nVol: %.0f",
                             dateStr, c.open, c.high, c.low, c.close, (double)c.volume);
 
                     candleDataTextView.setText(info);
@@ -139,22 +140,27 @@ public class StockChart implements SessionCallback {
 
     public synchronized void addChunk(List<Candle> chunk) {
         if(chunk == null || chunk.isEmpty()) return;
-        if(!allCandles.isEmpty()){
-            //check that last candle isn't written twice
-            Candle lastCandle = allCandles.remove(allCandles.size() - 1);
-            if(lastCandle.timestamp != chunk.get(0).timestamp){
-                allCandles.add(lastCandle);
-                allCandles.addAll(chunk);
+        synchronized (allCandles){
+            if(!allCandles.isEmpty()){
+                //check that last candle isn't written twice
+                Candle lastCandle = allCandles.remove(allCandles.size() - 1);
+                if(lastCandle.timestamp != chunk.get(0).timestamp){
+                    allCandles.add(lastCandle);
+                    allCandles.addAll(chunk);
+                }
+            else allCandles.addAll(chunk);
             }
             else allCandles.addAll(chunk);
         }
-        else allCandles.addAll(chunk);
+
 
         if (isUpdatePending.compareAndSet(false, true)) {
             chart.postDelayed(() -> {
                 synchronized(this) {
                     // Sort once before the UI update, not for every tiny chunk
-                    Collections.sort(allCandles, (c1, c2) -> Long.compare(c1.timestamp, c2.timestamp));
+                    synchronized (allCandles){
+                        Collections.sort(allCandles, (c1, c2) -> Long.compare(c1.timestamp, c2.timestamp));
+                    }
                     updateChartData();
                     isUpdatePending.set(false);
                 }
@@ -178,8 +184,8 @@ public class StockChart implements SessionCallback {
         chart.setData(data);
 
         chart.getXAxis().setValueFormatter(new ValueFormatter() {
-            private final SimpleDateFormat dailyFormat = new SimpleDateFormat("MMM dd", Locale.US);
-            private final SimpleDateFormat timeFormat = new SimpleDateFormat("HH:mm", Locale.US);
+            private final SimpleDateFormat dailyFormat = new SimpleDateFormat("MMM dd", Locale.getDefault());
+            private final SimpleDateFormat timeFormat = new SimpleDateFormat("HH:mm", Locale.getDefault());
 
             @Override
             public String getAxisLabel(float value, AxisBase axis) {
@@ -218,7 +224,6 @@ public class StockChart implements SessionCallback {
                 chart.moveViewToX(totalCount - 1);
 
                 // 4. Aesthetic: Auto-scale the Y-axis to fit the visible prices
-                // TradingView handles this automatically; MPAndroidChart needs a nudge
                 chart.setAutoScaleMinMaxEnabled(true);
             } else {
                 chart.fitScreen();
@@ -309,7 +314,8 @@ public class StockChart implements SessionCallback {
     public enum Actions{
         STREAM(0),
         SNAPSHOT(1),
-        REQUESTDONE(2);
+        REQUESTDONE(2),
+        ERROR(3);
 
         public final int value;
 
@@ -339,6 +345,13 @@ public class StockChart implements SessionCallback {
     private synchronized void streamUpdate(List<Candle> chunk){//when data type is stream list candle length is expected to be 1 if it is longer data will be ignored (shouldn't happen)
         Candle liveData = chunk.get(0);
         long currentTs;
+        boolean isEmpty;
+        synchronized (allCandles){
+            isEmpty = allCandles.isEmpty();
+        }
+        if(isEmpty){
+            addChunk(chunk);
+        }
         synchronized (allCandles){
             currentTs = allCandles.get(allCandles.size() - 1).timestamp;
         }
@@ -380,10 +393,15 @@ public class StockChart implements SessionCallback {
     @Override
     public void onDataReceived(int msgType, Object parsedData) {
         Actions action = Actions.fromValue(msgType);
-        PriceChunk chunk;
         if(action == null){
             throw new RuntimeException("Wrong action type");
         }
+        if(action == Actions.ERROR){
+            mainHandler.post(() -> Toast.makeText(activityContext, (String) parsedData, Toast.LENGTH_SHORT).show());
+            flushRequests();
+            return;
+        }
+        PriceChunk chunk;
         try{
             chunk = (PriceChunk) parsedData;
         }catch (Exception e){
@@ -411,7 +429,7 @@ public class StockChart implements SessionCallback {
     public void setInterval(StockDataHelper.Timeframe interval){ this.interval = interval;}
 
     @Override
-    public void onActionRequired(int actionType) {
+    public void onActionRequired(int actionType, Object data) {
         //not needed here
     }
 }

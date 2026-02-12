@@ -12,7 +12,7 @@ import java.net.Socket;
 public class Connection implements AutoCloseable{
     public static final String NETWORK_LOG_TAG = "GutNetwork";
     final static int PORT = 6767;
-    final static String SERVER_IP = "10.0.2.2";
+    final static String SERVER_IP = "10.0.2.2"; //make sure you connect to the right host when running
     private Socket socket;
 
     private DataInputStream incoming;

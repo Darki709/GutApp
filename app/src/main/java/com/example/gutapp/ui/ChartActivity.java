@@ -2,31 +2,18 @@ package com.example.gutapp.ui;
 
 import android.annotation.SuppressLint;
 import android.content.Intent;
-import android.graphics.Color;
-import android.graphics.Paint;
-import android.graphics.drawable.ColorDrawable;
 import android.os.Bundle;
 import android.util.Log;
-import android.view.Gravity;
-import android.view.LayoutInflater;
 import android.view.View;
-import android.view.ViewGroup;
-import android.widget.Button;
-import android.widget.EditText;
 import android.widget.ImageButton;
-import android.widget.PopupWindow;
 import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.activity.EdgeToEdge;
-import androidx.annotation.NonNull;
-import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
-import androidx.recyclerview.widget.LinearLayoutManager;
-import androidx.recyclerview.widget.RecyclerView;
 
 import com.example.gutapp.R;
 import com.example.gutapp.data.StockChart;
@@ -39,29 +26,15 @@ import com.example.gutapp.session.NetworkClient;
 import com.example.gutapp.session.Requests.RequestTickerData;
 import com.example.gutapp.session.SessionCallback;
 import com.github.mikephil.charting.charts.CombinedChart;
-import com.github.mikephil.charting.components.AxisBase;
-import com.github.mikephil.charting.components.XAxis;
-import com.github.mikephil.charting.components.YAxis;
-import com.github.mikephil.charting.data.CandleData;
-import com.github.mikephil.charting.data.CandleDataSet;
-import com.github.mikephil.charting.data.CandleEntry;
-import com.github.mikephil.charting.data.CombinedData;
-import com.github.mikephil.charting.formatter.ValueFormatter;
 
-import java.text.SimpleDateFormat;
 import java.util.ArrayList;
-import java.util.Date;
-import java.util.List;
-import java.util.Locale;
 
 public class ChartActivity extends AppCompatActivity implements View.OnClickListener, SessionCallback {
 
     public static final String CHART_LOG_TAG = "GutChart";
 
     private DB_Helper db_helper;
-    private StockDataHelper stockDataHelper;
     private StockChart chartContainer;
-    private CombinedChart chart;
     private String symbol; // Default symbol
     private TextView textViewTitle;
     private StockDataHelper.Timeframe interval;
@@ -85,9 +58,9 @@ public class ChartActivity extends AppCompatActivity implements View.OnClickList
         //initialize important database objects
         db_helper = DB_Helper.getInstance(this);
 
-        chart = findViewById(R.id.stockChart);
+        CombinedChart chart = findViewById(R.id.stockChart);
 
-        chartContainer = new StockChart(chart);
+        chartContainer = new StockChart(chart, this);
         chartContainer.setupChart(findViewById(R.id.candleDataTextView));
 
 
@@ -110,6 +83,21 @@ public class ChartActivity extends AppCompatActivity implements View.OnClickList
         updateChartData();
         NetworkClient.getInstance(this).getSessionManager().setCallback(this);
     }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        NetworkClient.getInstance(this).start(this);
+    }
+
+    @Override
+    protected void onStop(){
+        super.onStop();
+        //we don't need the chart updating in the background
+        chartContainer.flushRequests();
+        chartContainer.clearChart();
+    }
+
 
     @Override
     public void onClick(View v) {
@@ -149,11 +137,11 @@ public class ChartActivity extends AppCompatActivity implements View.OnClickList
         chartContainer.setInterval(interval);
         chartContainer.flushRequests();
         chartContainer.clearChart();
-        stockDataHelper = new StockDataHelper( db_helper);
+        StockDataHelper stockDataHelper = new StockDataHelper( db_helper);
         LastFetchCacheHelper cacheHelper = new LastFetchCacheHelper(db_helper);
         //first we check latest cached data on the device
         long lastFetchTime = cacheHelper.getLastFetchTime(symbol, interval);
-        RequestTickerData request = getRequest(symbol, interval, lastFetchTime, 0, true, false,  chartContainer); //lastfetchtime+1 makes sure that it wont return from the server data that is already in the cache
+        RequestTickerData request = getRequest(symbol, interval, lastFetchTime, 0, true, false,  chartContainer);
         NetworkClient.getInstance(this).getSessionManager().pushRequest(request);
         RequestTickerData requestStream = getRequest(symbol, interval, 0, 0, false, true,  chartContainer);
         NetworkClient.getInstance(this).getSessionManager().pushRequest(requestStream);
@@ -187,7 +175,7 @@ public class ChartActivity extends AppCompatActivity implements View.OnClickList
     }
 
     @Override
-    public void onActionRequired(int actionType) {
-        //used to send error messages to the user
+    public void onActionRequired(int actionType, Object data) {
+        //not needed yet
     }
 }

@@ -23,7 +23,7 @@ public class SnapshotResponse extends AsyncResponse {
         ByteBuffer buf = ByteBuffer.wrap(Arrays.copyOfRange(response, 5, response.length));
         buf.order(ByteOrder.BIG_ENDIAN);
         this.isDone = buf.get() == 0x01;
-        int candleCount = buf.getShort() & 0xFFFF;
+        int candleCount = buf.getShort();
         //Log.d(NETWORK_LOG_TAG, "SnapshotResponse: " + candleCount + " candles");
         this.entries = new ArrayList<>(candleCount);
         for (int i = 0; i < candleCount; i++) {
@@ -36,6 +36,10 @@ public class SnapshotResponse extends AsyncResponse {
             this.entries.add(new Candle(timestamp, open, high, low, close, volume));
             //Log.d(NETWORK_LOG_TAG, "Parsing candle: " + timestamp + " " + open + " " + high + " " + low + " " + close + " " + volume);
         }
+    }
+
+    public boolean isFetchError(){
+        return isDone && entries.isEmpty();
     }
 
     public boolean isDone() {

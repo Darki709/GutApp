@@ -49,10 +49,15 @@ public class HomeActivity extends AppCompatActivity implements SessionCallback {
         //ready the home page for presentation
         setUserTitle();
         loadStockList();
-
-        //set the session caller to this activity
-        NetworkClient.getInstance(this).getSessionManager().setCallback(this);
     }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        //set the session caller to this activity
+        NetworkClient.getInstance(this).start(this);
+    }
+
 
     private void setUserTitle(){
         TextView userTitle = findViewById(R.id.textViewUserTitle);
@@ -146,7 +151,7 @@ public class HomeActivity extends AppCompatActivity implements SessionCallback {
     }
 
     @Override
-    public void onActionRequired(int actionType) {
+    public void onActionRequired(int actionType, Object data) {
         //currently not in use
     }
 }

@@ -22,17 +22,14 @@ import com.example.gutapp.session.Responses.LoginResponse;
 import com.example.gutapp.session.Responses.RegisterResponse;
 
 import java.io.IOException;
-import java.lang.ref.ReferenceQueue;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayDeque;
-import java.util.List;
 import java.util.Queue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
 public class SessionManager implements Runnable {
@@ -121,7 +118,7 @@ public class SessionManager implements Runnable {
                     //if authentication fails try to login manually
                     while (result != 0 && running && !Thread.currentThread().isInterrupted()) {
                         //tell activity to show login ui
-                        notifyUI(cb -> cb.onActionRequired(ACTION_SHOW_LOGIN_UI));
+                        notifyUI(cb -> cb.onActionRequired(ACTION_SHOW_LOGIN_UI, null));
                         AuthStruct authStruct = authQueue.take();
                         byte[] buffer;
                         if (authStruct.mode == 0) {
