@@ -2,6 +2,7 @@ package com.example.gutapp.ui;
 
 import android.content.Intent;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
@@ -11,34 +12,29 @@ import android.widget.Toast;
 import androidx.activity.EdgeToEdge;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.graphics.Insets;
-import androidx.core.splashscreen.SplashScreen;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
 
 import com.example.gutapp.R;
+import com.example.gutapp.data.UserGlobals;
 import com.example.gutapp.database.DB_Helper;
-import com.example.gutapp.database.DB_Index;
-import com.example.gutapp.database.UserTableHelper;
+import com.example.gutapp.session.NetworkClient;
+import com.example.gutapp.session.SessionCallback;
+import com.example.gutapp.session.SessionManager;
 
-public class LoginPage extends AppCompatActivity implements View.OnClickListener {
-
+public class LoginPage extends AppCompatActivity implements View.OnClickListener, SessionCallback {
     
     //declaring global pointer to core elements of the page
-    DB_Helper db_helper;
-    UserTableHelper userTableHelper;
-    TextView textTitle;
-    EditText editTextUsername;
-    EditText editTextPassword;
-    TextView textDescription;
-    Button buttonLogin;
-    Button buttonRegister;
+    TextView textTitle, textDescription;
+    EditText editTextUsername, editTextPassword;
+    Button buttonLogin, buttonRegister;
+    private View loadingOverlay;
 
-    
+    public final static String APP_LOG_TAG = "GutAppUi";
 
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
-        SplashScreen splashScreen = SplashScreen.installSplashScreen(this);
         super.onCreate(savedInstanceState);
         EdgeToEdge.enable(this);
         setContentView(R.layout.activity_login_page);
@@ -48,10 +44,8 @@ public class LoginPage extends AppCompatActivity implements View.OnClickListener
             return insets;
         });
 
-        db_helper = new DB_Helper(this);
-        db_helper.getWritableDatabase();
-        userTableHelper = (UserTableHelper)db_helper.getHelper(DB_Index.USER_TABLE);
-        
+        DB_Helper.getInstance(this);//make sure db is ready
+
         //bind pointers to elements
         textTitle = findViewById(R.id.textTitle);
         editTextUsername = findViewById(R.id.editTextUsername);
@@ -59,9 +53,14 @@ public class LoginPage extends AppCompatActivity implements View.OnClickListener
         textDescription = findViewById(R.id.textDescription);
         buttonLogin = findViewById(R.id.buttonLogin);
         buttonRegister = findViewById(R.id.buttonRegister);
+        loadingOverlay = findViewById(R.id.loadingOverlay);
 
         buttonLogin.setOnClickListener(this);
         buttonRegister.setOnClickListener(this);
+        Log.i(APP_LOG_TAG, "Login page loaded");
+        setLoading(true);
+        NetworkClient.getInstance(this).start(this); //tell session manager to work with this activity
+
     }
 
     @Override
@@ -76,21 +75,55 @@ public class LoginPage extends AppCompatActivity implements View.OnClickListener
     }
 
     public void UserLogin(String username, String password){
-        if(!userTableHelper.validateUser(username, password)) {
-            Toast.makeText(this, "No Account with these 2 credentials", Toast.LENGTH_LONG).show();
-            return;
-        }
-        Intent intent = new Intent(this, HomeActivity.class);
-        startActivity(intent);
+        setLoading(true);
+        NetworkClient.getInstance(this).getSessionManager().pushCredentials(username, password, 1);
     }
 
     public void UserRegister(String username, String password){
-            if(!userTableHelper.insertUser(username, password)){
-                Toast.makeText(this, "Account with this username already exists", Toast.LENGTH_LONG).show();
-                return;
+        setLoading(true);
+        NetworkClient.getInstance(this).getSessionManager().pushCredentials(username, password, 0);
+    }
+
+
+    //callback methods to work with the session manager thread
+    @Override
+    public void onDataReceived(int msgType, Object parsedData) {
+        String error;
+        switch (msgType) {
+            case SessionManager.TYPE_AUTH_SUCCESS:
+                Toast.makeText(this, "Logged in as " + UserGlobals.USER_NAME, Toast.LENGTH_SHORT).show();
+                UserGlobals.LOGGED_IN = true;
+                Intent intent = new Intent(this, HomeActivity.class);
+                startActivity(intent);
+                break;
+            case SessionManager.TYPE_REGISTER_ERROR:
+                setLoading(false);
+                error = (String) parsedData == "" ? "This user already exist" : (String) parsedData;
+                Toast.makeText(this, "Registration failed: " + error, Toast.LENGTH_SHORT).show();
+                break;
+            case SessionManager.TYPE_LOGIN_ERROR:
+                setLoading(false);
+                Toast.makeText(this, "Login failed: " + (String)parsedData, Toast.LENGTH_SHORT).show();
+                break;
+            default:
+                break;
+
+        }
+    }
+
+    @Override
+    public void onActionRequired(int actionType, Object data) {
+            switch(actionType){
+                case SessionManager.ACTION_SHOW_LOGIN_UI:
+                    setLoading(false);
+                    break;
+                default:
+                    break;
             }
-            Toast.makeText(this, "Account created successfully", Toast.LENGTH_LONG).show();
-            Intent intent = new Intent(this, HomeActivity.class);
-            startActivity(intent);
+    }
+
+    private void setLoading(boolean loading) {
+        if (loading) loadingOverlay.setVisibility(View.VISIBLE);
+        else loadingOverlay.setVisibility(View.GONE);
     }
 }

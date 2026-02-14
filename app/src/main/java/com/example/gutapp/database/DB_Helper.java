@@ -6,61 +6,54 @@ import android.database.sqlite.SQLiteOpenHelper;
 import android.util.Log;
 
 import androidx.annotation.Nullable;
-
-import com.example.gutapp.database.indicatorHelpers.BollingerBands_DBHelper;
+import androidx.sqlite.db.SupportSQLiteOpenHelper;
+import androidx.sqlite.driver.bundled.BundledSQLiteDriver;
 
 import java.util.ArrayList;
 
 public class DB_Helper extends SQLiteOpenHelper {
-    private static final String DB_NAME = "Gut";
+    private static final String DB_NAME = "Gut.db";
     private static final int DB_VERSION = 1;
 
-    private ArrayList<Table> tables = new ArrayList<>();
+    private static DB_Helper instance;
+
+
     public static final String DB_LOG_TAG = "GutDB";
 
+    private final String[] table_initialize_query = {
+        StockDataHelper.createTable(), LastFetchCacheHelper.createTable()
+    };
 
-    public DB_Helper(@Nullable Context context) {
-        super(context, DB_NAME, null, DB_VERSION);
-        //instatciate table helpers and store them inside he object
-        //context is needed for a temporary loading method because of database content erased when switching emulators
-        StockDataHelper stockDataHelper = new StockDataHelper(context, this);
-        tables.add(stockDataHelper);
-        UserTableHelper userTableHelper = new UserTableHelper(this);
-        tables.add(userTableHelper);
-        SymbolsTableHelper symbolsTableHelper = new SymbolsTableHelper(this);
-        tables.add(symbolsTableHelper);
-        ChartPresetHelper chartPresetHelper = new ChartPresetHelper(this);
-        tables.add(chartPresetHelper);
-        IndicatorDBHelper indicatorDBHelper = new IndicatorDBHelper(this);
-        tables.add(indicatorDBHelper);
-        BollingerBands_DBHelper bollingerBandsDBHelper = new BollingerBands_DBHelper(this);
-        tables.add(bollingerBandsDBHelper);
-        Log.i(DB_LOG_TAG, "db helper created " + tables.toString());
+    public static synchronized DB_Helper getInstance(@Nullable Context context) {
+        if (instance == null) {
+            if (context == null) {
+                throw new IllegalStateException("Context cannot be null");
+            }
+            instance = new DB_Helper(context.getApplicationContext());
+        }
+        return instance;
     }
 
-    public Table getHelper(DB_Index index){
-        return tables.get(index.ordinal());
+    private DB_Helper(@Nullable Context context) {
+        super(context, DB_NAME, null, DB_VERSION);
+        Log.i(DB_LOG_TAG, "db helper created");
     }
 
 
     @Override
     public void onCreate(SQLiteDatabase sqLiteDatabase) {
 
-        Log.i(DB_LOG_TAG, "start create db " + tables.toString());
-        for(Table table: tables){
+        Log.i(DB_LOG_TAG, "start create db");
+        for(String query : table_initialize_query){
             try {
-                String createStockTable = table.createTable();
-                sqLiteDatabase.execSQL(createStockTable);
-                Log.i(DB_LOG_TAG, "finished create table " + table.getName());
+                sqLiteDatabase.execSQL(query);
             }
             catch (Exception e){
-                Log.e(DB_LOG_TAG, "error create table " + table.getName() + e.getMessage());
+                Log.e(DB_LOG_TAG, "error running query " + query + " error:" + e.getMessage());
                 throw e;
             }
         }
         Log.i(DB_LOG_TAG, "end create db");
-        ((StockDataHelper) this.getHelper(DB_Index.STOCK_TABLE)).loadStockDataFromAssets(sqLiteDatabase);
-        ((SymbolsTableHelper) this.getHelper(DB_Index.SYMBOL_TABLE)).loadDefaultSymbols(sqLiteDatabase);
     }
 
     @Override
