@@ -76,23 +76,21 @@ public class ChartActivity extends AppCompatActivity implements View.OnClickList
 
         ImageButton buttonHome = findViewById(R.id.buttonHome);
         buttonHome.setOnClickListener(this);
-        StockDataHelper.Timeframe interval = StockDataHelper.Timeframe.DAILY;
-        formatTile(interval.value);
-
         this.interval = StockDataHelper.Timeframe.DAILY;
-        updateChartData();
+        formatTile(this.interval.value);
         NetworkClient.getInstance(this).getSessionManager().setCallback(this);
     }
 
     @Override
     protected void onResume() {
         super.onResume();
-        NetworkClient.getInstance(this).start(this);
+        NetworkClient.getInstance(this).getSessionManager().setCallback(this);
+        updateChartData();
     }
 
     @Override
-    protected void onStop(){
-        super.onStop();
+    protected void onPause(){
+        super.onPause();
         //we don't need the chart updating in the background
         chartContainer.flushRequests();
         chartContainer.clearChart();

@@ -14,10 +14,14 @@ import android.view.View;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import androidx.annotation.Nullable;
+
 import com.example.gutapp.data.models.Candle;
+import com.example.gutapp.data.models.PriceChunk;
 import com.example.gutapp.database.StockDataHelper;
 import com.example.gutapp.session.Connection;
 import com.example.gutapp.session.NetworkClient;
+import com.example.gutapp.session.Requests.RequestTickerData;
 import com.example.gutapp.session.SessionCallback;
 import com.github.mikephil.charting.charts.CombinedChart;
 import com.github.mikephil.charting.components.AxisBase;
@@ -311,28 +315,6 @@ public class StockChart implements SessionCallback {
         allCandles.clear();
     }
 
-    public enum Actions{
-        STREAM(0),
-        SNAPSHOT(1),
-        REQUESTDONE(2),
-        ERROR(3);
-
-        public final int value;
-
-        Actions(int value){
-            this.value = value;
-        }
-
-        static Actions fromValue(int value){
-            for(Actions action : Actions.values()){
-                if(action.value == value) {
-                    return action;
-                }
-            }
-            return null;
-        }
-    }
-
     public void addToCurrentRequest(int reqId){
         this.reqIds.add(reqId);
     }
@@ -375,28 +357,16 @@ public class StockChart implements SessionCallback {
 
     }
 
-    public static class PriceChunk {
-        public final int reqId;
-        public final ArrayList<Candle> chunk;
-        public final boolean isLast;
-
-        public PriceChunk(int reqId, ArrayList<Candle> chunk, boolean isLast) {
-            this.reqId = reqId;
-            this.chunk = chunk;
-            this.isLast = isLast;
-        }
-    }
-
 
 
     //parsed data should be a PriceChunk object
     @Override
     public void onDataReceived(int msgType, Object parsedData) {
-        Actions action = Actions.fromValue(msgType);
+        RequestTickerData.Actions action = RequestTickerData.Actions.fromValue(msgType);
         if(action == null){
             throw new RuntimeException("Wrong action type");
         }
-        if(action == Actions.ERROR){
+        if(action == RequestTickerData.Actions.ERROR){
             mainHandler.post(() -> Toast.makeText(activityContext, (String) parsedData, Toast.LENGTH_SHORT).show());
             flushRequests();
             return;
@@ -429,7 +399,7 @@ public class StockChart implements SessionCallback {
     public void setInterval(StockDataHelper.Timeframe interval){ this.interval = interval;}
 
     @Override
-    public void onActionRequired(int actionType, Object data) {
+    public void onActionRequired(int actionType,@Nullable Object data) {
         //not needed here
     }
 }

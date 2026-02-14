@@ -9,6 +9,7 @@ import android.util.Log;
 
 import com.example.gutapp.data.StockChart;
 import com.example.gutapp.data.models.Candle;
+import com.example.gutapp.data.models.PriceChunk;
 import com.example.gutapp.database.DB_Helper;
 import com.example.gutapp.database.StockDataHelper;
 import com.example.gutapp.session.AsyncRequest;
@@ -36,18 +37,44 @@ public class RequestTickerData extends AsyncRequest {
 
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
 
+    private final boolean isStream;
+
     public RequestTickerData(String symbol, StockDataHelper.Timeframe interval, long startTs , long endTs , boolean isSnapshot, boolean isStream , SessionCallback caller) {
         super(caller);
         this.symbol = symbol;
         this.interval = interval;
         this.startTs = startTs;
         this.endTs = endTs;
+        this.isStream = isStream;
 
         // Bitwise flags: 0x01 SNAPSHOT, 0x02 STREAM
         byte f = 0;
         if (isSnapshot) f |= 0x01;
         if (isStream) f |= 0x02;
         this.flags = f;
+    }
+
+    //actions that this request might use on sessionCallbacks
+    public enum Actions{
+        STREAM(0),
+        SNAPSHOT(1),
+        REQUESTDONE(2),
+        ERROR(3);
+
+        public final int value;
+
+        Actions(int value){
+            this.value = value;
+        }
+
+        static public Actions fromValue(int value){
+            for(Actions action : Actions.values()){
+                if(action.value == value) {
+                    return action;
+                }
+            }
+            return null;
+        }
     }
 
     @Override
@@ -84,19 +111,20 @@ public class RequestTickerData extends AsyncRequest {
                 SnapshotResponse snapshotResponse = (SnapshotResponse) response;
                 if(snapshotResponse.isFetchError()){
                     this.isDone = true;
-                    caller.onDataReceived(StockChart.Actions.ERROR.value, "No price data for " + symbol + " " + interval.value);
+                    Log.e(NETWORK_LOG_TAG, "Error fetching price data for " + symbol + " " + interval.value);
+                    caller.onDataReceived(Actions.ERROR.value, "No price data for " + symbol + " " + interval.value);
                     return;
                 }
                 ArrayList<Candle> entries = snapshotResponse.getEntries();
                 int reqId = snapshotResponse.getReqId();
-                StockChart.PriceChunk priceChunk = new StockChart.PriceChunk(reqId, entries, snapshotResponse.isDone());
-                caller.onDataReceived(StockChart.Actions.SNAPSHOT.value, priceChunk);
+                PriceChunk priceChunk = new PriceChunk(reqId, entries, snapshotResponse.isDone());
+                caller.onDataReceived(Actions.SNAPSHOT.value, priceChunk);
                 //cache the price data for future requests
                 Thread cacheThread = new Thread( () -> cachePriceData(entries));
                 cacheThread.start();
-                if(snapshotResponse.isDone()){
+                if(snapshotResponse.isDone() && !isStream){
                     this.isDone = true;
-                    caller.onDataReceived(StockChart.Actions.REQUESTDONE.value, priceChunk);
+                    caller.onDataReceived(Actions.REQUESTDONE.value, priceChunk);
                 }
                 break;
             case STREAM:
@@ -104,8 +132,8 @@ public class RequestTickerData extends AsyncRequest {
                 Candle candle = streamResponse.getCandle();
                 ArrayList<Candle> streamEntries = new ArrayList<>();
                 streamEntries.add(candle);
-                StockChart.PriceChunk streamChunk = new StockChart.PriceChunk(streamResponse.getReqId(), streamEntries, false);
-                caller.onDataReceived(StockChart.Actions.STREAM.value, streamChunk);
+                PriceChunk streamChunk = new PriceChunk(streamResponse.getReqId(), streamEntries, false);
+                caller.onDataReceived(Actions.STREAM.value, streamChunk);
                 Log.i(CHART_LOG_TAG, "Received stream data for " + symbol + " : open = " + candle.open + ", high = " + candle.high + ", low = " + candle.low + ", close = " + candle.close + ", volume = " + candle.volume + ", ts = " + candle.timestamp);
                 break;
     }
@@ -114,7 +142,8 @@ public class RequestTickerData extends AsyncRequest {
     @Override
     public void discardRequest() {
         super.discardRequest();
-        NetworkClient.getInstance(null).getSessionManager().pushRequest(new CancelTickerStream(reqId, symbol));
+        if(isStream)
+            NetworkClient.getInstance(null).getSessionManager().pushRequest(new CancelTickerStream(reqId, symbol));
     }
 
 

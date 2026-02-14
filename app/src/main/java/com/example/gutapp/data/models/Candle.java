@@ -20,4 +20,9 @@ public class Candle {
         this.close = close;
         this.volume = volume;
     }
+
+    @Override
+    public String toString(){
+        return String.format("%d, %.4f, %.4f, %.4f, %.4f, %d", timestamp, open, high, low, close, volume);
+    }
 }

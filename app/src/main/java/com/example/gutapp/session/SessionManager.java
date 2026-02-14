@@ -358,12 +358,12 @@ public class SessionManager implements Runnable {
                     request.handle(response);
                     if(request.isDone()){
                         Log.i(NETWORK_LOG_TAG, "Request done: " + (response.getReqId() & 0xffffffffL));
-                        pendingRequests.remove(request.getReqId());
+                        discardRequest(response.getReqId());
                     }
                 }
                 else {
                     // 3. Log it and move on. Don't let the thread die.
-                    Log.w(NETWORK_LOG_TAG, "Discarding packet for unknown ReqID: " + response.getReqId());
+                    Log.w(NETWORK_LOG_TAG, "Discarding packet for unknown ReqID: " + (response.getReqId() & 0xffffffffL));
                 }
             }
              catch (Exception e) {
@@ -474,6 +474,13 @@ public class SessionManager implements Runnable {
             if (request != null){
                 request.discardRequest();
             }
+        }
+    }
+
+    public void discardRequest(int reqId){
+        AsyncRequest request = pendingRequests.remove(reqId);
+        if (request != null){
+            request.discardRequest();
         }
     }
 
