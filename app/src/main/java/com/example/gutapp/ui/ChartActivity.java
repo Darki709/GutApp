@@ -22,6 +22,7 @@ import com.example.gutapp.database.DB_Helper;
 import com.example.gutapp.database.LastFetchCacheHelper;
 import com.example.gutapp.database.StockDataHelper;
 
+import com.example.gutapp.session.DataType;
 import com.example.gutapp.session.NetworkClient;
 import com.example.gutapp.session.Requests.RequestTickerData;
 import com.example.gutapp.session.SessionCallback;
@@ -29,7 +30,7 @@ import com.github.mikephil.charting.charts.CombinedChart;
 
 import java.util.ArrayList;
 
-public class ChartActivity extends AppCompatActivity implements View.OnClickListener, SessionCallback {
+public class ChartActivity extends SessionActivity implements View.OnClickListener {
 
     public static final String CHART_LOG_TAG = "GutChart";
 
@@ -78,13 +79,11 @@ public class ChartActivity extends AppCompatActivity implements View.OnClickList
         buttonHome.setOnClickListener(this);
         this.interval = StockDataHelper.Timeframe.DAILY;
         formatTile(this.interval.value);
-        NetworkClient.getInstance(this).getSessionManager().setCallback(this);
     }
 
     @Override
     protected void onResume() {
         super.onResume();
-        NetworkClient.getInstance(this).getSessionManager().setCallback(this);
         updateChartData();
     }
 
@@ -168,7 +167,7 @@ public class ChartActivity extends AppCompatActivity implements View.OnClickList
 
 
     @Override
-    public void onDataReceived(int msgType, Object parsedData) {
+    public void onDataReceived(DataType msgType, Object parsedData) {
         //not needed yet
     }
 

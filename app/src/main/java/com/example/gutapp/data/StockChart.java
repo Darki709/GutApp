@@ -2,7 +2,6 @@ package com.example.gutapp.data;
 
 
 import static com.example.gutapp.ui.ChartActivity.CHART_LOG_TAG;
-import static java.util.concurrent.ConcurrentHashMap.newKeySet;
 
 import android.content.Context;
 import android.graphics.Color;
@@ -19,9 +18,8 @@ import androidx.annotation.Nullable;
 import com.example.gutapp.data.models.Candle;
 import com.example.gutapp.data.models.PriceChunk;
 import com.example.gutapp.database.StockDataHelper;
-import com.example.gutapp.session.Connection;
+import com.example.gutapp.session.DataType;
 import com.example.gutapp.session.NetworkClient;
-import com.example.gutapp.session.Requests.RequestTickerData;
 import com.example.gutapp.session.SessionCallback;
 import com.github.mikephil.charting.charts.CombinedChart;
 import com.github.mikephil.charting.components.AxisBase;
@@ -361,12 +359,8 @@ public class StockChart implements SessionCallback {
 
     //parsed data should be a PriceChunk object
     @Override
-    public void onDataReceived(int msgType, Object parsedData) {
-        RequestTickerData.Actions action = RequestTickerData.Actions.fromValue(msgType);
-        if(action == null){
-            throw new RuntimeException("Wrong action type");
-        }
-        if(action == RequestTickerData.Actions.ERROR){
+    public void onDataReceived(DataType msgType, Object parsedData) {
+        if(msgType == DataType.TICKER_ERROR){
             mainHandler.post(() -> Toast.makeText(activityContext, (String) parsedData, Toast.LENGTH_SHORT).show());
             flushRequests();
             return;
@@ -380,14 +374,14 @@ public class StockChart implements SessionCallback {
         if(!reqIds.contains(chunk.reqId)){
             return;
         }
-        switch(action){
-            case STREAM:
+        switch(msgType){
+            case TICKER_STREAM:
                 streamUpdate(chunk.chunk);
                 break;
-            case SNAPSHOT:
+            case TICKER_SNAPSHOT:
                 addChunk(chunk.chunk);
                 break;
-            case REQUESTDONE:
+            case TICKER_REQUEST_DONE:
                 Log.i(CHART_LOG_TAG, "request done: " + (chunk.reqId & 0xffffffffL));
                 reqIds.remove(chunk.reqId);
                 break;

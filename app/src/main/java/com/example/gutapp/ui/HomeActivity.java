@@ -19,12 +19,13 @@ import com.example.gutapp.data.StockRow;
 import com.example.gutapp.data.UserGlobals;
 import com.example.gutapp.database.DB_Helper;
 import com.example.gutapp.database.LastFetchCacheHelper;
+import com.example.gutapp.session.DataType;
 import com.example.gutapp.session.NetworkClient;
 import com.example.gutapp.session.SessionCallback;
 
 import java.util.ArrayList;
 
-public class HomeActivity extends AppCompatActivity implements SessionCallback {
+public class HomeActivity extends SessionActivity {
     public static final String HOME_LOG_TAG = "GutHome";
 
     //load global pointers
@@ -52,8 +53,6 @@ public class HomeActivity extends AppCompatActivity implements SessionCallback {
     @Override
     protected void onResume() {
         super.onResume();
-        //set the session caller to this activity
-        NetworkClient.getInstance(this).getSessionManager().setCallback(this);
         //only when visible we want to update the prices
         for(StockRow stockRow : stockList){
             stockRow.loadPrice();
@@ -108,7 +107,7 @@ public class HomeActivity extends AppCompatActivity implements SessionCallback {
     }
 
     @Override
-    public void onDataReceived(int msgType, Object parsedData) {
+    public void onDataReceived(DataType msgType, Object parsedData) {
         //currently not in use
     }
 

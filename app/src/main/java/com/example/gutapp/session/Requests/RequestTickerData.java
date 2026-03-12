@@ -13,6 +13,7 @@ import com.example.gutapp.data.models.PriceChunk;
 import com.example.gutapp.database.DB_Helper;
 import com.example.gutapp.database.StockDataHelper;
 import com.example.gutapp.session.AsyncRequest;
+import com.example.gutapp.session.DataType;
 import com.example.gutapp.session.Flag;
 import com.example.gutapp.session.NetworkClient;
 import com.example.gutapp.session.RequestType;
@@ -54,29 +55,6 @@ public class RequestTickerData extends AsyncRequest {
         this.flags = f;
     }
 
-    //actions that this request might use on sessionCallbacks
-    public enum Actions{
-        STREAM(0),
-        SNAPSHOT(1),
-        REQUESTDONE(2),
-        ERROR(3);
-
-        public final int value;
-
-        Actions(int value){
-            this.value = value;
-        }
-
-        static public Actions fromValue(int value){
-            for(Actions action : Actions.values()){
-                if(action.value == value) {
-                    return action;
-                }
-            }
-            return null;
-        }
-    }
-
     @Override
     public byte[] getBytes() {
         byte[] symbolBytes = symbol.getBytes(StandardCharsets.US_ASCII);
@@ -106,25 +84,26 @@ public class RequestTickerData extends AsyncRequest {
             return;
         }
         Log.i(CHART_LOG_TAG, "handling new price response from server");
+        Thread cacheThread;
         switch(response.getType()){
             case SNAPSHOT:
                 SnapshotResponse snapshotResponse = (SnapshotResponse) response;
                 if(snapshotResponse.isFetchError()){
                     this.isDone = true;
                     Log.e(NETWORK_LOG_TAG, "Error fetching price data for " + symbol + " " + interval.value);
-                    caller.onDataReceived(Actions.ERROR.value, "No price data for " + symbol + " " + interval.value);
+                    caller.onDataReceived(DataType.TICKER_ERROR, "No price data for " + symbol + " " + interval.value);
                     return;
                 }
                 ArrayList<Candle> entries = snapshotResponse.getEntries();
                 int reqId = snapshotResponse.getReqId();
                 PriceChunk priceChunk = new PriceChunk(reqId, entries, snapshotResponse.isDone());
-                caller.onDataReceived(Actions.SNAPSHOT.value, priceChunk);
+                caller.onDataReceived(DataType.TICKER_SNAPSHOT, priceChunk);
                 //cache the price data for future requests
-                Thread cacheThread = new Thread( () -> cachePriceData(entries));
+                cacheThread = new Thread( () -> cachePriceData(entries));
                 cacheThread.start();
                 if(snapshotResponse.isDone() && !isStream){
                     this.isDone = true;
-                    caller.onDataReceived(Actions.REQUESTDONE.value, priceChunk);
+                    caller.onDataReceived(DataType.TICKER_REQUEST_DONE, priceChunk);
                 }
                 break;
             case STREAM:
@@ -133,8 +112,10 @@ public class RequestTickerData extends AsyncRequest {
                 ArrayList<Candle> streamEntries = new ArrayList<>();
                 streamEntries.add(candle);
                 PriceChunk streamChunk = new PriceChunk(streamResponse.getReqId(), streamEntries, false);
-                caller.onDataReceived(Actions.STREAM.value, streamChunk);
+                caller.onDataReceived(DataType.TICKER_STREAM, streamChunk);
                 Log.i(CHART_LOG_TAG, "Received stream data for " + symbol + " : open = " + candle.open + ", high = " + candle.high + ", low = " + candle.low + ", close = " + candle.close + ", volume = " + candle.volume + ", ts = " + candle.timestamp);
+                cacheThread = new Thread( () -> cachePriceData(streamEntries));
+                cacheThread.start();
                 break;
     }
     }

@@ -20,6 +20,7 @@ import com.example.gutapp.data.models.PriceChunk;
 import com.example.gutapp.database.DB_Helper;
 import com.example.gutapp.database.LastFetchCacheHelper;
 import com.example.gutapp.database.StockDataHelper;
+import com.example.gutapp.session.DataType;
 import com.example.gutapp.session.NetworkClient;
 import com.example.gutapp.session.Requests.RequestTickerData;
 import com.example.gutapp.session.SessionCallback;
@@ -91,9 +92,9 @@ public class StockRow implements SessionCallback {
 
     //sends the live update request to the api
     public void loadPrice(){
-        long lastFetchTime = (new LastFetchCacheHelper(DB_Helper.getInstance(null))).getLastFetchTime(symbol, StockDataHelper.Timeframe.DAILY);
-        RequestTickerData requestPrice = new RequestTickerData(symbol, StockDataHelper.Timeframe.ONE_MIN, lastFetchTime
-                , 0, true, true, this);
+        //long lastFetchTime = (new LastFetchCacheHelper(DB_Helper.getInstance(null))).getLastFetchTime(symbol, StockDataHelper.Timeframe.DAILY); depracted for perfomance issues
+        RequestTickerData requestPrice = new RequestTickerData(symbol, StockDataHelper.Timeframe.ONE_MIN, 0
+                , 0, false, true, this);
         reqId = requestPrice.getReqId();
         NetworkClient.getInstance(null).getSessionManager().pushRequest(requestPrice);
     }
@@ -121,22 +122,22 @@ public class StockRow implements SessionCallback {
     }
 
     @Override
-    public void onDataReceived(int msgType, Object parsedData) {
-        if(msgType == RequestTickerData.Actions.ERROR.value){
+    public void onDataReceived(DataType msgType, Object parsedData) {
+        if(msgType == DataType.TICKER_ERROR){
             mainHandler.post(() -> {
                 priceView.setText(String.format("%.4f",(this.lastPrice)) + " Price not available");
                 priceView.setTextColor(Color.parseColor("#FF4444"));
             });
             return;
         }
-        if(msgType == RequestTickerData.Actions.REQUESTDONE.value){
+        if(msgType == DataType.TICKER_REQUEST_DONE){
             return;
         }
         PriceChunk chunk = (PriceChunk) parsedData;
         if(chunk == null || chunk.reqId != reqId || chunk.chunk.isEmpty()){
             return;
         }
-        if(msgType == RequestTickerData.Actions.STREAM.value || (msgType == RequestTickerData.Actions.SNAPSHOT.value && chunk.isLast)){
+        if(msgType == DataType.TICKER_STREAM || (msgType == DataType.TICKER_SNAPSHOT && chunk.isLast)){
             updatePrice(chunk);
         }
     }

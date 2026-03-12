@@ -18,6 +18,7 @@ import androidx.core.view.WindowInsetsCompat;
 import com.example.gutapp.R;
 import com.example.gutapp.data.UserGlobals;
 import com.example.gutapp.database.DB_Helper;
+import com.example.gutapp.session.DataType;
 import com.example.gutapp.session.NetworkClient;
 import com.example.gutapp.session.SessionCallback;
 import com.example.gutapp.session.SessionManager;
@@ -87,21 +88,21 @@ public class LoginPage extends AppCompatActivity implements View.OnClickListener
 
     //callback methods to work with the session manager thread
     @Override
-    public void onDataReceived(int msgType, Object parsedData) {
+    public void onDataReceived(DataType msgType, Object parsedData) {
         String error;
         switch (msgType) {
-            case SessionManager.TYPE_AUTH_SUCCESS:
+            case AUTH_SUCCESS:
                 Toast.makeText(this, "Logged in as " + UserGlobals.USER_NAME, Toast.LENGTH_SHORT).show();
                 UserGlobals.LOGGED_IN = true;
                 Intent intent = new Intent(this, HomeActivity.class);
                 startActivity(intent);
                 break;
-            case SessionManager.TYPE_REGISTER_ERROR:
+            case REGISTER_ERROR:
                 setLoading(false);
                 error = (String) parsedData == "" ? "This user already exist" : (String) parsedData;
                 Toast.makeText(this, "Registration failed: " + error, Toast.LENGTH_SHORT).show();
                 break;
-            case SessionManager.TYPE_LOGIN_ERROR:
+            case LOGIN_ERROR:
                 setLoading(false);
                 Toast.makeText(this, "Login failed: " + (String)parsedData, Toast.LENGTH_SHORT).show();
                 break;

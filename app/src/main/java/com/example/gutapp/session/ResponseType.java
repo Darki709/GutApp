@@ -7,7 +7,8 @@ public enum ResponseType{
     SNAPSHOT((byte) 2),
     STREAM((byte) 3),
     REGISTER((byte) 4),
-    LOGIN((byte) 5);
+    LOGIN((byte) 5),
+    SEARCHTICKERRESPONSE((byte) 6),;
 
     public final byte value;
 

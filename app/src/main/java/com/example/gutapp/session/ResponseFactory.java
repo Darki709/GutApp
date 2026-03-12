@@ -1,5 +1,6 @@
 package com.example.gutapp.session;
 
+import com.example.gutapp.session.Responses.SearchTickerResponse;
 import com.example.gutapp.session.Responses.SnapshotResponse;
 import com.example.gutapp.session.Responses.StreamResponse;
 
@@ -10,6 +11,8 @@ public class ResponseFactory {
                 return new StreamResponse(response);
             case SNAPSHOT:
                 return new SnapshotResponse(response);
+            case SEARCHTICKERRESPONSE:
+                return new SearchTickerResponse(response);
             default:
                 throw new RuntimeException("Unknown response type: " + response[0]);
         }
