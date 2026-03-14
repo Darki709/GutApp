@@ -10,11 +10,13 @@ import java.util.Arrays;
 
 public class SearchTickerResponse extends AsyncResponse {
     private final ArrayList<TickerInfo> tickers = new ArrayList<>();
+    private final boolean found;
 
     public SearchTickerResponse(byte[] response) {
         super(response[0], Arrays.copyOfRange(response, 1, 5));
         ByteBuffer buffer = ByteBuffer.wrap(response, 5, response.length);
         int count = buffer.getInt();
+        found = count != 0;
         for (int i = 0; i < count; i++) {
             int namelen = buffer.get() & 0xFF;
             byte[] nameBytes = new byte[namelen];
@@ -27,6 +29,7 @@ public class SearchTickerResponse extends AsyncResponse {
             tickers.add(new TickerInfo(name, symbol, buffer.getInt()));
         }
     }
+    public boolean isFound() {return found;} //if there are no results this will return false
 
     public ArrayList<TickerInfo> getTickers() {
         return tickers;

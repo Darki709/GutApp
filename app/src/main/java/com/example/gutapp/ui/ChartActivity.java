@@ -37,10 +37,10 @@ public class ChartActivity extends SessionActivity implements View.OnClickListen
     private DB_Helper db_helper;
     private StockChart chartContainer;
     private String symbol; // Default symbol
+    private String name;
     private TextView textViewTitle;
     private StockDataHelper.Timeframe interval;
 
-    @SuppressLint("SetTextI11n")
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -54,7 +54,7 @@ public class ChartActivity extends SessionActivity implements View.OnClickListen
         //loading chart symbol from the caller
         Intent intent = getIntent();
         symbol = intent.getStringExtra("symbol");
-        String name = intent.getStringExtra("name");
+        name = intent.getStringExtra("name");
 
         //initialize important database objects
         db_helper = DB_Helper.getInstance(this);
@@ -125,7 +125,7 @@ public class ChartActivity extends SessionActivity implements View.OnClickListen
     }
 
     public void formatTile(String timeFrame){
-        textViewTitle.setText(symbol + " (" + timeFrame + ")");
+        textViewTitle.setText(name + " (" + timeFrame + ")");
     }
 
 

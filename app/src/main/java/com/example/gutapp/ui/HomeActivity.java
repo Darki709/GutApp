@@ -5,6 +5,7 @@ import android.graphics.Color;
 import android.os.Bundle;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
@@ -13,6 +14,7 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
+import androidx.recyclerview.widget.RecyclerView;
 
 import com.example.gutapp.R;
 import com.example.gutapp.data.StockRow;
@@ -20,8 +22,8 @@ import com.example.gutapp.data.UserGlobals;
 import com.example.gutapp.database.DB_Helper;
 import com.example.gutapp.database.LastFetchCacheHelper;
 import com.example.gutapp.session.DataType;
-import com.example.gutapp.session.NetworkClient;
-import com.example.gutapp.session.SessionCallback;
+import com.google.android.material.search.SearchBar;
+import com.google.android.material.search.SearchView;
 
 import java.util.ArrayList;
 
@@ -48,6 +50,10 @@ public class HomeActivity extends SessionActivity {
         //ready the home page for presentation
         setUserTitle();
         loadStockList();
+
+        EditText searchInput = findViewById(R.id.search_input);
+        RecyclerView dropdown = findViewById(R.id.suggestions_dropdown);
+
     }
 
     @Override

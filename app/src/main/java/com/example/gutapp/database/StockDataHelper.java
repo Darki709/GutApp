@@ -205,7 +205,8 @@ public class StockDataHelper {
                     new String[]{symbol}, "date DESC", 2);
             cursor.moveToFirst();
             Double current = cursor.getDouble(0);
-            cursor.moveToNext();
+            if(!cursor.isLast()) cursor.moveToNext();
+            else return current; //there might be only one entry so the default will be green
             Double before = cursor.getDouble(0);
             Log.i(DB_Helper.DB_LOG_TAG, "Getting latest price for " + symbol + " : " + current + " vs " + before);
             return (current > before) ? current : -1 * current;

@@ -99,7 +99,7 @@ public class RequestTickerData extends AsyncRequest {
                 PriceChunk priceChunk = new PriceChunk(reqId, entries, snapshotResponse.isDone());
                 caller.onDataReceived(DataType.TICKER_SNAPSHOT, priceChunk);
                 //cache the price data for future requests
-                cacheThread = new Thread( () -> cachePriceData(entries));
+                cacheThread = new Thread( () -> cachePriceData(entries, this.interval));
                 cacheThread.start();
                 if(snapshotResponse.isDone() && !isStream){
                     this.isDone = true;
@@ -114,7 +114,7 @@ public class RequestTickerData extends AsyncRequest {
                 PriceChunk streamChunk = new PriceChunk(streamResponse.getReqId(), streamEntries, false);
                 caller.onDataReceived(DataType.TICKER_STREAM, streamChunk);
                 Log.i(CHART_LOG_TAG, "Received stream data for " + symbol + " : open = " + candle.open + ", high = " + candle.high + ", low = " + candle.low + ", close = " + candle.close + ", volume = " + candle.volume + ", ts = " + candle.timestamp);
-                cacheThread = new Thread( () -> cachePriceData(streamEntries));
+                cacheThread = new Thread( () -> cachePriceData(streamEntries, StockDataHelper.Timeframe.ONE_MIN));
                 cacheThread.start();
                 break;
     }
@@ -128,7 +128,7 @@ public class RequestTickerData extends AsyncRequest {
     }
 
 
-    private void cachePriceData(ArrayList<Candle> entries) {
+    private void cachePriceData(ArrayList<Candle> entries, StockDataHelper.Timeframe interval) {
         StockDataHelper stockDataHelper = new StockDataHelper(DB_Helper.getInstance(null));
         stockDataHelper.saveStockData(symbol, interval, entries);
     }
