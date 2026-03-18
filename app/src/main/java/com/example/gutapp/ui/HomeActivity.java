@@ -161,7 +161,10 @@ public class HomeActivity extends SessionActivity {
     public void onDataReceived(DataType msgType, Object parsedData) {
         switch(msgType){
             case SEARCH_NO_RESULT:
-                Toast.makeText(this, "No results found", Toast.LENGTH_SHORT).show();
+                runOnUiThread(() -> {
+                    searchDropdown.setVisibility(View.GONE);
+                    Toast.makeText(this, "No results found", Toast.LENGTH_SHORT).show();
+                });
                 break;
             case SEARCH_RESULT:
                 if(parsedData == null) return;
