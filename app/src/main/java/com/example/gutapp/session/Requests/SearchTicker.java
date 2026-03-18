@@ -1,9 +1,11 @@
 package com.example.gutapp.session.Requests;
 
 import com.example.gutapp.session.AsyncRequest;
+import com.example.gutapp.session.DataType;
 import com.example.gutapp.session.Flag;
 import com.example.gutapp.session.RequestType;
 import com.example.gutapp.session.Response;
+import com.example.gutapp.session.Responses.SearchTickerResponse;
 import com.example.gutapp.session.SessionCallback;
 
 import java.nio.ByteBuffer;
@@ -37,20 +39,20 @@ public class SearchTicker extends AsyncRequest {
 
     @Override
     public byte[] getBytes() {
-        int length = 2 + reqId.length + 1 + searchQuery.length() + 1 + (isFast ? 0 : 5);
+        int length = 8 + searchQuery.length() + (isFast ? 0 : 5);
         ByteBuffer buffer = ByteBuffer.allocate(length + 4); //add length header bytes
         buffer.putInt(length);
-        buffer.put(Flag.PLAINTEXT.value);
+        buffer.put(Flag.ENCRYPTED.value);
         buffer.put(RequestType.SEARCHTICKER.value);
         buffer.put(reqId);
-        buffer.put((byte)searchQuery.length());
+        buffer.put((byte)searchQuery.getBytes().length);
         buffer.put(searchQuery.getBytes());
         buffer.put((byte)(isFast ? 1 : 0));
         if (!isFast){
             buffer.put((byte)limit);
             buffer.putInt(lastTickerID);
         }
-        return new byte[0];
+        return buffer.array();
     }
 
     @Override
@@ -59,6 +61,14 @@ public class SearchTicker extends AsyncRequest {
             this.isDone = true;
             return;
         }
-
+        SearchTickerResponse searchTickerResponse = (SearchTickerResponse) response;
+        //checks if there is a result
+        if(!searchTickerResponse.isFound()){
+            caller.onDataReceived(DataType.SEARCH_NO_RESULT, null);
+            return;
+        }
+        //if there is a result pass it to the caller
+        caller.onDataReceived(DataType.SEARCH_RESULT, searchTickerResponse.getTickers());
+        isDone=true;
     }
 }

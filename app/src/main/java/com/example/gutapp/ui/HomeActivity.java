@@ -1,29 +1,38 @@
 package com.example.gutapp.ui;
 
+import android.content.Intent;
 import android.database.Cursor;
 import android.graphics.Color;
 import android.os.Bundle;
+import android.text.Editable;
+import android.text.TextWatcher;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.EditText;
 import android.widget.LinearLayout;
+import android.widget.Switch;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import androidx.activity.EdgeToEdge;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
+import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.example.gutapp.R;
+import com.example.gutapp.data.SearchAdapter;
 import com.example.gutapp.data.StockRow;
 import com.example.gutapp.data.UserGlobals;
+import com.example.gutapp.data.models.TickerInfo;
 import com.example.gutapp.database.DB_Helper;
 import com.example.gutapp.database.LastFetchCacheHelper;
 import com.example.gutapp.session.DataType;
-import com.google.android.material.search.SearchBar;
-import com.google.android.material.search.SearchView;
+import com.example.gutapp.session.NetworkClient;
+import com.example.gutapp.session.Requests.SearchTicker;
+
 
 import java.util.ArrayList;
 
@@ -33,6 +42,10 @@ public class HomeActivity extends SessionActivity {
     //load global pointers
     LinearLayout stockContainer;
     ArrayList<StockRow> stockList = new ArrayList();
+
+    private SearchAdapter searchAdapter;
+    private RecyclerView searchDropdown;
+    private EditText searchInput;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -51,9 +64,41 @@ public class HomeActivity extends SessionActivity {
         setUserTitle();
         loadStockList();
 
-        EditText searchInput = findViewById(R.id.search_input);
-        RecyclerView dropdown = findViewById(R.id.suggestions_dropdown);
+        searchInput = findViewById(R.id.search_input);
+        searchDropdown = findViewById(R.id.suggestions_dropdown);
+        searchAdapter = new SearchAdapter();
+        searchDropdown.setLayoutManager(new LinearLayoutManager(this));
+        searchDropdown.setAdapter(searchAdapter);
+        searchAdapter.setOnItemClickListener(result -> {
+            Intent intent = new Intent(this, ChartActivity.class);
+            intent.putExtra("symbol", result.symbol);
+            intent.putExtra("name", result.name);
+            startActivity(intent);
+        });
 
+        //set the quick search
+        searchInput.addTextChangedListener(new TextWatcher() {
+            @Override
+            public void beforeTextChanged(CharSequence s, int start, int count, int after) {
+                // Leave empty - required by Interface
+            }
+
+            @Override
+            public void onTextChanged(CharSequence s, int start, int before, int count) {
+                String query = s.toString();
+                if (query.length() >= 2) {
+                    SearchTicker searchTicker = new SearchTicker(query, HomeActivity.this);
+                    NetworkClient.getInstance(HomeActivity.this).getSessionManager().pushRequest(searchTicker);
+                } else {
+                    searchDropdown.setVisibility(View.GONE);
+                }
+            }
+
+            @Override
+            public void afterTextChanged(Editable s) {
+                // Leave empty - required by Interface
+            }
+        });
     }
 
     @Override
@@ -114,7 +159,20 @@ public class HomeActivity extends SessionActivity {
 
     @Override
     public void onDataReceived(DataType msgType, Object parsedData) {
-        //currently not in use
+        switch(msgType){
+            case SEARCH_NO_RESULT:
+                Toast.makeText(this, "No results found", Toast.LENGTH_SHORT).show();
+                break;
+            case SEARCH_RESULT:
+                if(parsedData == null) return;
+                runOnUiThread( () -> {
+                searchAdapter.updateData((ArrayList<TickerInfo>) parsedData);
+                searchDropdown.setVisibility(View.VISIBLE);
+                });
+                break;
+            default:
+                break;
+        }
     }
 
     @Override
