@@ -60,6 +60,7 @@ public class StockChart implements SessionCallback {
 
     Handler mainHandler = new Handler(Looper.getMainLooper()); //used to send error messages to the UI thread
 
+
     public StockChart(CombinedChart chart, Context context) {
         this.chart = chart;
         this.activityContext = context;
@@ -67,11 +68,13 @@ public class StockChart implements SessionCallback {
 
     //set up chart with default settings
     public void setupChart(TextView candleDataTextView) {
-        chart.setAutoScaleMinMaxEnabled(false);
+        chart.setAutoScaleMinMaxEnabled(true);
         chart.setDragEnabled(true);
         chart.setScaleEnabled(true);
         chart.setDrawGridBackground(false);
         chart.setPinchZoom(true);
+        chart.setScaleXEnabled(true);
+        chart.setScaleYEnabled(true);
 
         chart.setDrawOrder(new CombinedChart.DrawOrder[]{
                 CombinedChart.DrawOrder.BAR,
@@ -88,6 +91,8 @@ public class StockChart implements SessionCallback {
         leftAxis.setDrawGridLines(true);
         leftAxis.setLabelCount(5, false);
         leftAxis.setTextColor(Color.WHITE);
+        leftAxis.setSpaceTop(20f);
+        leftAxis.setSpaceBottom(20f);
 
         // Configure Right Axis (Volume)
         YAxis rightAxis = chart.getAxisRight();
@@ -103,9 +108,12 @@ public class StockChart implements SessionCallback {
         xAxis.setSpaceMax(15f);
         xAxis.setTextColor(Color.WHITE);
 
-        chart.getAxisRight().setEnabled(false);
+        chart.getAxisRight().setEnabled(true);
+        rightAxis.setDrawLabels(false);
+        rightAxis.setDrawGridLines(false);
         chart.getLegend().setEnabled(false);
         chart.getDescription().setEnabled(false);
+        chart.setVisibleXRangeMinimum(10f);
 
         //Enable the crosshair/highlighting interaction
         chart.setHighlightPerDragEnabled(true);
@@ -154,20 +162,21 @@ public class StockChart implements SessionCallback {
             allCandles.addAll(chunk);
         }
 
-        triggerChartUpdate();
+        triggerChartUpdate(false);
     }
 
-    private void triggerChartUpdate() {
+    private void triggerChartUpdate(boolean initialized) {
         if (isUpdatePending.compareAndSet(false, true)) {
             // Delay refresh slightly to batch incoming chunks and ensure it runs on UI thread
             mainHandler.postDelayed(() -> {
-                updateChartData();
+                updateChartData(initialized);
                 isUpdatePending.set(false);
             }, 150);
         }
     }
 
-    private void updateChartData() {
+    private void updateChartData(boolean initialized) {
+
         Log.i(CHART_LOG_TAG, "Updating chart display");
         
         // Take a snapshot of the current candles to avoid race conditions with renderer
@@ -179,10 +188,10 @@ public class StockChart implements SessionCallback {
 
         CombinedData data = new CombinedData();
         data.setData(generateCandleData(safeCopy));
-        data.setData(generateVolumeData(safeCopy));
+        BarData volumeSet = generateVolumeData(safeCopy);
+        data.setData(volumeSet);
 
         chart.setData(data);
-
         chart.getXAxis().setValueFormatter(new ValueFormatter() {
             private final SimpleDateFormat dailyFormat = new SimpleDateFormat("MMM dd", Locale.getDefault());
             private final SimpleDateFormat timeFormat = new SimpleDateFormat("HH:mm", Locale.getDefault());
@@ -207,23 +216,20 @@ public class StockChart implements SessionCallback {
         int totalCount = safeCopy.size();
 
         if (totalCount > desiredVisibleRange) {
-            chart.setVisibleXRangeMaximum(desiredVisibleRange);
-            chart.setVisibleXRangeMinimum(desiredVisibleRange);
-            chart.moveViewToX(totalCount - 1);
+            chart.setVisibleXRangeMinimum(10f);
+            if(!initialized){
+            chart.zoom(totalCount / desiredVisibleRange, 1f, 0f, 0f);
+            chart.moveViewToX(totalCount - 1);}
             chart.setAutoScaleMinMaxEnabled(true);
         } else {
             chart.fitScreen();
         }
-
-        chart.getAxisLeft().setStartAtZero(false);
-        chart.calculateOffsets();
-        chart.getAxisLeft().calculate(data.getYMin(), data.getYMax());
-
         float maxVolume = 0;
         for (Candle c : safeCopy) {
             if (c.volume > maxVolume) maxVolume = (float) c.volume;
         }
         chart.getAxisRight().setAxisMaximum(maxVolume * 10f); // Volume scale
+
 
         chart.notifyDataSetChanged();
         chart.invalidate();
@@ -284,7 +290,7 @@ public class StockChart implements SessionCallback {
         synchronized (allCandles) {
             if (allCandles.isEmpty()) {
                 allCandles.addAll(chunk);
-                triggerChartUpdate();
+                triggerChartUpdate(true);
                 return;
             }
 
@@ -310,7 +316,7 @@ public class StockChart implements SessionCallback {
                 allCandles.add(newCandle);
             }
         }
-        triggerChartUpdate();
+        triggerChartUpdate(true);
     }
 
     @Override

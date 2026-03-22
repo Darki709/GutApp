@@ -32,6 +32,7 @@ import com.example.gutapp.database.LastFetchCacheHelper;
 import com.example.gutapp.session.DataType;
 import com.example.gutapp.session.NetworkClient;
 import com.example.gutapp.session.Requests.SearchTicker;
+import com.example.gutapp.ui.fragments.SearchFragment;
 
 
 import java.util.ArrayList;
@@ -64,41 +65,12 @@ public class HomeActivity extends SessionActivity {
         setUserTitle();
         loadStockList();
 
-        searchInput = findViewById(R.id.search_input);
-        searchDropdown = findViewById(R.id.suggestions_dropdown);
-        searchAdapter = new SearchAdapter();
-        searchDropdown.setLayoutManager(new LinearLayoutManager(this));
-        searchDropdown.setAdapter(searchAdapter);
-        searchAdapter.setOnItemClickListener(result -> {
-            Intent intent = new Intent(this, ChartActivity.class);
-            intent.putExtra("symbol", result.symbol);
-            intent.putExtra("name", result.name);
-            startActivity(intent);
-        });
-
-        //set the quick search
-        searchInput.addTextChangedListener(new TextWatcher() {
-            @Override
-            public void beforeTextChanged(CharSequence s, int start, int count, int after) {
-                // Leave empty - required by Interface
-            }
-
-            @Override
-            public void onTextChanged(CharSequence s, int start, int before, int count) {
-                String query = s.toString();
-                if (query.length() >= 2) {
-                    SearchTicker searchTicker = new SearchTicker(query, HomeActivity.this);
-                    NetworkClient.getInstance(HomeActivity.this).getSessionManager().pushRequest(searchTicker);
-                } else {
-                    searchDropdown.setVisibility(View.GONE);
-                }
-            }
-
-            @Override
-            public void afterTextChanged(Editable s) {
-                // Leave empty - required by Interface
-            }
-        });
+        //initialize search fragment
+        if(savedInstanceState == null){
+            getSupportFragmentManager().beginTransaction()
+                    .replace(R.id.search_container, new SearchFragment())
+                    .commit();
+        }
     }
 
     @Override
@@ -159,23 +131,7 @@ public class HomeActivity extends SessionActivity {
 
     @Override
     public void onDataReceived(DataType msgType, Object parsedData) {
-        switch(msgType){
-            case SEARCH_NO_RESULT:
-                runOnUiThread(() -> {
-                    searchDropdown.setVisibility(View.GONE);
-                    Toast.makeText(this, "No results found", Toast.LENGTH_SHORT).show();
-                });
-                break;
-            case SEARCH_RESULT:
-                if(parsedData == null) return;
-                runOnUiThread( () -> {
-                searchAdapter.updateData((ArrayList<TickerInfo>) parsedData);
-                searchDropdown.setVisibility(View.VISIBLE);
-                });
-                break;
-            default:
-                break;
-        }
+        //currently not in use
     }
 
     @Override
