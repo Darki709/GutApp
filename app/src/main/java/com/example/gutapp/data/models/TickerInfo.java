@@ -10,4 +10,11 @@ public class TickerInfo {
         this.name = name;
         this.tickerId = tickerId;
     }
+
+    public TickerInfo(String name, String symbol){
+        this.symbol = symbol;
+        this.name = name;
+        this.tickerId = -1; //when you dont need the id
+    }
+
 }

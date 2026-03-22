@@ -17,6 +17,7 @@ import android.widget.TextView;
 import androidx.annotation.Nullable;
 
 import com.example.gutapp.data.models.PriceChunk;
+import com.example.gutapp.data.models.TickerInfo;
 import com.example.gutapp.database.DB_Helper;
 import com.example.gutapp.database.LastFetchCacheHelper;
 import com.example.gutapp.database.StockDataHelper;
@@ -32,12 +33,37 @@ public class StockRow implements SessionCallback {
     LinearLayout stockRow;
     double lastPrice;
     String symbol;
+    String name;
+    Activity callerActivity;
     int reqId; //keeps the request id of te streaming request used to update the prices
     Handler mainHandler = new Handler(Looper.getMainLooper()); //to change prices live from the background
 
     TextView priceView;
 
     public StockRow(String symbol, String name, Activity callerActivity){
+        this.symbol= symbol;
+        this.name = name;
+        this.callerActivity = callerActivity;
+        setUpRow();
+    }
+
+    public StockRow(TickerInfo ticker, Activity callerActivity){
+        this.symbol= ticker.symbol;
+        this.name = ticker.name;
+        this.callerActivity = callerActivity;
+        setUpRow();
+    }
+
+    //sends the live update request to the api
+    public void loadPrice(){
+        //long lastFetchTime = (new LastFetchCacheHelper(DB_Helper.getInstance(null))).getLastFetchTime(symbol, StockDataHelper.Timeframe.DAILY); depracted for perfomance issues
+        RequestTickerData requestPrice = new RequestTickerData(symbol, StockDataHelper.Timeframe.ONE_MIN, 0
+                , 0, false, true, this);
+        reqId = requestPrice.getReqId();
+        NetworkClient.getInstance(null).getSessionManager().pushRequest(requestPrice);
+    }
+
+    private void setUpRow(){
         //set up the row view itself with all the styling, effects and logic
         this.stockRow = new LinearLayout(callerActivity);
         stockRow.setOrientation(LinearLayout.HORIZONTAL);
@@ -88,15 +114,6 @@ public class StockRow implements SessionCallback {
             intent.putExtra("name", name);
             callerActivity.startActivity(intent);
         });
-    }
-
-    //sends the live update request to the api
-    public void loadPrice(){
-        //long lastFetchTime = (new LastFetchCacheHelper(DB_Helper.getInstance(null))).getLastFetchTime(symbol, StockDataHelper.Timeframe.DAILY); depracted for perfomance issues
-        RequestTickerData requestPrice = new RequestTickerData(symbol, StockDataHelper.Timeframe.ONE_MIN, 0
-                , 0, false, true, this);
-        reqId = requestPrice.getReqId();
-        NetworkClient.getInstance(null).getSessionManager().pushRequest(requestPrice);
     }
 
     public LinearLayout getRow() {
