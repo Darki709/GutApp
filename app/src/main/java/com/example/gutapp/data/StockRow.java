@@ -35,7 +35,7 @@ public class StockRow implements SessionCallback {
     String symbol;
     String name;
     Activity callerActivity;
-    int reqId; //keeps the request id of te streaming request used to update the prices
+    int reqId = -1; //keeps the request id of te streaming request used to update the prices. -1 means row inactive
     Handler mainHandler = new Handler(Looper.getMainLooper()); //to change prices live from the background
 
     TextView priceView;
@@ -122,6 +122,7 @@ public class StockRow implements SessionCallback {
 
     public void discard(){
         NetworkClient.getInstance(null).getSessionManager().discardRequest(reqId);
+        reqId = -1;
     }
 
     private synchronized void updatePrice(PriceChunk chunk){
@@ -136,6 +137,10 @@ public class StockRow implements SessionCallback {
             }
         });
         this.lastPrice = price;
+    }
+
+    public boolean isActive(){
+        return reqId != -1;
     }
 
     @Override

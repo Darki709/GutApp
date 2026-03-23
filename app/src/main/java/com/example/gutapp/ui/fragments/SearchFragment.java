@@ -7,6 +7,7 @@ import android.text.TextWatcher;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.inputmethod.EditorInfo;
 import android.widget.EditText;
 import android.widget.Toast;
 
@@ -24,6 +25,7 @@ import com.example.gutapp.session.NetworkClient;
 import com.example.gutapp.session.Requests.SearchTicker;
 import com.example.gutapp.session.SessionCallback;
 import com.example.gutapp.ui.ChartActivity;
+import com.example.gutapp.ui.ExploreActivity;
 import com.example.gutapp.ui.HomeActivity;
 
 import java.util.ArrayList;
@@ -73,6 +75,17 @@ public class SearchFragment extends Fragment implements SessionCallback {
                 // Leave empty - required by Interface
             }
         });
+
+        searchInput.setOnEditorActionListener((v, actionId, event) -> {
+            if (actionId == EditorInfo.IME_ACTION_SEARCH) {
+                // Run your search method here
+                String query = searchInput.getText().toString();
+                if(query.length() >= 2) callSearch(query);
+                else Toast.makeText(requireActivity(), "Search query too short", Toast.LENGTH_SHORT).show();
+                return true;
+            }
+            return false;
+        });
         return view;
     }
 
@@ -95,6 +108,12 @@ public class SearchFragment extends Fragment implements SessionCallback {
             default:
                 break;
         }
+    }
+
+    private void callSearch(String query) {
+        Intent intent = new Intent(requireContext(), ExploreActivity.class);
+        intent.putExtra("query", query);
+        startActivity(intent);
     }
 
     @Override

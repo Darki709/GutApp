@@ -36,8 +36,6 @@ public class RequestTickerData extends AsyncRequest {
     private final long endTs;
     private final byte flags;
 
-    private final Handler mainHandler = new Handler(Looper.getMainLooper());
-
     private final boolean isStream;
 
     public RequestTickerData(String symbol, StockDataHelper.Timeframe interval, long startTs , long endTs , boolean isSnapshot, boolean isStream , SessionCallback caller) {

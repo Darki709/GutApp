@@ -9,6 +9,7 @@ import android.text.TextWatcher;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.EditText;
+import android.widget.ImageButton;
 import android.widget.LinearLayout;
 import android.widget.Switch;
 import android.widget.TextView;
@@ -52,10 +53,12 @@ public class HomeActivity extends SessionActivity {
             return insets;
         });
 
+
+        StockLiveList stockLiveListFragment = StockLiveList.newInstance(loadStockList());
         //initialize stock list fragment
         if(savedInstanceState == null){
             getSupportFragmentManager().beginTransaction()
-                    .replace(R.id.stock_list_container, new StockLiveList())
+                    .replace(R.id.stock_list_container, stockLiveListFragment)
                     .commit();
         }
 
@@ -68,6 +71,21 @@ public class HomeActivity extends SessionActivity {
                     .replace(R.id.search_container, new SearchFragment())
                     .commit();
         }
+    }
+
+    private ArrayList<TickerInfo> loadStockList() {
+        Cursor cursor = (new LastFetchCacheHelper(DB_Helper.getInstance(this)).getStocks());
+        ArrayList<TickerInfo> tickerList = new ArrayList<>();
+
+        if (cursor.moveToFirst()) {
+            do {
+                String symbol = cursor.getString(cursor.getColumnIndexOrThrow("symbol"));
+                String name = cursor.getString(cursor.getColumnIndexOrThrow("name"));
+                tickerList.add(new TickerInfo(name, symbol));
+            } while (cursor.moveToNext());
+        }
+        cursor.close();
+        return tickerList;
     }
 
     private void setUserTitle(){

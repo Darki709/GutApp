@@ -190,8 +190,8 @@ public class StockChart implements SessionCallback {
         data.setData(generateCandleData(safeCopy));
         BarData volumeSet = generateVolumeData(safeCopy);
         data.setData(volumeSet);
-
         chart.setData(data);
+
         chart.getXAxis().setValueFormatter(new ValueFormatter() {
             private final SimpleDateFormat dailyFormat = new SimpleDateFormat("MMM dd", Locale.getDefault());
             private final SimpleDateFormat timeFormat = new SimpleDateFormat("HH:mm", Locale.getDefault());
@@ -229,8 +229,6 @@ public class StockChart implements SessionCallback {
             if (c.volume > maxVolume) maxVolume = (float) c.volume;
         }
         chart.getAxisRight().setAxisMaximum(maxVolume * 10f); // Volume scale
-
-
         chart.notifyDataSetChanged();
         chart.invalidate();
     }

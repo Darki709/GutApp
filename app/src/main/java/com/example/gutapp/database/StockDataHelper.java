@@ -77,7 +77,7 @@ public class StockDataHelper {
         if (stockData == null || stockData.isEmpty()) return;
         SQLiteDatabase db = db_helper.getWritableDatabase();
         LastFetchCacheHelper cacheHelper = new LastFetchCacheHelper(db_helper);
-        String symbol_name = cacheHelper.getSymbolName(symbol);
+        String symbol_name = cacheHelper.getSymbolName(symbol); //not needed anymore
 
         db.beginTransaction();
 
