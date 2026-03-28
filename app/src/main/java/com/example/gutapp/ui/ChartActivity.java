@@ -25,6 +25,7 @@ import com.example.gutapp.database.StockDataHelper;
 import com.example.gutapp.session.DataType;
 import com.example.gutapp.session.NetworkClient;
 import com.example.gutapp.session.Requests.RequestTickerData;
+import com.example.gutapp.session.Requests.TickerInfoRequest;
 import com.example.gutapp.session.SessionCallback;
 import com.github.mikephil.charting.charts.CombinedChart;
 
@@ -79,6 +80,9 @@ public class ChartActivity extends SessionActivity implements View.OnClickListen
         buttonHome.setOnClickListener(this);
         this.interval = StockDataHelper.Timeframe.DAILY;
         formatTile(this.interval.value);
+
+        TickerInfoRequest req = new TickerInfoRequest(symbol, this);
+        NetworkClient.getInstance(null).getSessionManager().pushRequest(req);
     }
 
     @Override
@@ -168,7 +172,12 @@ public class ChartActivity extends SessionActivity implements View.OnClickListen
 
     @Override
     public void onDataReceived(DataType msgType, Object parsedData) {
-        //not needed yet
+        switch(msgType){
+            case SEARCH_NO_RESULT:
+                runOnUiThread( () -> {
+                    Toast.makeText(this, (String) parsedData, Toast.LENGTH_SHORT).show();
+                });
+        }
     }
 
     @Override

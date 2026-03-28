@@ -12,6 +12,7 @@ import android.util.Log;
 import androidx.security.crypto.EncryptedSharedPreferences;
 import androidx.security.crypto.MasterKey;
 
+import com.example.gutapp.session.Requests.GetBalance;
 import com.example.gutapp.session.Requests.HandShakeHello;
 import com.example.gutapp.session.Requests.HandShakeVerify;
 import com.example.gutapp.session.Requests.LoginRequest;
@@ -150,7 +151,6 @@ public class SessionManager implements Runnable {
                     }
                     //notify login page that login is successful
                     notifyUI(cb -> cb.onDataReceived(DataType.AUTH_SUCCESS, null));
-
 
                     //start sending and receiving messages
                     work();
@@ -300,6 +300,8 @@ public class SessionManager implements Runnable {
         this.working = true;
         sendThread = new Thread(this::sendLoop);
         recvThread = new Thread(this::recvLoop);
+        //add a request to fetch the balance
+        pushRequest(new GetBalance());
         sendThread.start();
         recvThread.start();
         while(running && working && !Thread.currentThread().isInterrupted()){

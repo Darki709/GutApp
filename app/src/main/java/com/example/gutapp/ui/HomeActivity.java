@@ -28,11 +28,13 @@ import com.example.gutapp.data.SearchAdapter;
 import com.example.gutapp.data.StockRow;
 import com.example.gutapp.data.UserGlobals;
 import com.example.gutapp.data.models.TickerInfo;
+import com.example.gutapp.data.models.TickerInformation;
 import com.example.gutapp.database.DB_Helper;
 import com.example.gutapp.database.LastFetchCacheHelper;
 import com.example.gutapp.session.DataType;
 import com.example.gutapp.session.NetworkClient;
 import com.example.gutapp.session.Requests.SearchTicker;
+import com.example.gutapp.session.Requests.TickerInfoRequest;
 import com.example.gutapp.ui.fragments.SearchFragment;
 import com.example.gutapp.ui.fragments.StockLiveList;
 
@@ -52,7 +54,6 @@ public class HomeActivity extends SessionActivity {
             v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom);
             return insets;
         });
-
 
         StockLiveList stockLiveListFragment = StockLiveList.newInstance(loadStockList());
         //initialize stock list fragment

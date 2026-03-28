@@ -1,5 +1,7 @@
 package com.example.gutapp.session;
 
+import com.example.gutapp.data.models.TickerInformation;
+
 public enum DataType {
     ERROR,
     REGISTER_ERROR,
@@ -13,5 +15,6 @@ public enum DataType {
     TICKER_REQUEST_DONE,
     TICKER_ERROR,
     SEARCH_RESULT,
-    SEARCH_NO_RESULT;
+    SEARCH_NO_RESULT,
+    TICKER_INFORMATION;
 }

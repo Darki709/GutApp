@@ -8,7 +8,10 @@ public enum RequestType {
     REGISTER((byte) 3),
     REQUESTTICKERDATA((byte) 4),
     CANCELTICKERSTREAM((byte) 5),
-    SEARCHTICKER((byte) 6)
+    SEARCHTICKER((byte) 6),
+    TICKERINFO((byte)7),
+    GETBALANCE((byte)8),
+    SENDORDER((byte)9)
     ;
 
     public final byte value;

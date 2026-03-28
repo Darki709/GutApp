@@ -1,8 +1,10 @@
 package com.example.gutapp.session;
 
+import com.example.gutapp.session.Responses.GetBalanceResponse;
 import com.example.gutapp.session.Responses.SearchTickerResponse;
 import com.example.gutapp.session.Responses.SnapshotResponse;
 import com.example.gutapp.session.Responses.StreamResponse;
+import com.example.gutapp.session.Responses.TickerInfoResponse;
 
 public class ResponseFactory {
     public static AsyncResponse createResponse(byte[] response) {
@@ -13,6 +15,10 @@ public class ResponseFactory {
                 return new SnapshotResponse(response);
             case SEARCHTICKERRESPONSE:
                 return new SearchTickerResponse(response);
+            case GETBALANCE:
+                return new GetBalanceResponse(response);
+            case TICKERINFO:
+                return new TickerInfoResponse(response);
             default:
                 throw new RuntimeException("Unknown response type: " + response[0]);
         }
