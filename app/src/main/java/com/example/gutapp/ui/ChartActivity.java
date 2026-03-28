@@ -22,24 +22,26 @@ import com.example.gutapp.database.DB_Helper;
 import com.example.gutapp.database.LastFetchCacheHelper;
 import com.example.gutapp.database.StockDataHelper;
 
+import com.example.gutapp.session.DataType;
 import com.example.gutapp.session.NetworkClient;
 import com.example.gutapp.session.Requests.RequestTickerData;
+import com.example.gutapp.session.Requests.TickerInfoRequest;
 import com.example.gutapp.session.SessionCallback;
 import com.github.mikephil.charting.charts.CombinedChart;
 
 import java.util.ArrayList;
 
-public class ChartActivity extends AppCompatActivity implements View.OnClickListener, SessionCallback {
+public class ChartActivity extends SessionActivity implements View.OnClickListener {
 
     public static final String CHART_LOG_TAG = "GutChart";
 
     private DB_Helper db_helper;
     private StockChart chartContainer;
     private String symbol; // Default symbol
+    private String name;
     private TextView textViewTitle;
     private StockDataHelper.Timeframe interval;
 
-    @SuppressLint("SetTextI11n")
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -53,7 +55,7 @@ public class ChartActivity extends AppCompatActivity implements View.OnClickList
         //loading chart symbol from the caller
         Intent intent = getIntent();
         symbol = intent.getStringExtra("symbol");
-        String name = intent.getStringExtra("name");
+        name = intent.getStringExtra("name");
 
         //initialize important database objects
         db_helper = DB_Helper.getInstance(this);
@@ -78,13 +80,14 @@ public class ChartActivity extends AppCompatActivity implements View.OnClickList
         buttonHome.setOnClickListener(this);
         this.interval = StockDataHelper.Timeframe.DAILY;
         formatTile(this.interval.value);
-        NetworkClient.getInstance(this).getSessionManager().setCallback(this);
+
+        TickerInfoRequest req = new TickerInfoRequest(symbol, this);
+        NetworkClient.getInstance(null).getSessionManager().pushRequest(req);
     }
 
     @Override
     protected void onResume() {
         super.onResume();
-        NetworkClient.getInstance(this).getSessionManager().setCallback(this);
         updateChartData();
     }
 
@@ -126,7 +129,7 @@ public class ChartActivity extends AppCompatActivity implements View.OnClickList
     }
 
     public void formatTile(String timeFrame){
-        textViewTitle.setText(symbol + " (" + timeFrame + ")");
+        textViewTitle.setText(name + " (" + timeFrame + ")");
     }
 
 
@@ -168,8 +171,13 @@ public class ChartActivity extends AppCompatActivity implements View.OnClickList
 
 
     @Override
-    public void onDataReceived(int msgType, Object parsedData) {
-        //not needed yet
+    public void onDataReceived(DataType msgType, Object parsedData) {
+        switch(msgType){
+            case SEARCH_NO_RESULT:
+                runOnUiThread( () -> {
+                    Toast.makeText(this, (String) parsedData, Toast.LENGTH_SHORT).show();
+                });
+        }
     }
 
     @Override

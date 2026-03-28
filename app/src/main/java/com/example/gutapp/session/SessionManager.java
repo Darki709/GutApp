@@ -12,6 +12,7 @@ import android.util.Log;
 import androidx.security.crypto.EncryptedSharedPreferences;
 import androidx.security.crypto.MasterKey;
 
+import com.example.gutapp.session.Requests.GetBalance;
 import com.example.gutapp.session.Requests.HandShakeHello;
 import com.example.gutapp.session.Requests.HandShakeVerify;
 import com.example.gutapp.session.Requests.LoginRequest;
@@ -77,14 +78,6 @@ public class SessionManager implements Runnable {
     // Actions: Manager asking the Activity for help
     public static final int ACTION_SHOW_LOGIN_UI = 1;
 
-    // Data Types: Manager delivering results to the Activity
-    public static final int TYPE_ERROR = -1;
-    public static final int TYPE_REGISTER_ERROR = -2;
-    public static final int TYPE_LOGIN_ERROR = -3;
-    public static final int TYPE_AUTH_SUCCESS = 100;
-    public static final int TYPE_MARKET_DATA = 101;
-
-
 
     public SessionManager(Context context, SessionCallback cb) {
         this.outgoinQueue = new ArrayDeque<Request>();
@@ -132,7 +125,7 @@ public class SessionManager implements Runnable {
                             debugLogResponseDecrypted(NETWORK_LOG_TAG, buffer);
                             RegisterResponse registerResponse = new RegisterResponse(buffer);
                             if (registerResponse.getState() != RegisterResponse.SUCCESS) {
-                                notifyUI(cb -> cb.onDataReceived(TYPE_REGISTER_ERROR, registerResponse.getFeedback()));
+                                notifyUI(cb -> cb.onDataReceived(DataType.REGISTER_ERROR, registerResponse.getFeedback()));
                                 continue; //user needs to check register credentials so thread must wait for more input
                             }
                         }
@@ -150,15 +143,14 @@ public class SessionManager implements Runnable {
                             Log.e(NETWORK_LOG_TAG, "Error logging in: " + e.getMessage());
                         }
                         if (loginResponse.getState() != LoginResponse.LoginState.SUCCESS) {
-                            notifyUI(cb -> cb.onDataReceived(TYPE_LOGIN_ERROR, loginResponse.getState() == LoginResponse.LoginState.INVALIDUSER ? "no such user" : "wrong password"));
+                            notifyUI(cb -> cb.onDataReceived(DataType.LOGIN_ERROR, loginResponse.getState() == LoginResponse.LoginState.INVALIDUSER ? "no such user" : "wrong password"));
                         } else {
                             result = 0;
                             saveCredentials(authStruct.username, authStruct.password);
                         }
                     }
                     //notify login page that login is successful
-                    notifyUI(cb -> cb.onDataReceived(TYPE_AUTH_SUCCESS, null));
-
+                    notifyUI(cb -> cb.onDataReceived(DataType.AUTH_SUCCESS, null));
 
                     //start sending and receiving messages
                     work();
@@ -212,7 +204,7 @@ public class SessionManager implements Runnable {
         //send a hand shake verify request to get server approval
         Request handShakeVerifyRequest = new HandShakeVerify(ctx);
         byte[] handShakeVerifyRequestBytes = handShakeVerifyRequest.getBytes();
-        debugLogMessage(NETWORK_LOG_TAG,handShakeVerifyRequestBytes);
+        debugLogMessage(NETWORK_LOG_TAG,handshakeRequestBytes);
         connection.send(handShakeVerifyRequestBytes);
         buffer = connection.receive();
         debugLogResponse(NETWORK_LOG_TAG, buffer);
@@ -308,6 +300,8 @@ public class SessionManager implements Runnable {
         this.working = true;
         sendThread = new Thread(this::sendLoop);
         recvThread = new Thread(this::recvLoop);
+        //add a request to fetch the balance
+        pushRequest(new GetBalance());
         sendThread.start();
         recvThread.start();
         while(running && working && !Thread.currentThread().isInterrupted()){
@@ -336,7 +330,7 @@ public class SessionManager implements Runnable {
             }
             catch (Exception e){
                 Log.e(NETWORK_LOG_TAG, "Error sending message: " + e.getMessage());
-                if(request != null) request.getCaller().onDataReceived(TYPE_ERROR, e.getMessage());
+                if(request != null) request.getCaller().onDataReceived(DataType.ERROR, e.getMessage());
                 this.working = false;
                 Thread.currentThread().interrupt();
             }
@@ -460,11 +454,11 @@ public class SessionManager implements Runnable {
     public void pushRequest(AsyncRequest request){
         try{
             if(!requestQueue.offer(request)){
-                request.getCaller().onDataReceived(TYPE_ERROR, "Failed to send request, retry later");
+                request.getCaller().onDataReceived(DataType.ERROR, "Failed to send request, retry later");
             }
         }catch (Exception e){
             Log.e(NETWORK_LOG_TAG, "Failed to push request to queue", e);
-            request.getCaller().onDataReceived(TYPE_ERROR, e.getMessage());
+            request.getCaller().onDataReceived(DataType.ERROR, e.getMessage());
         }
     }
 

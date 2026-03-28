@@ -19,9 +19,9 @@ public class LastFetchCacheHelper{
     }
 
 
-
-    public void insertSymbol(String symbol, String name, SQLiteDatabase db) {
-        String sql = "INSERT INTO " + TABLE_NAME + " (" + COLUMN_SYMBOL + ", " + COLUMN_NAME + "," + COLUMN_LAST_FETCH +") VALUES (?, ?, 0)";
+    public void insertSymbol(String symbol, String name) {
+        SQLiteDatabase db = db_helper.getWritableDatabase();
+        String sql = "INSERT OR REPLACE INTO  " + TABLE_NAME +  " (" + COLUMN_SYMBOL + ", " + COLUMN_NAME + ") VALUES (?, ?)";
         try {
             db.execSQL(sql, new String[]{symbol, name});
         } catch (Exception e) {
@@ -51,56 +51,56 @@ public class LastFetchCacheHelper{
         cursor.close();
 
         if (count == 0) {
-        insertSymbol("AAPL", "Apple Inc.", db);
-        insertSymbol("MSFT", "Microsoft Corporation", db);
-        insertSymbol("GOOGL", "Alphabet Inc.", db);
-        insertSymbol("AMZN", "Amazon.com, Inc.", db);
-        insertSymbol("META", "Meta Platforms, Inc.", db);
-        insertSymbol("TSLA", "Tesla, Inc.", db);
-        insertSymbol("NVDA", "NVIDIA Corporation", db);
-        insertSymbol("NFLX", "Netflix, Inc.", db);
-        insertSymbol("AMD", "Advanced Micro Devices, Inc.", db);
-        insertSymbol("INTC", "Intel Corporation", db);
-        insertSymbol("ORCL", "Oracle Corporation", db);
-        insertSymbol("CRM", "Salesforce, Inc.", db);
-        insertSymbol("ADBE", "Adobe Inc.", db);
-        insertSymbol("CSCO", "Cisco Systems, Inc.", db);
-        insertSymbol("AVGO", "Broadcom Inc.", db);
-        insertSymbol("PYPL", "PayPal Holdings, Inc.", db);
-        insertSymbol("SQ", "Block, Inc.", db);
-        insertSymbol("UBER", "Uber Technologies, Inc.", db);
-        insertSymbol("ABNB", "Airbnb, Inc.", db);
-        insertSymbol("SHOP", "Shopify Inc.", db);
-        insertSymbol("JPM", "JPMorgan Chase & Co.", db);
-        insertSymbol("BAC", "Bank of America Corp.", db);
-        insertSymbol("V", "Visa Inc.", db);
-        insertSymbol("MA", "Mastercard Incorporated", db);
-        insertSymbol("DIS", "The Walt Disney Company", db);
-        insertSymbol("KO", "The Coca-Cola Company", db);
-        insertSymbol("PEP", "PepsiCo, Inc.", db);
-        insertSymbol("NKE", "NIKE, Inc.", db);
-        insertSymbol("SBUX", "Starbucks Corporation", db);
-        insertSymbol("WMT", "Walmart Inc.", db);
-        insertSymbol("COST", "Costco Wholesale Corp.", db);
-        insertSymbol("TGT", "Target Corporation", db);
-        insertSymbol("PFE", "Pfizer Inc.", db);
-        insertSymbol("JNJ", "Johnson & Johnson", db);
-        insertSymbol("MRNA", "Moderna, Inc.", db);
-        insertSymbol("BTC-USD", "Bitcoin", db);
-        insertSymbol("ETH-USD", "Ethereum", db);
-        insertSymbol("SOL-USD", "Solana", db);
-        insertSymbol("BNB-USD", "Binance Coin", db);
-        insertSymbol("XRP-USD", "XRP", db);
-        insertSymbol("ADA-USD", "Cardano", db);
-        insertSymbol("DOGE-USD", "Dogecoin", db);
-        insertSymbol("DOT-USD", "Polkadot", db);
-        insertSymbol("MATIC-USD", "Polygon", db);
-        insertSymbol("LINK-USD", "Chainlink", db);
-        insertSymbol("SPY", "SPDR S&P 500 ETF Trust", db);
-        insertSymbol("QQQ", "Invesco QQQ Trust", db);
-        insertSymbol("VOO", "Vanguard S&P 500 ETF", db);
-        insertSymbol("ARKK", "ARK Innovation ETF", db);
-        insertSymbol("GLD", "SPDR Gold Shares", db);
+        insertSymbol("AAPL", "Apple Inc.");
+        insertSymbol("MSFT", "Microsoft Corporation");
+        insertSymbol("GOOGL", "Alphabet Inc.");
+        insertSymbol("AMZN", "Amazon.com, Inc.");
+        insertSymbol("META", "Meta Platforms, Inc.");
+        insertSymbol("TSLA", "Tesla, Inc.");
+        insertSymbol("NVDA", "NVIDIA Corporation");
+        insertSymbol("NFLX", "Netflix, Inc.");
+        insertSymbol("AMD", "Advanced Micro Devices, Inc.");
+        insertSymbol("INTC", "Intel Corporation");
+        insertSymbol("ORCL", "Oracle Corporation");
+        insertSymbol("CRM", "Salesforce, Inc.");
+        insertSymbol("ADBE", "Adobe Inc.");
+        insertSymbol("CSCO", "Cisco Systems, Inc.");
+        insertSymbol("AVGO", "Broadcom Inc.");
+        insertSymbol("PYPL", "PayPal Holdings, Inc.");
+        insertSymbol("SQ", "Block, Inc.");
+        insertSymbol("UBER", "Uber Technologies, Inc.");
+        insertSymbol("ABNB", "Airbnb, Inc.");
+        insertSymbol("SHOP", "Shopify Inc.");
+        insertSymbol("JPM", "JPMorgan Chase & Co.");
+        insertSymbol("BAC", "Bank of America Corp.");
+        insertSymbol("V", "Visa Inc.");
+        insertSymbol("MA", "Mastercard Incorporated");
+        insertSymbol("DIS", "The Walt Disney Company");
+        insertSymbol("KO", "The Coca-Cola Company");
+        insertSymbol("PEP", "PepsiCo, Inc.");
+        insertSymbol("NKE", "NIKE, Inc.");
+        insertSymbol("SBUX", "Starbucks Corporation");
+        insertSymbol("WMT", "Walmart Inc.");
+        insertSymbol("COST", "Costco Wholesale Corp.");
+        insertSymbol("TGT", "Target Corporation");
+        insertSymbol("PFE", "Pfizer Inc.");
+        insertSymbol("JNJ", "Johnson & Johnson");
+        insertSymbol("MRNA", "Moderna, Inc.");
+        insertSymbol("BTC-USD", "Bitcoin");
+        insertSymbol("ETH-USD", "Ethereum");
+        insertSymbol("SOL-USD", "Solana");
+        insertSymbol("BNB-USD", "Binance Coin");
+        insertSymbol("XRP-USD", "XRP");
+        insertSymbol("ADA-USD", "Cardano");
+        insertSymbol("DOGE-USD", "Dogecoin");
+        insertSymbol("DOT-USD", "Polkadot");
+        insertSymbol("MATIC-USD", "Polygon");
+        insertSymbol("LINK-USD", "Chainlink");
+        insertSymbol("SPY", "SPDR S&P 500 ETF Trust");
+        insertSymbol("QQQ", "Invesco QQQ Trust");
+        insertSymbol("VOO", "Vanguard S&P 500 ETF");
+        insertSymbol("ARKK", "ARK Innovation ETF");
+        insertSymbol("GLD", "SPDR Gold Shares");
         }
     }
 

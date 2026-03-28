@@ -10,16 +10,12 @@
 
     <com.github.mikephil.charting.charts.CombinedChart
         android:id="@+id/stockChart"
-        android:layout_width="0dp"
-        android:layout_height="0dp"
-        android:background="#232222"
-        app:layout_constraintBottom_toTopOf="@+id/indicatorsButton"
-        app:layout_constraintEnd_toStartOf="@+id/timeframeButtons"
-        app:layout_constraintHorizontal_bias="1.0"
+        android:layout_width="414dp"
+        android:layout_height="452dp"
+        android:background="#1F1D1D"
+        app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/textViewTitle"
-        app:layout_constraintVertical_bias="1.0">
-    </com.github.mikephil.charting.charts.CombinedChart>
+        app:layout_constraintTop_toBottomOf="@+id/textViewTitle"></com.github.mikephil.charting.charts.CombinedChart>
 
     <TextView
         android:id="@+id/candleDataTextView"
@@ -35,14 +31,13 @@
 
     <LinearLayout
         android:id="@+id/timeframeButtons"
-        android:layout_width="70dp"
-        android:layout_height="0dp"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
         android:gravity="center"
-        android:orientation="vertical"
+        android:orientation="horizontal"
         android:padding="0dp"
-        app:layout_constraintBottom_toBottomOf="@+id/stockChart"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintTop_toTopOf="@+id/stockChart">
+        app:layout_constraintTop_toBottomOf="@+id/stockChart">
 
         <Button
             android:id="@+id/button5m"
@@ -106,11 +101,11 @@
 
     <Button
         android:id="@+id/indicatorsButton"
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
+        android:layout_width="124dp"
+        android:layout_height="48dp"
         android:text="Indicators"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent" />
+        app:layout_constraintEnd_toStartOf="@+id/timeframeButtons"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/stockChart" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>

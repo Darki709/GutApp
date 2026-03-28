@@ -20,7 +20,7 @@ public class SnapshotResponse extends AsyncResponse {
 
     public SnapshotResponse(byte[] response) {
         super(response[0], Arrays.copyOfRange(response, 1, 5));
-        ByteBuffer buf = ByteBuffer.wrap(Arrays.copyOfRange(response, 5, response.length));
+        ByteBuffer buf = ByteBuffer.wrap(response, 5, response.length-5);
         buf.order(ByteOrder.BIG_ENDIAN);
         this.isDone = buf.get() == 0x01;
         int candleCount = buf.getShort();

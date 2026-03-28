@@ -77,7 +77,7 @@ public class StockDataHelper {
         if (stockData == null || stockData.isEmpty()) return;
         SQLiteDatabase db = db_helper.getWritableDatabase();
         LastFetchCacheHelper cacheHelper = new LastFetchCacheHelper(db_helper);
-        String symbol_name = cacheHelper.getSymbolName(symbol);
+        String symbol_name = cacheHelper.getSymbolName(symbol); //not needed anymore
 
         db.beginTransaction();
 
@@ -204,9 +204,12 @@ public class StockDataHelper {
             Cursor cursor = readFromDB(new String[]{StockDataHelper.COLUMN_CLOSE}, "symbol = ?",
                     new String[]{symbol}, "date DESC", 2);
             cursor.moveToFirst();
-            int current = cursor.getInt(0);
-            cursor.moveToNext();
-            int before = cursor.getInt(0);
+            Double current = cursor.getDouble(0);
+            if(!cursor.isLast()) cursor.moveToNext();
+            else return current; //there might be only one entry so the default will be green
+
+            Double before = cursor.getDouble(0);
+            Log.i(DB_Helper.DB_LOG_TAG, "Getting latest price for " + symbol + " : " + current + " vs " + before);
             return (current > before) ? current : -1 * current;
         }
         catch (Exception e){
