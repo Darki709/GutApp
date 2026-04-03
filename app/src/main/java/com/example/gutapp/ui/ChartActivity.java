@@ -29,10 +29,12 @@ import com.example.gutapp.database.StockDataHelper;
 
 import com.example.gutapp.session.DataType;
 import com.example.gutapp.session.NetworkClient;
+import com.example.gutapp.session.Requests.FetchOrders;
 import com.example.gutapp.session.Requests.RequestTickerData;
 import com.example.gutapp.session.Requests.SendOrder;
 import com.example.gutapp.session.Requests.TickerInfoRequest;
 import com.example.gutapp.session.SessionCallback;
+import com.example.gutapp.ui.fragments.OrdersList;
 import com.github.mikephil.charting.charts.CombinedChart;
 
 import java.util.ArrayList;
@@ -52,6 +54,9 @@ public class ChartActivity extends SessionActivity implements View.OnClickListen
     private StockDataHelper.Timeframe interval;
     private OrderDialog activeDialog = null;
     private volatile double current_price;
+
+    private OrdersList ordersFragment;
+    private ArrayList<Order> allOrders = new ArrayList<>();
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -101,6 +106,14 @@ public class ChartActivity extends SessionActivity implements View.OnClickListen
 
         TickerInfoRequest req = new TickerInfoRequest(symbol, this);
         NetworkClient.getInstance(null).getSessionManager().pushRequest(req);
+
+        // Initial UI state: Hidden until data arrives
+        findViewById(R.id.ordersFragmentContainer).setVisibility(View.GONE);
+        findViewById(R.id.emptyOrdersView).setVisibility(View.GONE);
+
+        //Request orders from server
+        FetchOrders fetchOrders = new FetchOrders(symbol, FetchOrders.OrderView.ACTIVE, 0, this);
+        NetworkClient.getInstance(null).getSessionManager().pushRequest(fetchOrders);
     }
 
     @Override
@@ -225,8 +238,55 @@ public class ChartActivity extends SessionActivity implements View.OnClickListen
                 runOnUiThread( () -> {
                     //update any order list that will appear in the chart activity
                     Toast.makeText(this, String.format("Order completed for %s, paid $%.16f per unit", symbol, order.getEntry_price()), LENGTH_LONG).show();
+                    synchronized (allOrders){
+                        allOrders.add(order);
+                    }
+                    updateOrdersUI();
                 });
                 break;
+            case ORDERS_BATCH:
+                runOnUiThread( () -> {
+                    synchronized (allOrders) {
+                        allOrders.addAll((ArrayList<Order>) parsedData);
+                    }
+                    updateOrdersUI();
+                });
+                break;
+            case ORDER_CLOSED_SUCCESS:
+                synchronized (allOrders) {
+                    allOrders.remove((Order) parsedData);
+                }
+                runOnUiThread( () -> {
+                    if (ordersFragment != null) {
+                        ordersFragment.removeByOrderReference((Order)parsedData);
+
+                        // 3. If that was the last order for this ticker, show the "Empty" view
+                        if (ordersFragment.isEmpty()) {
+                            findViewById(R.id.ordersFragmentContainer).setVisibility(View.GONE);
+                            findViewById(R.id.emptyOrdersView).setVisibility(View.VISIBLE);
+                        }
+                    }
+                });
+                break;
+        }
+    }
+
+    private void updateOrdersUI() {
+        View container = findViewById(R.id.ordersFragmentContainer);
+        View emptyView = findViewById(R.id.emptyOrdersView);
+
+        if (allOrders.isEmpty()) {
+            container.setVisibility(View.GONE);
+            emptyView.setVisibility(View.VISIBLE);
+        } else {
+            emptyView.setVisibility(View.GONE);
+            container.setVisibility(View.VISIBLE);
+
+            // Initialize or Update the Fragment
+            this.ordersFragment = OrdersList.newInstance(allOrders);
+            getSupportFragmentManager().beginTransaction()
+                    .replace(R.id.ordersFragmentContainer, ordersFragment)
+                    .commit();
         }
     }
 
@@ -240,5 +300,14 @@ public class ChartActivity extends SessionActivity implements View.OnClickListen
         SendOrder request = new SendOrder(symbol, quantity, price, type, this, this);
         NetworkClient.getInstance(null).getSessionManager().pushRequest(request);
         Toast.makeText(this, String.format("Sent order for symbol: %s, order price: $%.16f", symbol, quantity * price), LENGTH_SHORT).show();
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        if (ordersFragment != null) {
+            // This ensures all RequestTickerData requests are discarded
+            ordersFragment.onPause();
+        }
     }
 }

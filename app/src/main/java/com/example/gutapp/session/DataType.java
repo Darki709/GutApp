@@ -20,5 +20,6 @@ public enum DataType {
     ORDER_RECEIVED,
     ORDER_INVALID,
     ORDER_SLIP,
-    ORDERS_BATCH;
+    ORDERS_BATCH,
+    ORDER_CLOSED_SUCCESS;
 }

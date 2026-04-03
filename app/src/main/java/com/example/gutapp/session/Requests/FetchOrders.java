@@ -24,7 +24,7 @@ public class FetchOrders extends AsyncRequest {
     private int offset;
 
     public enum OrderView {
-        ALL((byte)0), ACTIVE((byte)1), INACTIVE((byte)2);
+        ALL((byte)3), ACTIVE((byte)0), INACTIVE((byte)1);
         public final byte value;
         OrderView(byte value) { this.value = value; }
     }
@@ -71,7 +71,7 @@ public class FetchOrders extends AsyncRequest {
         // Data is already parsed and ready
         ArrayList<Order> fetchedOrders = batch.getOrders();
 
-        //FetchOrdersResponse.debugPrintOrders(fetchedOrders);
+        FetchOrdersResponse.debugPrintOrders(fetchedOrders);
 
         // Send to UI
         caller.onDataReceived(DataType.ORDERS_BATCH, fetchedOrders);
