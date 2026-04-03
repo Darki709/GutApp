@@ -106,7 +106,7 @@
 
     <TextView
         android:id="@+id/textViewPrice"
-        android:layout_width="160dp"
+        android:layout_width="140dp"
         android:layout_height="45dp"
         android:layout_marginStart="4dp"
         android:layout_marginTop="12dp"
@@ -122,7 +122,7 @@
 
     <Button
         android:id="@+id/buttonBuy"
-        android:layout_width="0dp"
+        android:layout_width="80dp"
         android:layout_height="wrap_content"
         android:layout_marginStart="12dp"
         android:backgroundTint="@color/colorPriceUp"
@@ -138,7 +138,7 @@
 
     <Button
         android:id="@+id/buttonSell"
-        android:layout_width="0dp"
+        android:layout_width="80dp"
         android:layout_height="wrap_content"
         android:layout_marginStart="8dp"
         android:layout_marginEnd="8dp"
