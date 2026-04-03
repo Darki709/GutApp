@@ -33,6 +33,7 @@ import com.example.gutapp.database.DB_Helper;
 import com.example.gutapp.database.LastFetchCacheHelper;
 import com.example.gutapp.session.DataType;
 import com.example.gutapp.session.NetworkClient;
+import com.example.gutapp.session.Requests.FetchOrders;
 import com.example.gutapp.session.Requests.SearchTicker;
 import com.example.gutapp.session.Requests.TickerInfoRequest;
 import com.example.gutapp.ui.fragments.SearchFragment;

@@ -19,5 +19,6 @@ public enum DataType {
     TICKER_INFORMATION,
     ORDER_RECEIVED,
     ORDER_INVALID,
-    ORDER_SLIP;
+    ORDER_SLIP,
+    ORDERS_BATCH;
 }

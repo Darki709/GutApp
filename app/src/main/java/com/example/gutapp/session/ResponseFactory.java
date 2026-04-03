@@ -1,5 +1,6 @@
 package com.example.gutapp.session;
 
+import com.example.gutapp.session.Responses.FetchOrdersResponse;
 import com.example.gutapp.session.Responses.GetBalanceResponse;
 import com.example.gutapp.session.Responses.OrderResponses;
 import com.example.gutapp.session.Responses.SearchTickerResponse;
@@ -26,6 +27,8 @@ public class ResponseFactory {
                 return new OrderResponses.Invalid(response);
             case ORDERSLIPPED:
                 return new OrderResponses.Slip(response);
+            case ORDERSBATCH:
+                return new FetchOrdersResponse(response);
             default:
                 throw new RuntimeException("Unknown response type: " + response[0]);
         }

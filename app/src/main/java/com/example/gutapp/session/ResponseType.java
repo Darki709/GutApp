@@ -13,7 +13,8 @@ public enum ResponseType{
     GETBALANCE((byte)8),
     ORDERCOMMITED((byte)9),
     INVALIDORDER((byte)10),
-    ORDERSLIPPED((byte)11);
+    ORDERSLIPPED((byte)11),
+    ORDERSBATCH((byte)12);
 
     public final byte value;
 

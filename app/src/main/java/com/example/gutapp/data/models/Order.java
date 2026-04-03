@@ -15,7 +15,7 @@ public class Order {
     @Getter
     OrderType type;
     @Getter
-    long entry_ts;
+    long entry_ts; //ts come in seconds from the server, remember to multiply by 1000 if you use them for date formatting in java (expects milliseconds)
     @Getter
     double entry_price;
     @Getter
@@ -49,7 +49,7 @@ public class Order {
         this.order_id = order_id;
         this.symbol = symbol;
         this.type = type;
-        this.entry_ts = entry_ts;
+        this.entry_ts = entry_ts * 1000L;
         this.entry_price = entry_price;
         this.quantity = quantity;
         this.active = true;
@@ -64,19 +64,18 @@ public class Order {
         this.order_id = order_id;
         this.symbol = symbol;
         this.type = type;
-        this.entry_ts = entry_ts;
+        this.entry_ts = entry_ts * 1000L;
         this.entry_price = entry_price;
         this.quantity = quantity;
         this.active = false;
-        this.end_ts = Optional.of(end_ts);
+        this.end_ts = Optional.of(end_ts * 1000L);
         this.end_price = Optional.of(end_price);
     }
 
-    public static Order fromBytes(byte[] bytes) {
-        ByteBuffer buffer = ByteBuffer.wrap(bytes);
-
-        // 1. Read Symbol [1 byte len | symbol]
-        int symbolLen = buffer.get() & 0xFF; // Treat as unsigned
+    // Inside your Order class
+    public static Order fromBuffer(ByteBuffer buffer) {
+        // 1. Read Symbol [1 byte len | symbol bytes]
+        int symbolLen = buffer.get() & 0xFF;
         byte[] symbolBytes = new byte[symbolLen];
         buffer.get(symbolBytes);
         String symbol = new String(symbolBytes, StandardCharsets.US_ASCII);
@@ -84,25 +83,27 @@ public class Order {
         // 2. Read Metadata [4 bytes ID | 1 byte Type]
         int orderId = buffer.getInt();
         int typeOrdinal = buffer.get() & 0xFF;
-        OrderType type = OrderType.values()[typeOrdinal];
+        OrderType type = (typeOrdinal < OrderType.values().length) ?
+                OrderType.values()[typeOrdinal] : OrderType.Long;
 
-        // 3. Read Entry Data [8 bytes Price | 8 bytes TS | 4 bytes Qty]
+        // 3. Read Entry Data [8 bytes Price | 8 bytes TS]
         double entryPrice = buffer.getDouble();
         long entryTs = buffer.getLong();
+
+        // 4. Read Quantity [4 bytes]
         int quantity = buffer.getInt();
 
-        // 4. Read Status [1 byte Active]
+        // 5. Read Status [1 byte Active]
         boolean active = (buffer.get() == 1);
 
         if (active) {
-            // Return an Active Order using the second constructor
             return new Order(orderId, symbol, type, entryTs, entryPrice, quantity);
         } else {
-            // 5. Read Closing Data (if inactive) [8 bytes End Price | 8 bytes End TS]
+            // 6. Read Closing Data [8 bytes END PRICE | 8 bytes END TS]
+            // CRITICAL: Order must match server: End Price comes BEFORE End TS
             double endPrice = buffer.getDouble();
             long endTs = buffer.getLong();
 
-            // Return a Closed Order using the third constructor
             return new Order(orderId, symbol, type, entryTs, entryPrice, quantity, endTs, endPrice);
         }
     }
