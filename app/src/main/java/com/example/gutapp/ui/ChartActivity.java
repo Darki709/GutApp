@@ -1,23 +1,28 @@
 package com.example.gutapp.ui;
 
-import android.annotation.SuppressLint;
+import static android.widget.Toast.LENGTH_LONG;
+import static android.widget.Toast.LENGTH_SHORT;
+
 import android.content.Intent;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.View;
+import android.widget.Button;
 import android.widget.ImageButton;
 import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.activity.EdgeToEdge;
-import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
 
 import com.example.gutapp.R;
+import com.example.gutapp.data.OrderDialog;
 import com.example.gutapp.data.StockChart;
+import com.example.gutapp.data.UserGlobals;
 import com.example.gutapp.data.models.Candle;
+import com.example.gutapp.data.models.Order;
 import com.example.gutapp.database.DB_Helper;
 import com.example.gutapp.database.LastFetchCacheHelper;
 import com.example.gutapp.database.StockDataHelper;
@@ -25,13 +30,15 @@ import com.example.gutapp.database.StockDataHelper;
 import com.example.gutapp.session.DataType;
 import com.example.gutapp.session.NetworkClient;
 import com.example.gutapp.session.Requests.RequestTickerData;
+import com.example.gutapp.session.Requests.SendOrder;
 import com.example.gutapp.session.Requests.TickerInfoRequest;
 import com.example.gutapp.session.SessionCallback;
 import com.github.mikephil.charting.charts.CombinedChart;
 
 import java.util.ArrayList;
+import java.util.Locale;
 
-public class ChartActivity extends SessionActivity implements View.OnClickListener {
+public class ChartActivity extends SessionActivity implements View.OnClickListener, OrderDialog.OrderDialogListener {
 
     public static final String CHART_LOG_TAG = "GutChart";
 
@@ -40,7 +47,11 @@ public class ChartActivity extends SessionActivity implements View.OnClickListen
     private String symbol; // Default symbol
     private String name;
     private TextView textViewTitle;
+    private TextView textViewName;
+    private TextView textViewPrice;
     private StockDataHelper.Timeframe interval;
+    private OrderDialog activeDialog = null;
+    private volatile double current_price;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -64,6 +75,7 @@ public class ChartActivity extends SessionActivity implements View.OnClickListen
 
         chartContainer = new StockChart(chart, this);
         chartContainer.setupChart(findViewById(R.id.candleDataTextView));
+        chartContainer.bindListener(this);
 
 
         // Set up button listeners
@@ -72,9 +84,15 @@ public class ChartActivity extends SessionActivity implements View.OnClickListen
         findViewById(R.id.button1h).setOnClickListener(this);
         findViewById(R.id.button1d).setOnClickListener(this);
         findViewById(R.id.indicatorsButton).setOnClickListener(this);
+        findViewById(R.id.buttonBuy).setOnClickListener(this);
+        findViewById(R.id.buttonSell).setOnClickListener(this);
 
 
         textViewTitle = findViewById(R.id.textViewTitle);
+        textViewPrice = findViewById(R.id.textViewPrice);
+        textViewName = findViewById(R.id.textViewName);
+
+        textViewName.setText(name);
 
         ImageButton buttonHome = findViewById(R.id.buttonHome);
         buttonHome.setOnClickListener(this);
@@ -125,11 +143,17 @@ public class ChartActivity extends SessionActivity implements View.OnClickListen
         else if (id == R.id.buttonHome) {
             Intent intent = new Intent(this, HomeActivity.class);
             startActivity(intent);
+        } else if (id == R.id.buttonBuy) {
+            activeDialog = new OrderDialog(this, symbol, current_price, Order.OrderType.Long, this);
+            activeDialog.show();
+        } else if (id == R.id.buttonSell) {
+            activeDialog = new OrderDialog(this, symbol, current_price, Order.OrderType.Short, this);
+            activeDialog.show();
         }
     }
 
     public void formatTile(String timeFrame){
-        textViewTitle.setText(name + " (" + timeFrame + ")");
+        textViewTitle.setText(symbol + " (" + timeFrame + ")");
     }
 
 
@@ -151,6 +175,8 @@ public class ChartActivity extends SessionActivity implements View.OnClickListen
          ArrayList<Candle> stockData = stockDataHelper.getCachedStockData(symbol, interval);
             if(stockData != null && stockData.size() > 0){
                 chartContainer.addChunk(stockData);
+                textViewPrice.setText(String.format(Locale.US,"%.6f", stockData.get(stockData.size()-1).close));
+                current_price = stockData.get(stockData.size()-1).close;
             }
             else throw new Exception("Cache is empty");
         }
@@ -175,13 +201,44 @@ public class ChartActivity extends SessionActivity implements View.OnClickListen
         switch(msgType){
             case SEARCH_NO_RESULT:
                 runOnUiThread( () -> {
-                    Toast.makeText(this, (String) parsedData, Toast.LENGTH_SHORT).show();
+                    Toast.makeText(this, (String) parsedData, LENGTH_SHORT).show();
                 });
+                break;
+            case MARKET_DATA:
+                current_price = (Double)parsedData;
+                if(chartContainer.isDone()){
+                runOnUiThread( () -> {
+                    textViewPrice.setText(String.format(Locale.US,"%.6f", (Double)parsedData));
+                    if(activeDialog != null && activeDialog.isShowing()){
+                        activeDialog.updateLivePrice((Double)parsedData);
+                    }
+                });}
+                break;
+            case ORDER_INVALID:
+            case ORDER_SLIP:
+                runOnUiThread( () -> {
+                    Toast.makeText(this, (String)parsedData, LENGTH_LONG).show();
+                });
+                break;
+            case ORDER_RECEIVED:
+                Order order = (Order)parsedData;
+                runOnUiThread( () -> {
+                    //update any order list that will appear in the chart activity
+                    Toast.makeText(this, String.format("Order completed for %s, paid $%.16f per unit", symbol, order.getEntry_price()), LENGTH_LONG).show();
+                });
+                break;
         }
     }
 
     @Override
     public void onActionRequired(int actionType, Object data) {
         //not needed yet
+    }
+
+    @Override
+    public void onConfirmOrder(int quantity, double price, Order.OrderType type) {
+        SendOrder request = new SendOrder(symbol, quantity, price, type, this, this);
+        NetworkClient.getInstance(null).getSessionManager().pushRequest(request);
+        Toast.makeText(this, String.format("Sent order for symbol: %s, order price: $%.16f", symbol, quantity * price), LENGTH_SHORT).show();
     }
 }

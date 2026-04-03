@@ -2,6 +2,9 @@ package com.example.gutapp.session;
 
 
 import static com.example.gutapp.session.Connection.NETWORK_LOG_TAG;
+import static com.example.gutapp.session.CryptoUtility.KEY_PASS;
+import static com.example.gutapp.session.CryptoUtility.KEY_USER;
+import static com.example.gutapp.session.CryptoUtility.getVault;
 
 import android.content.Context;
 import android.content.SharedPreferences;
@@ -66,10 +69,6 @@ public class SessionManager implements Runnable {
             this.mode = mode;
         }
     }
-
-    private static final String PREF_NAME = "gut_session_prefs";
-    private static final String KEY_USER = "saved_username";
-    private static final String KEY_PASS = "saved_password";
 
 
 
@@ -265,7 +264,7 @@ public class SessionManager implements Runnable {
 
     //authentication method returns 0 on success
     private int tryAutoLogin() throws IOException{
-        SharedPreferences vault = getVault();
+        SharedPreferences vault = getVault(this.appContext);
         if(vault == null)
             return -1;
         //get cached user credentials
@@ -368,27 +367,11 @@ public class SessionManager implements Runnable {
         }
     }
 
-    private SharedPreferences getVault() {
-        try {
-            MasterKey masterKey = new MasterKey.Builder(this.appContext)
-                    .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
-                    .build();
 
-            return EncryptedSharedPreferences.create(
-                    this.appContext,
-                    PREF_NAME,
-                    masterKey,
-                    EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
-                    EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
-            );
-        } catch (Exception e) {
-            return null; // Vault failed to open
-        }
-    }
 
     private void saveCredentials(String username, String password) {
         // context is passed in via constructor or a setter
-        SharedPreferences prefs = getVault();
+        SharedPreferences prefs = getVault(this.appContext);
         if (prefs == null)
         {
             Log.e(NETWORK_LOG_TAG, "Could not save: Vault failed to open.");

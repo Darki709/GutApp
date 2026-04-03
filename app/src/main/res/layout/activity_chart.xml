@@ -8,79 +8,6 @@
     android:background="#1F1D1D"
     tools:context=".ui.ChartActivity">
 
-    <com.github.mikephil.charting.charts.CombinedChart
-        android:id="@+id/stockChart"
-        android:layout_width="414dp"
-        android:layout_height="452dp"
-        android:background="#1F1D1D"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/textViewTitle"></com.github.mikephil.charting.charts.CombinedChart>
-
-    <TextView
-        android:id="@+id/candleDataTextView"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:background="@drawable/candle_data_background"
-        android:lineSpacingExtra="2dp"
-        android:textColor="#FFFFFF"
-        android:textSize="12sp"
-        android:textStyle="bold"
-        app:layout_constraintEnd_toEndOf="@+id/stockChart"
-        app:layout_constraintTop_toTopOf="@+id/stockChart" />
-
-    <LinearLayout
-        android:id="@+id/timeframeButtons"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:gravity="center"
-        android:orientation="horizontal"
-        android:padding="0dp"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/stockChart">
-
-        <Button
-            android:id="@+id/button5m"
-            style="?android:attr/buttonBarButtonStyle"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="5m" />
-
-        <Button
-            android:id="@+id/button15m"
-            style="?android:attr/buttonBarButtonStyle"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="15m" />
-
-        <Button
-            android:id="@+id/button1h"
-            style="?android:attr/buttonBarButtonStyle"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="1H" />
-
-        <Button
-            android:id="@+id/button1d"
-            style="?android:attr/buttonBarButtonStyle"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="1D" />
-
-    </LinearLayout>
-
-    <TextView
-        android:id="@+id/textViewTitle"
-        android:layout_width="0dp"
-        android:layout_height="42dp"
-        android:text="Symbol (TF)"
-        android:textAlignment="center"
-        android:textColor="@android:color/white"
-        android:textSize="24sp"
-        app:layout_constraintEnd_toStartOf="@+id/buttonHome"
-        app:layout_constraintStart_toEndOf="@+id/imageViewLogo"
-        app:layout_constraintTop_toTopOf="parent" />
-
     <ImageView
         android:id="@+id/imageViewLogo"
         android:layout_width="123dp"
@@ -89,6 +16,21 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent"
         app:srcCompat="@drawable/logo" />
+
+    <TextView
+        android:id="@+id/textViewTitle"
+        android:layout_width="0dp"
+        android:layout_height="42dp"
+        android:gravity="center"
+        android:text="Symbol (TF)"
+        android:textColor="@android:color/white"
+        app:autoSizeMaxTextSize="30sp"
+        app:autoSizeMinTextSize="12sp"
+        app:autoSizeStepGranularity="1sp"
+        app:autoSizeTextType="uniform"
+        app:layout_constraintEnd_toStartOf="@+id/buttonHome"
+        app:layout_constraintStart_toEndOf="@+id/imageViewLogo"
+        app:layout_constraintTop_toTopOf="parent" />
 
     <ImageButton
         android:id="@+id/buttonHome"
@@ -99,13 +41,115 @@
         app:layout_constraintTop_toTopOf="parent"
         app:srcCompat="@drawable/home_btn" />
 
+    <com.github.mikephil.charting.charts.CombinedChart
+        android:id="@+id/stockChart"
+        android:layout_width="0dp"
+        android:layout_height="400dp"
+        android:background="#1F1D1D"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/textViewTitle" />
+
+    <TextView
+        android:id="@+id/candleDataTextView"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:background="@drawable/candle_data_background"
+        android:lineSpacingExtra="2dp"
+        android:textColor="#FFFFFF"
+        android:textSize="12sp"
+        android:textStyle="bold"
+        android:layout_margin="8dp"
+        app:layout_constraintEnd_toEndOf="@+id/stockChart"
+        app:layout_constraintTop_toTopOf="@+id/stockChart" />
+
+    <LinearLayout
+        android:id="@+id/timeframeButtons"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:gravity="center"
+        android:orientation="vertical"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/stockChart">
+
+        <Button android:id="@+id/button5m" style="?android:attr/buttonBarButtonStyle" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="5m" android:textColor="#FFFFFF"/>
+        <Button android:id="@+id/button15m" style="?android:attr/buttonBarButtonStyle" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="15m" android:textColor="#FFFFFF"/>
+        <Button android:id="@+id/button1h" style="?android:attr/buttonBarButtonStyle" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="1H" android:textColor="#FFFFFF"/>
+        <Button android:id="@+id/button1d" style="?android:attr/buttonBarButtonStyle" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="1D" android:textColor="#FFFFFF"/>
+    </LinearLayout>
+
     <Button
         android:id="@+id/indicatorsButton"
-        android:layout_width="124dp"
-        android:layout_height="48dp"
+        android:layout_width="120dp"
+        android:layout_height="wrap_content"
         android:text="Indicators"
+        android:layout_marginEnd="8dp"
+        android:layout_marginStart="8dp"
         app:layout_constraintEnd_toStartOf="@+id/timeframeButtons"
+        app:layout_constraintTop_toTopOf="@+id/timeframeButtons" />
+
+    <TextView
+        android:id="@+id/textViewName"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:text="TICKER"
+        android:gravity="center_vertical"
+        android:textColor="#FFFFFF"
+        android:paddingStart="12dp"
+        app:autoSizeMaxTextSize="30sp"
+        app:autoSizeMinTextSize="12sp"
+        app:autoSizeTextType="uniform"
+        app:layout_constraintBottom_toBottomOf="@+id/indicatorsButton"
+        app:layout_constraintEnd_toStartOf="@+id/indicatorsButton"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/stockChart" />
+        app:layout_constraintTop_toTopOf="@+id/indicatorsButton" />
+
+    <TextView
+        android:id="@+id/textViewPrice"
+        android:layout_width="160dp"
+        android:layout_height="45dp"
+        android:layout_marginStart="4dp"
+        android:layout_marginTop="12dp"
+        android:text="000.000"
+        android:textColor="@color/colorPriceUp"
+        android:textStyle="bold"
+        app:autoSizeMaxTextSize="30sp"
+        app:autoSizeMinTextSize="12sp"
+        app:autoSizeStepGranularity="1sp"
+        app:autoSizeTextType="uniform"
+        app:layout_constraintStart_toStartOf="@+id/textViewName"
+        app:layout_constraintTop_toBottomOf="@+id/textViewName" />
+
+    <Button
+        android:id="@+id/buttonBuy"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="12dp"
+        android:backgroundTint="@color/colorPriceUp"
+        android:text="Buy"
+        android:textColor="#1F1D1D"
+        app:cornerRadius="5dp"
+        app:layout_constraintBottom_toBottomOf="@+id/textViewPrice"
+        app:layout_constraintEnd_toStartOf="@+id/buttonSell"
+        app:layout_constraintHorizontal_weight="1"
+        app:layout_constraintStart_toEndOf="@+id/textViewPrice"
+        app:layout_constraintTop_toTopOf="@+id/textViewPrice"
+        app:layout_constraintVertical_bias="0.0" />
+
+    <Button
+        android:id="@+id/buttonSell"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="8dp"
+        android:layout_marginEnd="8dp"
+        android:backgroundTint="@color/colorPriceDown"
+        android:text="Sell"
+        android:textColor="#1F1D1D"
+        app:cornerRadius="5dp"
+        app:layout_constraintBottom_toBottomOf="@+id/buttonBuy"
+        app:layout_constraintEnd_toStartOf="@+id/timeframeButtons"
+        app:layout_constraintHorizontal_weight="1"
+        app:layout_constraintStart_toEndOf="@+id/buttonBuy"
+        app:layout_constraintTop_toTopOf="@+id/buttonBuy" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>

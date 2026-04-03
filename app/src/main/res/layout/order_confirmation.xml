@@ -1,0 +1,125 @@
+<?xml version="1.0" encoding="utf-8"?>
+<com.google.android.material.card.MaterialCardView
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="320dp"
+    android:layout_height="wrap_content"
+    app:cardCornerRadius="0dp"
+    app:cardBackgroundColor="#232222"
+    app:strokeColor="#444444"
+    app:strokeWidth="1dp">
+
+    <androidx.constraintlayout.widget.ConstraintLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:padding="20dp">
+
+        <TextView
+            android:id="@+id/confTitle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="CONFIRM BUY: BTC-USD"
+            android:textColor="@color/colorPriceUp"
+            android:textStyle="bold"
+            android:textSize="16sp"
+            app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintStart_toStartOf="parent" />
+
+        <LinearLayout
+            android:id="@+id/infoSection"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginTop="16dp"
+            app:layout_constraintTop_toBottomOf="@+id/confTitle">
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="BALANCE"
+                    android:textColor="#888888"
+                    android:textSize="10sp"/>
+
+                <TextView
+                    android:id="@+id/confBalance"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="$12,450.00"
+                    android:textColor="#FFFFFF"
+                    android:textSize="14sp"/>
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="MARKET PRICE"
+                    android:textColor="#888888"
+                    android:textSize="10sp"/>
+
+                <TextView
+                    android:id="@+id/confPrice"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="68,432.10"
+                    android:textColor="#FFFFFF"
+                    android:textSize="14sp"/>
+            </LinearLayout>
+        </LinearLayout>
+
+        <com.google.android.material.textfield.TextInputLayout
+            android:id="@+id/qtyInputLayout"
+            style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="20dp"
+            android:hint="Quantity"
+            app:boxStrokeColor="@color/colorPriceUp"
+            app:layout_constraintTop_toBottomOf="@+id/infoSection">
+
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/editQty"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:inputType="numberDecimal"
+                android:textColor="#FFFFFF"
+                android:text="1" />
+        </com.google.android.material.textfield.TextInputLayout>
+
+        <TextView
+            android:id="@+id/confTotal"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="Total: $0.00"
+            android:textColor="#FFFFFF"
+            android:textAlignment="viewEnd"
+            android:textStyle="bold"
+            app:layout_constraintTop_toBottomOf="@+id/qtyInputLayout" />
+
+        <Button
+            android:id="@+id/btnConfirm"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="24dp"
+            android:text="PLACE ORDER"
+            android:backgroundTint="@color/colorPriceUp"
+            android:textColor="#1F1D1D"
+            app:cornerRadius="0dp"
+            app:layout_constraintTop_toBottomOf="@+id/qtyInputLayout"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintEnd_toEndOf="parent" />
+
+    </androidx.constraintlayout.widget.ConstraintLayout>
+</com.google.android.material.card.MaterialCardView>

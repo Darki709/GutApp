@@ -57,8 +57,12 @@ public class StockChart implements SessionCallback {
     private final AtomicBoolean isUpdatePending = new AtomicBoolean(false);
 
     private final Context activityContext;
+    private volatile boolean done = false;
 
     Handler mainHandler = new Handler(Looper.getMainLooper()); //used to send error messages to the UI thread
+
+    @Nullable
+    private SessionCallback chainedListener = null;
 
 
     public StockChart(CombinedChart chart, Context context) {
@@ -332,14 +336,31 @@ public class StockChart implements SessionCallback {
         switch (msgType) {
             case TICKER_STREAM:
                 streamUpdate(chunk.chunk);
+                if(chainedListener != null){
+                    synchronized (allCandles) {
+                        chainedListener.onDataReceived(DataType.MARKET_DATA, allCandles.get(allCandles.size() - 1).close);
+                    }}
                 break;
             case TICKER_SNAPSHOT:
                 addChunk(chunk.chunk);
                 break;
             case TICKER_REQUEST_DONE:
                 reqIds.remove(chunk.reqId);
+                if(chainedListener != null){
+                done = true;
+                synchronized (allCandles) {
+                    chainedListener.onDataReceived(DataType.MARKET_DATA, allCandles.get(allCandles.size() - 1).close);
+                }}
                 break;
         }
+    }
+
+    public void bindListener(SessionCallback chainedListener){
+        this.chainedListener = chainedListener;
+    }
+
+    public boolean isDone(){
+        return done;
     }
 
     public void setInterval(StockDataHelper.Timeframe interval) {

@@ -44,9 +44,6 @@ dependencies {
     androidTestImplementation(libs.espresso.core)
     implementation("androidx.security:security-crypto:1.1.0")
     implementation("androidx.core:core-splashscreen:1.2.0")
-    val sqlite_version = "2.6.2"
-    // This is the "Magic" library that includes the modern SQLite 3.24+ C++ engine
-    implementation("androidx.sqlite:sqlite-bundled:$sqlite_version")
-    // Core interface for the bundled driver
-    implementation("androidx.sqlite:sqlite:$sqlite_version")
+    compileOnly("org.projectlombok:lombok:1.18.34")
+    annotationProcessor("org.projectlombok:lombok:1.18.34")
 }

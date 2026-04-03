@@ -2,8 +2,13 @@ package com.example.gutapp.session;
 
 import static com.example.gutapp.session.Connection.NETWORK_LOG_TAG;
 
+import android.content.Context;
+import android.content.SharedPreferences;
 import android.util.Base64;
 import android.util.Log;
+
+import androidx.security.crypto.EncryptedSharedPreferences;
+import androidx.security.crypto.MasterKey;
 
 import javax.crypto.Cipher;
 import javax.crypto.KeyGenerator;
@@ -27,6 +32,10 @@ import java.security.spec.MGF1ParameterSpec;
 import java.security.spec.X509EncodedKeySpec;
 
 public class CryptoUtility {
+
+    public static final String PREF_NAME = "gut_session_prefs";
+    public static final String KEY_USER = "saved_username";
+    public static final String KEY_PASS = "saved_password";
 
     public static class CryptoContext{
         //initialized throughout the handshake process,
@@ -134,4 +143,22 @@ public class CryptoUtility {
         return cipher.doFinal(payload);
     }
 
+    public static SharedPreferences getVault(Context appContext) {
+        try {
+            MasterKey masterKey = new MasterKey.Builder(appContext)
+                    .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
+                    .build();
+
+            return EncryptedSharedPreferences.create(
+                    appContext,
+                    PREF_NAME,
+                    masterKey,
+                    EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+                    EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
+            );
+        } catch (Exception e) {
+            Log.e(NETWORK_LOG_TAG, "failed to access the shared preference");
+            return null; // Vault failed to open
+        }
+    }
 }
