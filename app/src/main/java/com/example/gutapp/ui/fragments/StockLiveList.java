@@ -170,8 +170,24 @@ public class StockLiveList extends Fragment {
     public void onPause() {
         super.onPause();
         //we don't need live updates if the activity isn't visible
-        for(StockRow stockRow : stockList){
+        for (StockRow stockRow : stockList) {
             stockRow.discard();
+        }
+    }
+
+    public void refreshVisibleRows() {
+        if (scrollView != null) {
+            if (container != null) {
+                // This forces Android to re-measure every view in the list
+                container.requestLayout();
+
+                // This forces the pixels to actually redraw
+                container.invalidate();
+
+                // Re-check visibility now that the layout has shifted
+            }
+            // Use post to ensure the UI layout is settled before calculating visibility
+            scrollView.post(this::updateVisibleTickerSubscriptions);
         }
     }
 }

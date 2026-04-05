@@ -54,6 +54,7 @@ public class HomeActivity extends SessionActivity implements OrdersList.Listener
 
     TextView PL;
     OrdersList ordersList;
+    StockLiveList stockLiveListFragment;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -66,7 +67,7 @@ public class HomeActivity extends SessionActivity implements OrdersList.Listener
             return insets;
         });
 
-        StockLiveList stockLiveListFragment = StockLiveList.newInstance(loadStockList());
+        stockLiveListFragment = StockLiveList.newInstance(loadStockList());
         //initialize stock list fragment
         if (savedInstanceState == null) {
             getSupportFragmentManager().beginTransaction()
@@ -184,6 +185,9 @@ public class HomeActivity extends SessionActivity implements OrdersList.Listener
             findViewById(R.id.orders_container).setVisibility(GONE);
             findViewById(R.id.ordersTitle).setVisibility(GONE);
             PL.setVisibility(GONE);
+            if (stockLiveListFragment != null) {
+                stockLiveListFragment.refreshVisibleRows();
+            }
         }
     }
 }
