@@ -81,10 +81,21 @@ public class Order implements Serializable {
         return quantity * entry_price;
     }
 
+    public double endValue(){
+        if(end_ts_internal == null) throw new IllegalStateException("can't calculate end value for active order");
+       return quantity * end_price_internal;
+    }
+
     public double priceDelta(){
         if(end_price_internal == null) throw new RuntimeException("don't access price delta on unfinished order");
         double delta = quantity * (end_price_internal - entry_price);
         return type == OrderType.Long ? delta : -delta;
+    }
+
+    public void setInactive(double end_price, long end_ts){
+        this.end_price_internal = end_price;
+        this.end_ts_internal = end_ts;
+        this.active = false;
     }
 
     public static Order fromBuffer(ByteBuffer buffer) {

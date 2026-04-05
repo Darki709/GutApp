@@ -80,6 +80,7 @@ public class OrderDialog {
                 editQty.setError("Invalid quantity");
             }
         });
+        updateTotal();
     }
 
     public void show() { dialog.show(); }

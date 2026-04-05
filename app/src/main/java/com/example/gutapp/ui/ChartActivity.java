@@ -23,6 +23,8 @@ import com.example.gutapp.data.StockChart;
 import com.example.gutapp.data.UserGlobals;
 import com.example.gutapp.data.models.Candle;
 import com.example.gutapp.data.models.Order;
+import com.example.gutapp.data.models.TickerInfo;
+import com.example.gutapp.data.models.TickerInformation;
 import com.example.gutapp.database.DB_Helper;
 import com.example.gutapp.database.LastFetchCacheHelper;
 import com.example.gutapp.database.StockDataHelper;
@@ -40,7 +42,7 @@ import com.github.mikephil.charting.charts.CombinedChart;
 import java.util.ArrayList;
 import java.util.Locale;
 
-public class ChartActivity extends SessionActivity implements View.OnClickListener, OrderDialog.OrderDialogListener {
+public class ChartActivity extends SessionActivity implements View.OnClickListener, OrderDialog.OrderDialogListener, OrdersList.Listener {
 
     public static final String CHART_LOG_TAG = "GutChart";
 
@@ -252,22 +254,12 @@ public class ChartActivity extends SessionActivity implements View.OnClickListen
                     updateOrdersUI();
                 });
                 break;
-            case ORDER_CLOSED_SUCCESS:
-                synchronized (allOrders) {
-                    allOrders.remove((Order) parsedData);
-                }
+            case TICKER_INFORMATION:
+                TickerInformation info = (TickerInformation)parsedData;
+                name = info.name;
                 runOnUiThread( () -> {
-                    if (ordersFragment != null) {
-                        ordersFragment.removeByOrderReference((Order)parsedData);
-
-                        // 3. If that was the last order for this ticker, show the "Empty" view
-                        if (ordersFragment.isEmpty()) {
-                            findViewById(R.id.ordersFragmentContainer).setVisibility(View.GONE);
-                            findViewById(R.id.emptyOrdersView).setVisibility(View.VISIBLE);
-                        }
-                    }
+                textViewName.setText(name);
                 });
-                break;
         }
     }
 
@@ -287,6 +279,7 @@ public class ChartActivity extends SessionActivity implements View.OnClickListen
             getSupportFragmentManager().beginTransaction()
                     .replace(R.id.ordersFragmentContainer, ordersFragment)
                     .commit();
+            ordersFragment.setListener(this);
         }
     }
 
@@ -309,5 +302,25 @@ public class ChartActivity extends SessionActivity implements View.OnClickListen
             // This ensures all RequestTickerData requests are discarded
             ordersFragment.onPause();
         }
+    }
+
+    @Override
+    public void PLUpdate(double totalPL) {
+        //not needed
+    }
+
+    @Override
+    public void notifyOrderRemoved(Order order) {
+        synchronized (allOrders) {
+            allOrders.remove(order);
+        }
+        runOnUiThread( () -> {
+            if (ordersFragment != null) {
+                if (ordersFragment.isEmpty()) {
+                    findViewById(R.id.ordersFragmentContainer).setVisibility(View.GONE);
+                    findViewById(R.id.emptyOrdersView).setVisibility(View.VISIBLE);
+                }
+            }
+        });
     }
 }

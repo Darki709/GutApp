@@ -1,6 +1,9 @@
 package com.example.gutapp.data;
 
+import static android.widget.Toast.LENGTH_SHORT;
+
 import android.app.Activity;
+import android.content.Intent;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.os.Handler;
@@ -11,22 +14,27 @@ import android.view.Gravity;
 import android.view.View;
 import android.widget.LinearLayout;
 import android.widget.TextView;
+import android.widget.Toast;
+
 import androidx.annotation.Nullable;
 
 import com.example.gutapp.data.models.Order;
 import com.example.gutapp.data.models.PriceChunk;
 import com.example.gutapp.session.DataType;
 import com.example.gutapp.session.NetworkClient;
+import com.example.gutapp.session.Requests.EndOrder;
 import com.example.gutapp.session.Requests.RequestTickerData;
 import com.example.gutapp.session.SessionCallback;
 import com.example.gutapp.database.StockDataHelper;
+import com.example.gutapp.ui.ChartActivity;
 
 import lombok.Getter;
+import lombok.Setter;
 
 public class OrderRow implements SessionCallback {
     private final LinearLayout rowLayout;
     @Getter
-    private final Order order;
+    private Order order;
     private final Activity context;
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
 
@@ -34,11 +42,18 @@ public class OrderRow implements SessionCallback {
     private TextView plView;
     private int reqId = -1;
     private double currentPrice;
-
+    private double totalPL = 0;
     private android.widget.Button closeButton;
     private boolean isClosing = false;
-
     private final java.text.SimpleDateFormat dateFormat = new java.text.SimpleDateFormat("MMM dd, HH:mm", java.util.Locale.getDefault());
+    @Nullable
+    @Setter
+    private OrderRowContainer container;
+
+    public interface OrderRowContainer{
+        void notifyPLChange(); //notify container for PL update
+        void notifyClosed(Order order);
+    }
 
     public OrderRow(Order order, Activity context) {
         this.order = order;
@@ -103,6 +118,12 @@ public class OrderRow implements SessionCallback {
         symText.setTextColor(Color.WHITE);
         symText.setTextSize(18);
         symText.setTypeface(null, Typeface.BOLD);
+        symText.setOnClickListener( v -> {
+            Intent intent = new Intent(context, ChartActivity.class);
+            intent.putExtra("symbol", order.getSymbol());
+            intent.putExtra("name", "");
+            context.startActivity(intent);
+        });
 
         TextView detailText = new TextView(context);
         String side = order.getType() == Order.OrderType.Long ? "LONG" : "SHORT";
@@ -166,11 +187,11 @@ public class OrderRow implements SessionCallback {
                 ? (newPrice - order.getEntry_price())
                 : (order.getEntry_price() - newPrice);
 
-        double totalPL = diff * order.getQuantity();
+        totalPL = diff * order.getQuantity();
 
         mainHandler.post(() -> {
             priceView.setText(String.format("%.4f", newPrice));
-            plView.setText(String.format("%+.4f", totalPL * order.getQuantity()));
+            plView.setText(String.format("%+.4f", totalPL));
 
             if (totalPL > 0) {
                 // GREEN: Making money
@@ -203,18 +224,31 @@ public class OrderRow implements SessionCallback {
 
     @Override
     public void onDataReceived(DataType msgType, Object parsedData) {
-        if(!getOrder().isActive()) return;
         switch(msgType){
             case TICKER_STREAM:
                 PriceChunk chunk = (PriceChunk) parsedData;
                 if (chunk != null && chunk.reqId == reqId && !chunk.chunk.isEmpty()) {
                     double lastPrice = chunk.chunk.get(chunk.chunk.size() - 1).close;
                     updateUI(lastPrice);
+                    if(container != null) container.notifyPLChange();
                 }
                 break;
             case TICKER_SNAPSHOT:
                 double lastPrice = (Double)parsedData;
                 updateUI(lastPrice);
+                if(container != null) container.notifyPLChange();
+                break;
+            case ORDER_CLOSED_SUCCESS:
+                closeOrder();
+                order = (Order)parsedData;
+                mainHandler.post( () -> {
+                    if (container != null) container.notifyClosed(order);
+                });
+                break;
+            case ORDER_CLOSED_FAILURE:
+                mainHandler.post( () -> {
+                    Toast.makeText(context, (String) parsedData, LENGTH_SHORT).show();
+                });
                 break;
         }
     }
@@ -226,8 +260,19 @@ public class OrderRow implements SessionCallback {
         rowLayout.setAlpha(0.6f);
 
         Log.d("ORDER_ACTION", "Closing ID: " + order.getOrder_id());
-        // Call your network client here
+
+        EndOrder request = new EndOrder(order, currentPrice, this.context, this);
+        NetworkClient.getInstance(null).getSessionManager().pushRequest(request);
     }
 
     @Override public void onActionRequired(int actionType, @Nullable Object data) {}
+
+    public double getPL(){
+        return totalPL;
+    }
+
+    private void closeOrder(){
+        stop();
+        //logic to change the visibility of the order when it finishes
+    }
 }

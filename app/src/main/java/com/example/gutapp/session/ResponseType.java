@@ -14,7 +14,9 @@ public enum ResponseType{
     ORDERCOMMITED((byte)9),
     INVALIDORDER((byte)10),
     ORDERSLIPPED((byte)11),
-    ORDERSBATCH((byte)12);
+    ORDERSBATCH((byte)12),
+    ORDEREXITTED((byte)13),
+    ORDERFAILEDEXIT((byte)14);
 
     public final byte value;
 

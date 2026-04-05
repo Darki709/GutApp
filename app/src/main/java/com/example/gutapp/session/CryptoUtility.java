@@ -37,6 +37,8 @@ public class CryptoUtility {
     public static final String KEY_USER = "saved_username";
     public static final String KEY_PASS = "saved_password";
 
+    private static SharedPreferences cachedVault = null;
+
     public static class CryptoContext{
         //initialized throughout the handshake process,
         // when the hand shake is finished the ctx is fully initialized and all variable are usable
@@ -143,19 +145,22 @@ public class CryptoUtility {
         return cipher.doFinal(payload);
     }
 
-    public static SharedPreferences getVault(Context appContext) {
+    public static synchronized SharedPreferences getVault(Context appContext) {
+        if (cachedVault != null) return cachedVault;
+
         try {
             MasterKey masterKey = new MasterKey.Builder(appContext)
                     .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
                     .build();
 
-            return EncryptedSharedPreferences.create(
+            cachedVault = EncryptedSharedPreferences.create(
                     appContext,
                     PREF_NAME,
                     masterKey,
                     EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
                     EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
             );
+            return  cachedVault;
         } catch (Exception e) {
             Log.e(NETWORK_LOG_TAG, "failed to access the shared preference");
             return null; // Vault failed to open

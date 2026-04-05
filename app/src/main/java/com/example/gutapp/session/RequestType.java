@@ -12,7 +12,8 @@ public enum RequestType {
     TICKERINFO((byte)7),
     GETBALANCE((byte)8),
     SENDORDER((byte)9),
-    FETCHORDERS((byte)10);
+    FETCHORDERS((byte)10),
+    ENDORDER((byte)11);
 
     public final byte value;
 

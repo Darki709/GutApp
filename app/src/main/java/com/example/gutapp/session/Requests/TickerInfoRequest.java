@@ -52,7 +52,7 @@ public class TickerInfoRequest extends AsyncRequest {
             return;
         }
         Log.i(CHART_LOG_TAG, info.getInformation().toString());
-        caller.onDataReceived(DataType.TICKER_INFORMATION, info);
+        caller.onDataReceived(DataType.TICKER_INFORMATION, info.getInformation());
         this.isDone = true;
     }
 }
