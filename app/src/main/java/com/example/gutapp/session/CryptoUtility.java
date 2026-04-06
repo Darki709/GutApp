@@ -33,7 +33,7 @@ import java.security.spec.X509EncodedKeySpec;
 
 public class CryptoUtility {
 
-    public static final String PREF_NAME = "gut_session_prefs";
+    public static final String PREF_NAME = "Gut_session_prefs";
     public static final String KEY_USER = "saved_username";
     public static final String KEY_PASS = "saved_password";
 
@@ -162,7 +162,7 @@ public class CryptoUtility {
             );
             return  cachedVault;
         } catch (Exception e) {
-            Log.e(NETWORK_LOG_TAG, "failed to access the shared preference");
+            Log.e(NETWORK_LOG_TAG, "failed to access the shared preference " + e.getMessage());
             return null; // Vault failed to open
         }
     }

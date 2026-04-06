@@ -19,13 +19,12 @@
     </style>
     <!-- ... your main app theme ... -->
     <style name="Theme.App.Starting" parent="Theme.SplashScreen">
-    <!-- Set the splash screen background. -->
-        <item name="windowSplashScreenBackground">#121212</item>
+        <item name="windowSplashScreenBackground">#121111</item>
 
-    <!-- Set a drawable or animated drawable for the icon. -->
-        <item name="windowSplashScreenAnimatedIcon">@drawable/logo</item>
+        <item name="windowSplashScreenAnimatedIcon">@mipmap/ic_launcher</item>
 
-    <!-- Specify the theme to be applied AFTER the splash screen. -->
-        <item name="postSplashScreenTheme">@style/Theme.GutApp</item>
+        <item name="postSplashScreenTheme">@style/Base.Theme.GutApp</item>
+
+        <item name="android:windowLightStatusBar">false</item>
     </style>
 </resources>
