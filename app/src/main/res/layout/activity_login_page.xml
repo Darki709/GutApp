@@ -92,6 +92,10 @@
         android:textAllCaps="false"
         android:textColor="#FFFFFF"
         android:textSize="24sp"
+
+        app:backgroundTint="@color/light_gray"
+        app:cornerRadius="31dp"
+
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintHorizontal_bias="0.498"
         app:layout_constraintStart_toStartOf="parent"
