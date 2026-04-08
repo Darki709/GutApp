@@ -102,8 +102,6 @@ public class StockChart implements SessionCallback {
         leftAxis.setTextColor(Color.WHITE);
         leftAxis.setSpaceTop(20f);
         leftAxis.setSpaceBottom(20f);
-        leftAxis.setMinWidth(80f); // Force a constant width
-        leftAxis.setMaxWidth(80f);
 
         // Configure Right Axis (Volume)
         YAxis rightAxis = chart.getAxisRight();
@@ -231,7 +229,7 @@ public class StockChart implements SessionCallback {
                 }
             }
         });
-        // 1. Always notify the chart that the underlying data points changed
+        chart.getData().notifyDataChanged();
         chart.notifyDataSetChanged();
 
         int totalCount = safeCopy.size();
@@ -250,17 +248,21 @@ public class StockChart implements SessionCallback {
             }
         }else{
             float lastVisibleX = chart.getLowestVisibleX();
-            float lastVisibleRange = chart.getVisibleXRange();
-            chart.setVisibleXRangeMaximum(lastVisibleRange);
-            chart.setVisibleXRangeMinimum(lastVisibleRange);
             chart.moveViewToX(lastVisibleX);
+            chart.getTransformer(YAxis.AxisDependency.LEFT).prepareMatrixValuePx(
+                    chart.getXAxis().mAxisMinimum,
+                    chart.getXAxis().mAxisRange,
+                    chart.getAxisLeft().mAxisRange,
+                    chart.getAxisLeft().mAxisMinimum
+            );
+            chart.calculateOffsets();
         }
         float maxVolume = 0;
         for (Candle c : safeCopy) {
             if (c.volume > maxVolume) maxVolume = (float) c.volume;
         }
         chart.getAxisRight().setAxisMaximum(maxVolume * 10f); // Volume scale
-        chart.invalidate();
+        chart.postInvalidate();
     }
 
     private CandleData generateCandleData(ArrayList<Candle> candles) {
