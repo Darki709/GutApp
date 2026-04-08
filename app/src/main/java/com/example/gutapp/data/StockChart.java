@@ -61,6 +61,10 @@ public class StockChart implements SessionCallback {
 
     Handler mainHandler = new Handler(Looper.getMainLooper()); //used to send error messages to the UI thread
 
+
+    //store stream responses if they arrived before the snapshot has finished loading
+    private final List<Candle> streamBuffer = new ArrayList<>();
+
     @Nullable
     private SessionCallback chainedListener = null;
 
@@ -111,6 +115,10 @@ public class StockChart implements SessionCallback {
         xAxis.setSpaceMin(15f);
         xAxis.setSpaceMax(15f);
         xAxis.setTextColor(Color.WHITE);
+//        xAxis.setGranularity(1f); // Only allow whole numbers (0, 1, 2...)
+//        xAxis.setGranularityEnabled(true);
+//        xAxis.setCenterAxisLabels(false);
+//        xAxis.setAvoidFirstLastClipping(true);
 
         chart.getAxisRight().setEnabled(true);
         rightAxis.setDrawLabels(false);
@@ -127,7 +135,7 @@ public class StockChart implements SessionCallback {
         chart.setOnChartValueSelectedListener(new OnChartValueSelectedListener() {
             @Override
             public void onValueSelected(Entry e, Highlight h) {
-                int index = (int) e.getX();
+                int index = Math.round(e.getX());
                 if (index >= 0 && index < allCandles.size()) {
                     Candle c = allCandles.get(index);
 
@@ -156,23 +164,29 @@ public class StockChart implements SessionCallback {
         if (chunk == null || chunk.isEmpty()) return;
 
         synchronized (allCandles) {
-            if (!allCandles.isEmpty()) {
-                // Check that last candle isn't written twice
-                Candle lastCandle = allCandles.remove(allCandles.size() - 1);
-                if (lastCandle.timestamp != chunk.get(0).timestamp) {
-                    allCandles.add(lastCandle);
+            for (Candle newCandle : chunk) {
+                if (!allCandles.isEmpty()) {
+                    Candle last = allCandles.get(allCandles.size() - 1);
+                    // If this is an update to the current last candle
+                    if (last.timestamp == newCandle.timestamp) {
+                        allCandles.set(allCandles.size() - 1, newCandle);
+                        continue;
+                    }
                 }
+                allCandles.add(newCandle);
             }
-            allCandles.addAll(chunk);
         }
-
         triggerChartUpdate(false);
     }
 
     private void triggerChartUpdate(boolean initialized) {
+        // Check if the activity/view is still valid before posting
+        if (chart == null) return;
+
         if (isUpdatePending.compareAndSet(false, true)) {
-            // Delay refresh slightly to batch incoming chunks and ensure it runs on UI thread
             mainHandler.postDelayed(() -> {
+                // CRITICAL: Clear highlight before changing the underlying data
+                chart.highlightValue(null);
                 updateChartData(initialized);
                 isUpdatePending.set(false);
             }, 150);
@@ -192,8 +206,7 @@ public class StockChart implements SessionCallback {
 
         CombinedData data = new CombinedData();
         data.setData(generateCandleData(safeCopy));
-        BarData volumeSet = generateVolumeData(safeCopy);
-        data.setData(volumeSet);
+        data.setData(generateVolumeData(safeCopy));
         chart.setData(data);
 
         chart.getXAxis().setValueFormatter(new ValueFormatter() {
@@ -202,7 +215,7 @@ public class StockChart implements SessionCallback {
 
             @Override
             public String getAxisLabel(float value, AxisBase axis) {
-                int index = (int) value;
+                int index = Math.round(value);
                 if (index < 0 || index >= safeCopy.size()) return "";
 
                 long timestamp = safeCopy.get(index).timestamp;
@@ -254,6 +267,7 @@ public class StockChart implements SessionCallback {
         set.setDrawValues(false);
         set.setHighlightEnabled(true);
         set.setHighLightColor(Color.WHITE);
+        set.setAxisDependency(YAxis.AxisDependency.LEFT);
 
         return new CandleData(set);
     }
@@ -290,16 +304,15 @@ public class StockChart implements SessionCallback {
         Candle liveData = chunk.get(0);
 
         synchronized (allCandles) {
-            if (allCandles.isEmpty()) {
-                allCandles.addAll(chunk);
-                triggerChartUpdate(true);
+            if (allCandles.isEmpty() && !done) {
+                streamBuffer.addAll(chunk);
+                Log.d("CHART_DEBUG", "Buffering stream response until snapshot arrives...");
                 return;
             }
-
+            if(allCandles.isEmpty()) return;
             Candle lastCandle = allCandles.get(allCandles.size() - 1);
             if (lastCandle.timestamp + interval.interval > liveData.timestamp) {
                 // Update the current candle (live movement)
-                allCandles.remove(allCandles.size() - 1);
                 Candle updated = new Candle(
                         lastCandle.timestamp,
                         lastCandle.open,
@@ -308,7 +321,7 @@ public class StockChart implements SessionCallback {
                         liveData.close,
                         lastCandle.volume + liveData.volume
                 );
-                allCandles.add(updated);
+                allCandles.set(allCandles.size()-1, updated);
             } else {
                 // New candle interval started
                 Candle newCandle = new Candle(
@@ -338,7 +351,8 @@ public class StockChart implements SessionCallback {
                 streamUpdate(chunk.chunk);
                 if(chainedListener != null){
                     synchronized (allCandles) {
-                        chainedListener.onDataReceived(DataType.MARKET_DATA, allCandles.get(allCandles.size() - 1).close);
+                        if(!allCandles.isEmpty()){
+                        chainedListener.onDataReceived(DataType.MARKET_DATA, allCandles.get(allCandles.size() - 1).close);}
                     }}
                 break;
             case TICKER_SNAPSHOT:
@@ -348,8 +362,11 @@ public class StockChart implements SessionCallback {
                 reqIds.remove(chunk.reqId);
                 if(chainedListener != null){
                 done = true;
+                    for(Candle buffed : streamBuffer){
+                        streamUpdate(List.of(buffed));
+                    }
                 synchronized (allCandles) {
-                    chainedListener.onDataReceived(DataType.MARKET_DATA, allCandles.get(allCandles.size() - 1).close);
+                    if(!allCandles.isEmpty()) chainedListener.onDataReceived(DataType.MARKET_DATA, allCandles.get(allCandles.size() - 1).close);
                 }}
                 break;
         }
