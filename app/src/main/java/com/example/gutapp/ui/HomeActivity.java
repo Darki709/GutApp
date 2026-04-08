@@ -161,15 +161,15 @@ public class HomeActivity extends SessionActivity implements OrdersList.Listener
     @Override
     public void PLUpdate(double totalPL) {
         runOnUiThread(() -> {
-            String PL_format = totalPL > 1 ? "+$%.10f" : "-$%.10f";
+            String PL_format = totalPL > 0 ? "+$%.10f" : "-$%.10f";
             // 1. Update the Text
             PL.setText(String.format(Locale.US, PL_format, Math.abs(totalPL)));
 
             // 2. Change the Color based on value
-            if (totalPL > 0.00001) {
+            if (totalPL > 0) {
                 // GREEN: Making money
                 PL.setTextColor(Color.parseColor("#00FF88"));
-            } else if (totalPL < -0.00001) {
+            } else if (totalPL < 0) {
                 // RED: Losing money
                 PL.setTextColor(Color.parseColor("#FF4444"));
             } else {

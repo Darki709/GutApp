@@ -5,6 +5,7 @@ import static com.example.gutapp.ui.ChartActivity.CHART_LOG_TAG;
 
 import android.content.Context;
 import android.graphics.Color;
+import android.graphics.Matrix;
 import android.graphics.Paint;
 import android.os.Handler;
 import android.os.Looper;
@@ -101,6 +102,8 @@ public class StockChart implements SessionCallback {
         leftAxis.setTextColor(Color.WHITE);
         leftAxis.setSpaceTop(20f);
         leftAxis.setSpaceBottom(20f);
+        leftAxis.setMinWidth(80f); // Force a constant width
+        leftAxis.setMaxWidth(80f);
 
         // Configure Right Axis (Volume)
         YAxis rightAxis = chart.getAxisRight();
@@ -117,7 +120,7 @@ public class StockChart implements SessionCallback {
         xAxis.setTextColor(Color.WHITE);
 //        xAxis.setGranularity(1f); // Only allow whole numbers (0, 1, 2...)
 //        xAxis.setGranularityEnabled(true);
-//        xAxis.setCenterAxisLabels(false);
+        xAxis.setCenterAxisLabels(false);
 //        xAxis.setAvoidFirstLastClipping(true);
 
         chart.getAxisRight().setEnabled(true);
@@ -228,25 +231,35 @@ public class StockChart implements SessionCallback {
                 }
             }
         });
+        // 1. Always notify the chart that the underlying data points changed
+        chart.notifyDataSetChanged();
 
-        float desiredVisibleRange = 60f;
         int totalCount = safeCopy.size();
+        if (!initialized) {
+            // This is the FIRST load (Snapshot). Set the "Home" view.
+            float desiredVisibleRange = 60f;
 
-        if (totalCount > desiredVisibleRange) {
-            chart.setVisibleXRangeMinimum(10f);
-            if(!initialized){
-            chart.zoom(totalCount / desiredVisibleRange, 1f, 0f, 0f);
-            chart.moveViewToX(totalCount - 1);}
-            chart.setAutoScaleMinMaxEnabled(true);
-        } else {
-            chart.fitScreen();
+            if (totalCount > desiredVisibleRange) {
+                chart.setVisibleXRangeMinimum(10f);
+                // Calculate the scale needed to show exactly 60 candles
+                float scaleX = totalCount / desiredVisibleRange;
+                chart.zoom(scaleX, 1f, 0f, 0f);
+                chart.moveViewToX(totalCount - 1);
+            } else {
+                chart.fitScreen();
+            }
+        }else{
+            float lastVisibleX = chart.getLowestVisibleX();
+            float lastVisibleRange = chart.getVisibleXRange();
+            chart.setVisibleXRangeMaximum(lastVisibleRange);
+            chart.setVisibleXRangeMinimum(lastVisibleRange);
+            chart.moveViewToX(lastVisibleX);
         }
         float maxVolume = 0;
         for (Candle c : safeCopy) {
             if (c.volume > maxVolume) maxVolume = (float) c.volume;
         }
         chart.getAxisRight().setAxisMaximum(maxVolume * 10f); // Volume scale
-        chart.notifyDataSetChanged();
         chart.invalidate();
     }
 
