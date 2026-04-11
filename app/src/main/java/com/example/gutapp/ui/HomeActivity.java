@@ -154,11 +154,6 @@ public class HomeActivity extends SessionActivity implements OrdersList.Listener
     }
 
     @Override
-    public void onActionRequired(int actionType, Object data) {
-        //currently not in use
-    }
-
-    @Override
     public void PLUpdate(double totalPL) {
         runOnUiThread(() -> {
             String PL_format = totalPL > 0 ? "+$%.10f" : "-$%.10f";
@@ -189,5 +184,10 @@ public class HomeActivity extends SessionActivity implements OrdersList.Listener
                 stockLiveListFragment.refreshVisibleRows();
             }
         }
+    }
+
+    @Override
+    protected void refreshNetwork() {
+        onResume();
     }
 }

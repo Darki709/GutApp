@@ -161,9 +161,7 @@ public class StockLiveList extends Fragment {
     public void onResume() {
         super.onResume();
         //only when visible we want to update the prices
-        for(StockRow stockRow : stockList){
-            stockRow.loadPrice();
-        }
+        refreshVisibleRows();
     }
 
     @Override

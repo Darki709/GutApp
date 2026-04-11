@@ -4,10 +4,11 @@ import static android.widget.Toast.LENGTH_LONG;
 import static android.widget.Toast.LENGTH_SHORT;
 
 import android.content.Intent;
+import android.graphics.Color;
+import android.graphics.Typeface;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.View;
-import android.widget.Button;
 import android.widget.ImageButton;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -28,7 +29,6 @@ import com.example.gutapp.data.models.TickerInformation;
 import com.example.gutapp.database.DB_Helper;
 import com.example.gutapp.database.LastFetchCacheHelper;
 import com.example.gutapp.database.StockDataHelper;
-
 import com.example.gutapp.session.DataType;
 import com.example.gutapp.session.NetworkClient;
 import com.example.gutapp.session.Requests.FetchOrders;
@@ -36,19 +36,25 @@ import com.example.gutapp.session.Requests.RequestTickerData;
 import com.example.gutapp.session.Requests.SendOrder;
 import com.example.gutapp.session.Requests.TickerInfoRequest;
 import com.example.gutapp.session.SessionCallback;
+import com.example.gutapp.ui.fragments.IndicatorsPanel;
 import com.example.gutapp.ui.fragments.OrdersList;
 import com.github.mikephil.charting.charts.CombinedChart;
 
 import java.util.ArrayList;
 import java.util.Locale;
 
-public class ChartActivity extends SessionActivity implements View.OnClickListener, OrderDialog.OrderDialogListener, OrdersList.Listener {
+public class ChartActivity extends SessionActivity implements
+        View.OnClickListener,
+        OrderDialog.OrderDialogListener,
+        OrdersList.Listener,
+        IndicatorsPanel.IndicatorListener {          // ← new interface
 
     public static final String CHART_LOG_TAG = "GutChart";
 
+    // ── Fields ────────────────────────────────────────────────────────
     private DB_Helper db_helper;
     private StockChart chartContainer;
-    private String symbol; // Default symbol
+    private String symbol;
     private String name;
     private TextView textViewTitle;
     private TextView textViewName;
@@ -60,6 +66,19 @@ public class ChartActivity extends SessionActivity implements View.OnClickListen
     private OrdersList ordersFragment;
     private ArrayList<Order> allOrders = new ArrayList<>();
 
+    // Indicator state — kept alive across panel open/close
+    private IndicatorsPanel.IndicatorSettings indicatorSettings =
+            new IndicatorsPanel.IndicatorSettings();
+
+    // Chart type buttons (TextViews styled as chips)
+    private TextView btnChartCandle, btnChartBar, btnChartLine;
+    private TextView activeCTypeBtn;
+
+    // Timeframe buttons
+    private TextView btn5m, btn15m, btn1h, btn1d;
+    private TextView activeTfBtn;
+
+    // ── onCreate ───────────────────────────────────────────────────────
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -70,54 +89,74 @@ public class ChartActivity extends SessionActivity implements View.OnClickListen
             v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom);
             return insets;
         });
-        //loading chart symbol from the caller
+
         Intent intent = getIntent();
         symbol = intent.getStringExtra("symbol");
-        name = intent.getStringExtra("name");
+        name   = intent.getStringExtra("name");
 
-        //initialize important database objects
         db_helper = DB_Helper.getInstance(this);
 
+        // ── Chart setup ────────────────────────────────────────────
         CombinedChart chart = findViewById(R.id.stockChart);
-
         chartContainer = new StockChart(chart, this);
         chartContainer.setupChart(findViewById(R.id.candleDataTextView));
         chartContainer.bindListener(this);
 
+        // ── Text views ─────────────────────────────────────────────
+        textViewTitle = findViewById(R.id.textViewTitle);
+        textViewPrice = findViewById(R.id.textViewPrice);
+        textViewName  = findViewById(R.id.textViewName);
+        textViewName.setText(name);
 
-        // Set up button listeners
-        findViewById(R.id.button5m).setOnClickListener(this);
-        findViewById(R.id.button15m).setOnClickListener(this);
-        findViewById(R.id.button1h).setOnClickListener(this);
-        findViewById(R.id.button1d).setOnClickListener(this);
-        findViewById(R.id.indicatorsButton).setOnClickListener(this);
+        // ── Top bar buttons ────────────────────────────────────────
+        ImageButton buttonHome = findViewById(R.id.buttonHome);
+        buttonHome.setOnClickListener(this);
+
+        // ── Buy / Sell ─────────────────────────────────────────────
         findViewById(R.id.buttonBuy).setOnClickListener(this);
         findViewById(R.id.buttonSell).setOnClickListener(this);
 
+        // ── Chart type chips ───────────────────────────────────────
+        btnChartCandle = findViewById(R.id.btnChartCandle);
+        btnChartBar    = findViewById(R.id.btnChartBar);
+        btnChartLine   = findViewById(R.id.btnChartLine);
+        activeCTypeBtn = btnChartCandle; // default
 
-        textViewTitle = findViewById(R.id.textViewTitle);
-        textViewPrice = findViewById(R.id.textViewPrice);
-        textViewName = findViewById(R.id.textViewName);
+        btnChartCandle.setOnClickListener(this);
+        btnChartBar.setOnClickListener(this);
+        btnChartLine.setOnClickListener(this);
 
-        textViewName.setText(name);
+        // ── Timeframe chips ────────────────────────────────────────
+        btn5m  = findViewById(R.id.button5m);
+        btn15m = findViewById(R.id.button15m);
+        btn1h  = findViewById(R.id.button1h);
+        btn1d  = findViewById(R.id.button1d);
 
-        ImageButton buttonHome = findViewById(R.id.buttonHome);
-        buttonHome.setOnClickListener(this);
+        btn5m.setOnClickListener(this);
+        btn15m.setOnClickListener(this);
+        btn1h.setOnClickListener(this);
+        btn1d.setOnClickListener(this);
+
+        // ── Indicators chip ────────────────────────────────────────
+        findViewById(R.id.indicatorsButton).setOnClickListener(this);
+
+        // ── Initial state ──────────────────────────────────────────
         this.interval = StockDataHelper.Timeframe.DAILY;
-        formatTile(this.interval.value);
+        activeTfBtn = btn1d;
+        setChipActive(btn1d, true);
+        formatTitle(this.interval.value);
 
         TickerInfoRequest req = new TickerInfoRequest(symbol, this);
         NetworkClient.getInstance(null).getSessionManager().pushRequest(req);
 
-        // Initial UI state: Hidden until data arrives
         findViewById(R.id.ordersFragmentContainer).setVisibility(View.GONE);
         findViewById(R.id.emptyOrdersView).setVisibility(View.GONE);
 
-        //Request orders from server
         FetchOrders fetchOrders = new FetchOrders(symbol, FetchOrders.OrderView.ACTIVE, 0, this);
         NetworkClient.getInstance(null).getSessionManager().pushRequest(fetchOrders);
     }
 
+    // ── Lifecycle ──────────────────────────────────────────────────────
     @Override
     protected void onResume() {
         super.onResume();
@@ -125,40 +164,54 @@ public class ChartActivity extends SessionActivity implements View.OnClickListen
     }
 
     @Override
-    protected void onPause(){
+    protected void refreshNetwork() {
+        onResume();
+    }
+
+    @Override
+    protected void onPause() {
         super.onPause();
-        //we don't need the chart updating in the background
         chartContainer.flushRequests();
         chartContainer.clearChart();
     }
 
-
+    // ── Click handling ─────────────────────────────────────────────────
     @Override
     public void onClick(View v) {
         int id = v.getId();
+
+        // ── Timeframe ─────────────────────────────────────────────
         if (id == R.id.button5m) {
-            interval = StockDataHelper.Timeframe.FIVE_MIN;
-            updateChartData();
-            formatTile(interval.value);
+            switchTimeframe(StockDataHelper.Timeframe.FIVE_MIN, btn5m);
         } else if (id == R.id.button15m) {
-            interval = StockDataHelper.Timeframe.FIFTEEN_MIN;
-            updateChartData();
-            formatTile(interval.value);
+            switchTimeframe(StockDataHelper.Timeframe.FIFTEEN_MIN, btn15m);
+        } else if (id == R.id.button1h) {
+            switchTimeframe(StockDataHelper.Timeframe.HOURLY, btn1h);
+        } else if (id == R.id.button1d) {
+            switchTimeframe(StockDataHelper.Timeframe.DAILY, btn1d);
         }
-        else if (id == R.id.button1h) {
-            interval = StockDataHelper.Timeframe.HOURLY;
-            updateChartData();
-            formatTile(interval.value);
+
+        // ── Chart types ───────────────────────────────────────────
+        else if (id == R.id.btnChartCandle) {
+            switchChartType(StockChart.ChartType.CANDLE, btnChartCandle);
+        } else if (id == R.id.btnChartBar) {
+            switchChartType(StockChart.ChartType.BAR, btnChartBar);
+        } else if (id == R.id.btnChartLine) {
+            switchChartType(StockChart.ChartType.LINE, btnChartLine);
         }
-        else if (id == R.id.button1d) {
-            interval = StockDataHelper.Timeframe.DAILY;
-            updateChartData();
-            formatTile(interval.value);
+
+        // ── Indicators ────────────────────────────────────────────
+        else if (id == R.id.indicatorsButton) {
+            openIndicatorsPanel();
         }
+
+        // ── Navigation ────────────────────────────────────────────
         else if (id == R.id.buttonHome) {
-            Intent intent = new Intent(this, HomeActivity.class);
-            startActivity(intent);
-        } else if (id == R.id.buttonBuy) {
+            startActivity(new Intent(this, HomeActivity.class));
+        }
+
+        // ── Orders ────────────────────────────────────────────────
+        else if (id == R.id.buttonBuy) {
             activeDialog = new OrderDialog(this, symbol, current_price, Order.OrderType.Long, this);
             activeDialog.show();
         } else if (id == R.id.buttonSell) {
@@ -167,105 +220,188 @@ public class ChartActivity extends SessionActivity implements View.OnClickListen
         }
     }
 
-    public void formatTile(String timeFrame){
+    // ── Chart type switcher ────────────────────────────────────────────
+    private void switchChartType(StockChart.ChartType type, TextView chip) {
+        if (chip == activeCTypeBtn) return;
+        setChipActive(activeCTypeBtn, false);
+        activeCTypeBtn = chip;
+        setChipActive(chip, true);
+        chartContainer.setChartType(type);
+    }
+
+    // ── Timeframe switcher ─────────────────────────────────────────────
+    private void switchTimeframe(StockDataHelper.Timeframe tf, TextView chip) {
+        if (chip == activeTfBtn) return;
+        setChipActive(activeTfBtn, false);
+        activeTfBtn = chip;
+        setChipActive(chip, true);
+        interval = tf;
+        updateChartData();
+        formatTitle(interval.value);
+    }
+
+    /**
+     * Applies selected / unselected visual state to a chip TextView.
+     * Active:   dark filled background, bright white text
+     * Inactive: transparent background, muted gray text
+     */
+    private void setChipActive(TextView chip, boolean active) {
+        if (chip == null) return;
+        if (active) {
+            chip.setBackgroundResource(R.drawable.chart_btn_active);
+            chip.setTextColor(Color.parseColor("#ECEFF1"));
+            chip.setTypeface(null, Typeface.BOLD);
+        } else {
+            chip.setBackgroundResource(R.drawable.chart_btn_inactive);
+            chip.setTextColor(Color.parseColor("#78909C"));
+            chip.setTypeface(null, Typeface.NORMAL);
+        }
+    }
+
+    // ── Indicators panel ──────────────────────────────────────────────
+    private void openIndicatorsPanel() {
+        IndicatorsPanel panel = IndicatorsPanel.newInstance(indicatorSettings);
+        panel.setListener(this);
+        panel.show(getSupportFragmentManager(), "indicators");
+    }
+
+    /**
+     * Called by IndicatorsPanel every time the user toggles an indicator or
+     * adjusts a period slider. Passes the settings to StockChart for overlay rendering.
+     */
+    @Override
+    public void onIndicatorsChanged(IndicatorsPanel.IndicatorSettings settings) {
+        this.indicatorSettings = settings;
+        // Delegate to chart — StockChart will re-render overlays
+        chartContainer.applyIndicators(settings);
+    }
+
+    // ── Title helper ──────────────────────────────────────────────────
+    public void formatTitle(String timeFrame) {
         textViewTitle.setText(symbol + " (" + timeFrame + ")");
     }
 
-
-    //checks cache and asks server from data that isn't cached and returns cached data if available
+    // ── Chart data loading (unchanged logic) ──────────────────────────
     private void updateChartData() {
         chartContainer.setInterval(interval);
         chartContainer.flushRequests();
         chartContainer.clearChart();
-        StockDataHelper stockDataHelper = new StockDataHelper( db_helper);
+
+        StockDataHelper stockDataHelper = new StockDataHelper(db_helper);
         LastFetchCacheHelper cacheHelper = new LastFetchCacheHelper(db_helper);
-        //first we check latest cached data on the device
         long lastFetchTime = cacheHelper.getLastFetchTime(symbol, interval);
-        RequestTickerData request = getRequest(symbol, interval, lastFetchTime, 0, true, false,  chartContainer);
+
+        RequestTickerData request = getRequest(symbol, interval, lastFetchTime, 0, true, false, chartContainer);
         NetworkClient.getInstance(this).getSessionManager().pushRequest(request);
-        RequestTickerData requestStream = getRequest(symbol, interval, 0, 0, false, true,  chartContainer);
+        RequestTickerData requestStream = getRequest(symbol, interval, 0, 0, false, true, chartContainer);
         NetworkClient.getInstance(this).getSessionManager().pushRequest(requestStream);
 
-        try{
-         ArrayList<Candle> stockData = stockDataHelper.getCachedStockData(symbol, interval);
-            if(stockData != null && stockData.size() > 0){
+        try {
+            ArrayList<Candle> stockData = stockDataHelper.getCachedStockData(symbol, interval);
+            if (stockData != null && !stockData.isEmpty()) {
                 chartContainer.addChunk(stockData);
-                textViewPrice.setText(String.format(Locale.US,"%.6f", stockData.get(stockData.size()-1).close));
-                current_price = stockData.get(stockData.size()-1).close;
+                double price = stockData.get(stockData.size() - 1).close;
+                textViewPrice.setText(String.format(Locale.US, "%.6f", price));
+                current_price = price;
+            } else {
+                throw new Exception("Cache is empty");
             }
-            else throw new Exception("Cache is empty");
-        }
-        catch (Exception e) {
+        } catch (Exception e) {
             Log.e(DB_Helper.DB_LOG_TAG, "Error fetching cached stock data: " + e.getMessage());
-            if(lastFetchTime != 0) {
-                RequestTickerData request2 = getRequest(symbol, interval, 0, lastFetchTime,true, false,  chartContainer);
+            if (lastFetchTime != 0) {
+                RequestTickerData request2 = getRequest(symbol, interval, 0, lastFetchTime, true, false, chartContainer);
                 NetworkClient.getInstance(this).getSessionManager().pushRequest(request2);
             }
         }
     }
 
-    private RequestTickerData getRequest(String symbol, StockDataHelper.Timeframe timeframe, long start_ts, long end_ts ,boolean isSnapshot, boolean IsStream, SessionCallback caller){
-        RequestTickerData request = new RequestTickerData(symbol, timeframe, start_ts, end_ts, isSnapshot, IsStream, caller);
+    private RequestTickerData getRequest(String symbol, StockDataHelper.Timeframe timeframe,
+                                         long start_ts, long end_ts,
+                                         boolean isSnapshot, boolean isStream,
+                                         SessionCallback caller) {
+        RequestTickerData request = new RequestTickerData(symbol, timeframe,
+                start_ts, end_ts, isSnapshot, isStream, caller);
         chartContainer.addToCurrentRequest(request.getReqId());
         return request;
     }
 
-
+    // ── SessionCallback ───────────────────────────────────────────────
     @Override
     public void onDataReceived(DataType msgType, Object parsedData) {
-        switch(msgType){
+        switch (msgType) {
             case SEARCH_NO_RESULT:
-                runOnUiThread( () -> {
-                    Toast.makeText(this, (String) parsedData, LENGTH_SHORT).show();
-                });
+                runOnUiThread(() -> Toast.makeText(this, (String) parsedData, LENGTH_SHORT).show());
                 break;
+
             case MARKET_DATA:
-                current_price = (Double)parsedData;
-                if(chartContainer.isDone()){
-                runOnUiThread( () -> {
-                    textViewPrice.setText(String.format(Locale.US,"%.6f", (Double)parsedData));
-                    if(activeDialog != null && activeDialog.isShowing()){
-                        activeDialog.updateLivePrice((Double)parsedData);
-                    }
-                });}
+                current_price = (Double) parsedData;
+                if (chartContainer.isDone()) {
+                    runOnUiThread(() -> {
+                        updatePriceDisplay((Double) parsedData);
+                        if (activeDialog != null && activeDialog.isShowing()) {
+                            activeDialog.updateLivePrice((Double) parsedData);
+                        }
+                    });
+                }
                 break;
+
             case ORDER_INVALID:
             case ORDER_SLIP:
-                runOnUiThread( () -> {
-                    Toast.makeText(this, (String)parsedData, LENGTH_LONG).show();
-                });
+                runOnUiThread(() -> Toast.makeText(this, (String) parsedData, LENGTH_LONG).show());
                 break;
+
             case ORDER_RECEIVED:
-                Order order = (Order)parsedData;
-                runOnUiThread( () -> {
-                    //update any order list that will appear in the chart activity
-                    Toast.makeText(this, String.format("Order completed for %s, paid $%.16f per unit", symbol, order.getEntry_price()), LENGTH_LONG).show();
-                    synchronized (allOrders){
-                        allOrders.add(order);
-                    }
+                Order order = (Order) parsedData;
+                runOnUiThread(() -> {
+                    Toast.makeText(this, String.format(
+                            "Order completed for %s, paid $%.16f per unit",
+                            symbol, order.getEntry_price()), LENGTH_LONG).show();
+                    synchronized (allOrders) { allOrders.add(order); }
                     updateOrdersUI();
                 });
                 break;
+
             case ORDERS_BATCH:
-                runOnUiThread( () -> {
-                    synchronized (allOrders) {
-                        allOrders.addAll((ArrayList<Order>) parsedData);
-                    }
+                runOnUiThread(() -> {
+                    synchronized (allOrders) { allOrders.addAll((ArrayList<Order>) parsedData); }
                     updateOrdersUI();
                 });
                 break;
+
             case TICKER_INFORMATION:
-                TickerInformation info = (TickerInformation)parsedData;
+                TickerInformation info = (TickerInformation) parsedData;
                 name = info.name;
-                runOnUiThread( () -> {
-                textViewName.setText(name);
+                runOnUiThread(() -> {
+                    textViewName.setText(name);
+                    ((TextView)findViewById(R.id.tvExchange)).setText(info.exchange);
+                    ((TextView)findViewById(R.id.tvSector)).setText(info.sector);
+                    ((TextView)findViewById(R.id.tvType)).setText(info.type.type);
                 });
+                break;
         }
     }
 
+    /**
+     * Updates the price TextView and color-codes it green/red vs previous tick.
+     */
+    private double lastDisplayedPrice = 0;
+
+    private void updatePriceDisplay(double price) {
+        textViewPrice.setText(String.format(Locale.US, "%.6f", price));
+        if (lastDisplayedPrice > 0) {
+            if (price > lastDisplayedPrice) {
+                textViewPrice.setTextColor(Color.parseColor("#00FF88"));
+            } else if (price < lastDisplayedPrice) {
+                textViewPrice.setTextColor(Color.parseColor("#FF4444"));
+            }
+        }
+        lastDisplayedPrice = price;
+    }
+
+    // ── Orders UI ─────────────────────────────────────────────────────
     private void updateOrdersUI() {
         View container = findViewById(R.id.ordersFragmentContainer);
-        View emptyView = findViewById(R.id.emptyOrdersView);
+        View emptyView  = findViewById(R.id.emptyOrdersView);
 
         if (allOrders.isEmpty()) {
             container.setVisibility(View.GONE);
@@ -273,8 +409,6 @@ public class ChartActivity extends SessionActivity implements View.OnClickListen
         } else {
             emptyView.setVisibility(View.GONE);
             container.setVisibility(View.VISIBLE);
-
-            // Initialize or Update the Fragment
             this.ordersFragment = OrdersList.newInstance(allOrders);
             getSupportFragmentManager().beginTransaction()
                     .replace(R.id.ordersFragmentContainer, ordersFragment)
@@ -284,43 +418,32 @@ public class ChartActivity extends SessionActivity implements View.OnClickListen
     }
 
     @Override
-    public void onActionRequired(int actionType, Object data) {
-        //not needed yet
-    }
-
-    @Override
     public void onConfirmOrder(int quantity, double price, Order.OrderType type) {
         SendOrder request = new SendOrder(symbol, quantity, price, type, this, this);
         NetworkClient.getInstance(null).getSessionManager().pushRequest(request);
-        Toast.makeText(this, String.format("Sent order for symbol: %s, order price: $%.16f", symbol, quantity * price), LENGTH_SHORT).show();
+        Toast.makeText(this, String.format(
+                "Sent order for symbol: %s, order price: $%.16f",
+                symbol, quantity * price), LENGTH_SHORT).show();
     }
 
     @Override
     protected void onDestroy() {
         super.onDestroy();
-        if (ordersFragment != null) {
-            // This ensures all RequestTickerData requests are discarded
-            ordersFragment.onPause();
-        }
+        if (ordersFragment != null) ordersFragment.onPause();
     }
 
-    @Override
-    public void PLUpdate(double totalPL) {
-        //not needed
-    }
+    @Override public void PLUpdate(double totalPL) {}
 
     @Override
     public void notifyOrderRemoved(Order order) {
-        synchronized (allOrders) {
-            allOrders.remove(order);
-        }
-        runOnUiThread( () -> {
-            if (ordersFragment != null) {
-                if (ordersFragment.isEmpty()) {
-                    findViewById(R.id.ordersFragmentContainer).setVisibility(View.GONE);
-                    findViewById(R.id.emptyOrdersView).setVisibility(View.VISIBLE);
-                }
+        synchronized (allOrders) { allOrders.remove(order); }
+        runOnUiThread(() -> {
+            if (ordersFragment != null && ordersFragment.isEmpty()) {
+                findViewById(R.id.ordersFragmentContainer).setVisibility(View.GONE);
+                findViewById(R.id.emptyOrdersView).setVisibility(View.VISIBLE);
             }
         });
     }
+
+
 }

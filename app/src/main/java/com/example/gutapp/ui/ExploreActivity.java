@@ -121,12 +121,12 @@ public class ExploreActivity extends SessionActivity implements StockLiveList.Lo
     }
 
     @Override
-    public void onActionRequired(int actionType, @Nullable Object data) {
-
+    public void onLoadMore() {
+        loadMore();
     }
 
     @Override
-    public void onLoadMore() {
-        loadMore();
+    protected void refreshNetwork() {
+        super.onResume();
     }
 }

@@ -1,17 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<androidx.constraintlayout.widget.ConstraintLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:id="@+id/main"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#1F1D1D"
+    android:background="@color/default_bg"
     tools:context=".ui.ChartActivity">
 
     <ImageView
         android:id="@+id/imageViewLogo"
-        android:layout_width="123dp"
-        android:layout_height="41dp"
+        android:layout_width="100dp"
+        android:layout_height="38dp"
         android:scaleType="centerCrop"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent"
@@ -20,12 +21,13 @@
     <TextView
         android:id="@+id/textViewTitle"
         android:layout_width="0dp"
-        android:layout_height="42dp"
+        android:layout_height="38dp"
         android:gravity="center"
         android:text="Symbol (TF)"
-        android:textColor="@android:color/white"
-        app:autoSizeMaxTextSize="30sp"
-        app:autoSizeMinTextSize="12sp"
+        android:textColor="#ECEFF1"
+        android:letterSpacing="0.05"
+        app:autoSizeMaxTextSize="22sp"
+        app:autoSizeMinTextSize="10sp"
         app:autoSizeStepGranularity="1sp"
         app:autoSizeTextType="uniform"
         app:layout_constraintEnd_toStartOf="@+id/buttonHome"
@@ -34,137 +36,301 @@
 
     <ImageButton
         android:id="@+id/buttonHome"
-        android:layout_width="54dp"
-        android:layout_height="42dp"
-        android:background="#232222"
+        android:layout_width="46dp"
+        android:layout_height="38dp"
+        android:background="@color/default_bg"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintTop_toTopOf="parent"
         app:srcCompat="@drawable/home_btn" />
 
+    <HorizontalScrollView
+        android:id="@+id/chartTypeBar"
+        android:layout_width="0dp"
+        android:layout_height="36dp"
+        android:background="@color/default_bg"
+        android:scrollbars="none"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/textViewTitle">
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="match_parent"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:paddingStart="8dp"
+            android:paddingEnd="8dp">
+
+            <TextView
+                android:id="@+id/btnChartCandle"
+                android:layout_width="wrap_content"
+                android:layout_height="26dp"
+                android:text="Candle"
+                android:textSize="12sp"
+                android:textColor="#ECEFF1"
+                android:gravity="center"
+                android:paddingStart="12dp"
+                android:paddingEnd="12dp"
+                android:background="@drawable/chart_btn_active"
+                android:layout_marginEnd="4dp" />
+
+            <TextView
+                android:id="@+id/btnChartBar"
+                android:layout_width="wrap_content"
+                android:layout_height="26dp"
+                android:text="Bar"
+                android:textSize="12sp"
+                android:textColor="#78909C"
+                android:gravity="center"
+                android:paddingStart="12dp"
+                android:paddingEnd="12dp"
+                android:background="@drawable/chart_btn_inactive"
+                android:layout_marginEnd="4dp" />
+
+            <TextView
+                android:id="@+id/btnChartLine"
+                android:layout_width="wrap_content"
+                android:layout_height="26dp"
+                android:text="Line"
+                android:textSize="12sp"
+                android:textColor="#78909C"
+                android:gravity="center"
+                android:paddingStart="12dp"
+                android:paddingEnd="12dp"
+                android:background="@drawable/chart_btn_inactive"
+                android:layout_marginEnd="12dp" />
+
+            <View
+                android:layout_width="1dp"
+                android:layout_height="18dp"
+                android:background="#383636"
+                android:layout_marginEnd="10dp" />
+
+            <TextView
+                android:id="@+id/button5m"
+                android:layout_width="wrap_content"
+                android:layout_height="26dp"
+                android:text="5m"
+                android:textSize="12sp"
+                android:textColor="#78909C"
+                android:gravity="center"
+                android:paddingStart="10dp"
+                android:paddingEnd="10dp"
+                android:background="@drawable/chart_btn_inactive"
+                android:layout_marginEnd="4dp" />
+
+            <TextView
+                android:id="@+id/button15m"
+                android:layout_width="wrap_content"
+                android:layout_height="26dp"
+                android:text="15m"
+                android:textSize="12sp"
+                android:textColor="#78909C"
+                android:gravity="center"
+                android:paddingStart="10dp"
+                android:paddingEnd="10dp"
+                android:background="@drawable/chart_btn_inactive"
+                android:layout_marginEnd="4dp" />
+
+            <TextView
+                android:id="@+id/button1h"
+                android:layout_width="wrap_content"
+                android:layout_height="26dp"
+                android:text="1H"
+                android:textSize="12sp"
+                android:textColor="#78909C"
+                android:gravity="center"
+                android:paddingStart="10dp"
+                android:paddingEnd="10dp"
+                android:background="@drawable/chart_btn_inactive"
+                android:layout_marginEnd="4dp" />
+
+            <TextView
+                android:id="@+id/button1d"
+                android:layout_width="wrap_content"
+                android:layout_height="26dp"
+                android:text="1D"
+                android:textSize="12sp"
+                android:textColor="#78909C"
+                android:gravity="center"
+                android:paddingStart="10dp"
+                android:paddingEnd="10dp"
+                android:background="@drawable/chart_btn_inactive"
+                android:layout_marginEnd="12dp" />
+
+            <View
+                android:layout_width="1dp"
+                android:layout_height="18dp"
+                android:background="#383636"
+                android:layout_marginEnd="10dp" />
+
+            <TextView
+                android:id="@+id/indicatorsButton"
+                android:layout_width="wrap_content"
+                android:layout_height="26dp"
+                android:text="⊕ Indicators"
+                android:textSize="12sp"
+                android:textColor="#78909C"
+                android:gravity="center"
+                android:paddingStart="12dp"
+                android:paddingEnd="12dp"
+                android:background="@drawable/chart_btn_inactive" />
+        </LinearLayout>
+    </HorizontalScrollView>
+
     <com.github.mikephil.charting.charts.CombinedChart
         android:id="@+id/stockChart"
         android:layout_width="0dp"
-        android:layout_height="400dp"
-        android:background="#1F1D1D"
+        android:layout_height="0dp"
+        android:background="@color/default_bg"
         android:animateLayoutChanges="false"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/textViewTitle" />
+        app:layout_constraintTop_toBottomOf="@+id/chartTypeBar"
+        app:layout_constraintBottom_toTopOf="@+id/bottomPanel" />
 
     <TextView
         android:id="@+id/candleDataTextView"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:background="@drawable/candle_data_background"
-        android:lineSpacingExtra="2dp"
-        android:textColor="#FFFFFF"
-        android:textSize="12sp"
-        android:textStyle="bold"
+        android:lineSpacingExtra="3dp"
+        android:textColor="#B0BEC5"
+        android:textSize="11sp"
+        android:fontFamily="monospace"
+        android:padding="8dp"
         android:layout_margin="8dp"
-        app:layout_constraintEnd_toEndOf="@+id/stockChart"
+        android:visibility="invisible"
+        android:elevation="4dp"
+        app:layout_constraintStart_toStartOf="@+id/stockChart"
         app:layout_constraintTop_toTopOf="@+id/stockChart" />
 
     <LinearLayout
-        android:id="@+id/timeframeButtons"
-        android:layout_width="wrap_content"
+        android:id="@+id/bottomPanel"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:gravity="center"
+        android:background="@color/default_bg"
         android:orientation="vertical"
+        android:padding="12dp"
+        app:layout_constraintBottom_toTopOf="@+id/sectionDivider"
         app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@+id/stockChart">
 
-        <Button android:id="@+id/button5m" style="?android:attr/buttonBarButtonStyle" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="5m" android:textColor="#FFFFFF"/>
-        <Button android:id="@+id/button15m" style="?android:attr/buttonBarButtonStyle" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="15m" android:textColor="#FFFFFF"/>
-        <Button android:id="@+id/button1h" style="?android:attr/buttonBarButtonStyle" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="1H" android:textColor="#FFFFFF"/>
-        <Button android:id="@+id/button1d" style="?android:attr/buttonBarButtonStyle" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="1D" android:textColor="#FFFFFF"/>
+        <RelativeLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content">
+
+            <TextView
+                android:id="@+id/textViewName"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginEnd="8dp"
+                android:layout_toStartOf="@+id/metadataContainer"
+                android:ellipsize="end"
+                android:maxLines="2"
+                android:text="Ticker"
+                android:textColor="@color/white"
+                android:textSize="18sp"
+                android:textStyle="bold" />
+
+            <LinearLayout
+                android:id="@+id/metadataContainer"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_alignParentEnd="true"
+                android:gravity="end"
+                android:orientation="vertical">
+
+                <TextView
+                    android:id="@+id/tvType"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="..."
+                    android:textColor="@color/colorTextDim"
+                    android:textSize="10sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/tvExchange"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="..."
+                    android:textColor="@color/colorTextDim"
+                    android:textSize="10sp" />
+
+                <TextView
+                    android:id="@+id/tvSector"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="..."
+                    android:textColor="@color/colorTextDim"
+                    android:textSize="10sp" />
+            </LinearLayout>
+        </RelativeLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:layout_marginTop="8dp"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <TextView
+                android:id="@+id/textViewPrice"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:gravity="center_vertical"
+                android:text="000.000"
+                android:textColor="@color/white"
+                android:textSize="22sp"
+                android:textStyle="bold" />
+
+            <Button
+                android:id="@+id/buttonBuy"
+                android:layout_width="80dp"
+                android:layout_height="38dp"
+                android:layout_marginEnd="8dp"
+                android:backgroundTint="@color/colorPriceUp"
+                android:text="Buy"
+                android:textAllCaps="false"
+                android:textColor="@color/black" />
+
+            <Button
+                android:id="@+id/buttonSell"
+                android:layout_width="80dp"
+                android:layout_height="38dp"
+                android:backgroundTint="@color/colorPriceDown"
+                android:text="Sell"
+                android:textAllCaps="false"
+                android:textColor="@color/white" />
+        </LinearLayout>
     </LinearLayout>
 
-    <Button
-        android:id="@+id/indicatorsButton"
-        android:layout_width="120dp"
-        android:layout_height="wrap_content"
-        android:text="Indicators"
-        android:layout_marginEnd="8dp"
-        android:layout_marginStart="8dp"
-        app:layout_constraintEnd_toStartOf="@+id/timeframeButtons"
-        app:layout_constraintTop_toTopOf="@+id/timeframeButtons" />
-
-    <TextView
-        android:id="@+id/textViewName"
+    <View
+        android:id="@+id/sectionDivider"
         android:layout_width="0dp"
-        android:layout_height="0dp"
-        android:text="TICKER"
-        android:gravity="center_vertical"
-        android:textColor="#FFFFFF"
-        android:paddingStart="12dp"
-        app:autoSizeMaxTextSize="30sp"
-        app:autoSizeMinTextSize="12sp"
-        app:autoSizeTextType="uniform"
-        app:layout_constraintBottom_toBottomOf="@+id/indicatorsButton"
-        app:layout_constraintEnd_toStartOf="@+id/indicatorsButton"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="@+id/indicatorsButton" />
-
-    <TextView
-        android:id="@+id/textViewPrice"
-        android:layout_width="140dp"
-        android:layout_height="45dp"
-        android:layout_marginStart="4dp"
-        android:layout_marginTop="12dp"
-        android:text="000.000"
-        android:textColor="@color/white"
-        android:textStyle="bold"
-        app:autoSizeMaxTextSize="30sp"
-        app:autoSizeMinTextSize="12sp"
-        app:autoSizeStepGranularity="1sp"
-        app:autoSizeTextType="uniform"
-        app:layout_constraintStart_toStartOf="@+id/textViewName"
-        app:layout_constraintTop_toBottomOf="@+id/textViewName" />
-
-    <Button
-        android:id="@+id/buttonBuy"
-        android:layout_width="80dp"
-        android:layout_height="wrap_content"
-        android:layout_marginStart="12dp"
-        android:backgroundTint="@color/colorPriceUp"
-        android:text="Buy"
-        android:textColor="#1F1D1D"
-        app:cornerRadius="5dp"
-        app:layout_constraintBottom_toBottomOf="@+id/textViewPrice"
-        app:layout_constraintEnd_toStartOf="@+id/buttonSell"
-        app:layout_constraintHorizontal_weight="1"
-        app:layout_constraintStart_toEndOf="@+id/textViewPrice"
-        app:layout_constraintTop_toTopOf="@+id/textViewPrice"
-        app:layout_constraintVertical_bias="0.0" />
-
-    <Button
-        android:id="@+id/buttonSell"
-        android:layout_width="80dp"
-        android:layout_height="wrap_content"
-        android:layout_marginStart="8dp"
-        android:layout_marginEnd="8dp"
-        android:backgroundTint="@color/colorPriceDown"
-        android:text="Sell"
-        android:textColor="#1F1D1D"
-        app:cornerRadius="5dp"
-        app:layout_constraintBottom_toBottomOf="@+id/buttonBuy"
-        app:layout_constraintEnd_toStartOf="@+id/timeframeButtons"
-        app:layout_constraintHorizontal_weight="1"
-        app:layout_constraintStart_toEndOf="@+id/buttonBuy"
-        app:layout_constraintTop_toTopOf="@+id/buttonBuy" />
+        android:layout_height="1dp"
+        android:background="#2E2C2C"
+        app:layout_constraintBottom_toTopOf="@+id/ordersHeader"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent" />
 
     <TextView
         android:id="@+id/ordersHeader"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginStart="4dp"
-        android:layout_marginTop="84dp"
+        android:layout_marginStart="12dp"
+        android:layout_marginBottom="4dp"
+        android:layout_marginTop="8dp"
         android:text="ACTIVE ORDERS"
-        android:textColor="#888888"
-        android:textSize="12sp"
+        android:textColor="#2E2C2C"
+        android:textSize="11sp"
+        android:letterSpacing="0.12"
         android:textStyle="bold"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/textViewPrice" />
+        app:layout_constraintBottom_toTopOf="@+id/ordersFragmentContainer"
+        app:layout_constraintStart_toStartOf="parent" />
 
     <View
         android:id="@+id/headerDivider"
@@ -172,7 +338,7 @@
         android:layout_height="1dp"
         android:layout_marginStart="8dp"
         android:layout_marginEnd="12dp"
-        android:background="#333333"
+        android:background="#2E2C2C"
         app:layout_constraintBottom_toBottomOf="@+id/ordersHeader"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toEndOf="@+id/ordersHeader"
@@ -180,33 +346,40 @@
 
     <FrameLayout
         android:id="@+id/ordersFragmentContainer"
-        android:layout_width="416dp"
-        android:layout_height="239dp"
-        android:layout_marginTop="8dp"
+        android:layout_width="0dp"
+        android:layout_height="160dp"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/ordersHeader"
-        app:layout_constraintVertical_bias="0.0" />
+        app:layout_constraintStart_toStartOf="parent" />
 
     <LinearLayout
         android:id="@+id/emptyOrdersView"
-        android:layout_width="match_parent"
+        android:layout_width="0dp"
         android:layout_height="0dp"
         android:gravity="center"
-        android:orientation="vertical"
         android:visibility="gone"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/ordersHeader">
-
-    <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="No active positions for this ticker"
-        android:textColor="#555555"
-        android:textSize="14sp"
-        tools:layout_editor_absoluteX="104dp"
-        tools:layout_editor_absoluteY="628dp" />
+        app:layout_constraintBottom_toBottomOf="@+id/ordersFragmentContainer"
+        app:layout_constraintEnd_toEndOf="@+id/ordersFragmentContainer"
+        app:layout_constraintStart_toStartOf="@+id/ordersFragmentContainer"
+        app:layout_constraintTop_toTopOf="@+id/ordersFragmentContainer">
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="No active positions for this ticker"
+            android:textColor="#3E3C3C"
+            android:textSize="13sp" />
     </LinearLayout>
+
+    <View
+        android:id="@+id/indicatorsScrim"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:background="#AA000000"
+        android:visibility="gone"
+        android:elevation="8dp"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>

@@ -24,6 +24,7 @@ import com.example.gutapp.session.Responses.HandShakeHelloResponse;
 import com.example.gutapp.session.Responses.HandShakeVerifyResponse;
 import com.example.gutapp.session.Responses.LoginResponse;
 import com.example.gutapp.session.Responses.RegisterResponse;
+import com.example.gutapp.ui.LoginPage;
 
 import java.io.IOException;
 import java.math.BigInteger;
@@ -148,8 +149,9 @@ public class SessionManager implements Runnable {
                             saveCredentials(authStruct.username, authStruct.password);
                         }
                     }
+                    if(currentCallback instanceof LoginPage){
                     //notify login page that login is successful
-                    notifyUI(cb -> cb.onDataReceived(DataType.AUTH_SUCCESS, null));
+                    notifyUI(cb -> cb.onDataReceived(DataType.AUTH_SUCCESS, null));}
 
                     //start sending and receiving messages
                     work();
@@ -303,6 +305,8 @@ public class SessionManager implements Runnable {
         pushRequest(new GetBalance());
         sendThread.start();
         recvThread.start();
+        if(currentCallback!=null){
+            currentCallback.onActionRequired(0,null);}
         while(running && working && !Thread.currentThread().isInterrupted()){
             try {
                 Thread.sleep(100); // Check 10 times per second instead of millions
