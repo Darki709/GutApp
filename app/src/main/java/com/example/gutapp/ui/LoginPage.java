@@ -23,6 +23,7 @@ import com.example.gutapp.session.DataType;
 import com.example.gutapp.session.NetworkClient;
 import com.example.gutapp.session.SessionCallback;
 import com.example.gutapp.session.SessionManager;
+import com.google.firebase.FirebaseApp;
 
 public class LoginPage extends AppCompatActivity implements View.OnClickListener, SessionCallback {
     
@@ -46,7 +47,7 @@ public class LoginPage extends AppCompatActivity implements View.OnClickListener
             v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom);
             return insets;
         });
-
+        FirebaseApp.initializeApp(this);
         DB_Helper.getInstance(this);//make sure db is ready
 
         //bind pointers to elements

@@ -22,6 +22,7 @@ import com.example.gutapp.R;
 import com.example.gutapp.data.OrderDialog;
 import com.example.gutapp.data.StockChart;
 import com.example.gutapp.data.UserGlobals;
+import com.example.gutapp.data.api.GeminiHelper;
 import com.example.gutapp.data.models.Candle;
 import com.example.gutapp.data.models.Order;
 import com.example.gutapp.data.models.TickerInfo;
@@ -39,6 +40,12 @@ import com.example.gutapp.session.SessionCallback;
 import com.example.gutapp.ui.fragments.IndicatorsPanel;
 import com.example.gutapp.ui.fragments.OrdersList;
 import com.github.mikephil.charting.charts.CombinedChart;
+import com.google.android.material.bottomsheet.BottomSheetDialog;
+import com.google.android.material.dialog.MaterialAlertDialogBuilder;
+import com.google.firebase.FirebaseApp;
+
+import org.json.JSONException;
+import org.json.JSONObject;
 
 import java.util.ArrayList;
 import java.util.Locale;
@@ -47,7 +54,8 @@ public class ChartActivity extends SessionActivity implements
         View.OnClickListener,
         OrderDialog.OrderDialogListener,
         OrdersList.Listener,
-        IndicatorsPanel.IndicatorListener {          // ← new interface
+        IndicatorsPanel.IndicatorListener, GeminiHelper.AnalysisCallback
+{
 
     public static final String CHART_LOG_TAG = "GutChart";
 
@@ -146,6 +154,9 @@ public class ChartActivity extends SessionActivity implements
         setChipActive(btn1d, true);
         formatTitle(this.interval.value);
 
+        // ai analysis button
+        findViewById(R.id.btnAiAnalyze).setOnClickListener(this);
+
         TickerInfoRequest req = new TickerInfoRequest(symbol, this);
         NetworkClient.getInstance(null).getSessionManager().pushRequest(req);
 
@@ -217,6 +228,10 @@ public class ChartActivity extends SessionActivity implements
         } else if (id == R.id.buttonSell) {
             activeDialog = new OrderDialog(this, symbol, current_price, Order.OrderType.Short, this);
             activeDialog.show();
+        }
+        //ai
+        else if (id == R.id.btnAiAnalyze){
+            performAiAnalysis();
         }
     }
 
@@ -446,4 +461,78 @@ public class ChartActivity extends SessionActivity implements
     }
 
 
+
+
+    // calls gemini api to get analysis of the ticker
+    private String cachedAiResponse = null;
+
+    private void performAiAnalysis() {
+        if (cachedAiResponse != null) {
+            showAiPopup(cachedAiResponse);
+            return;
+        }
+        GeminiHelper helper = new GeminiHelper();
+        helper.getAiAnalysis(name, this);
+    }
+
+    private void showAiPopup(String rawJson) {
+        runOnUiThread( () -> {
+            // Inflate the professional layout we created
+            View popupView = getLayoutInflater().inflate(R.layout.dialog_ai_analysis, null);
+            BottomSheetDialog dialog = new BottomSheetDialog(this);
+
+            // Initialize the views from the popup layout
+            TextView tvRating = popupView.findViewById(R.id.tvRating);
+            TextView tvScore = popupView.findViewById(R.id.tvScore);
+            TextView tvSentiment = popupView.findViewById(R.id.tvSentiment);
+            TextView tvHistory = popupView.findViewById(R.id.tvHistory);
+            ImageButton btnClose = popupView.findViewById(R.id.btnClosePopup);
+            btnClose.setOnClickListener(v -> dialog.dismiss());
+
+            try {
+                // Parse the structured output from Gemini
+                JSONObject json = new JSONObject(rawJson);
+                String rating = json.optString("rating_word", "Neutral");
+                int score = json.optInt("score_out_of_hundred", 0);
+                String sentiment = json.optString("sentiment_analysis", "No sentiment data available.");
+                String history = json.optString("company_history", "No history available.");
+
+                // Set the text values
+                tvRating.setText(rating);
+                tvScore.setText(score + "/100");
+                tvSentiment.setText(sentiment);
+                tvHistory.setText(history);
+
+                // Apply professional styling based on the rating
+                if (rating.equalsIgnoreCase("Bullish")) {
+                    tvRating.setTextColor(Color.parseColor("#4CAF50")); // Material Green
+                } else if (rating.equalsIgnoreCase("Bearish")) {
+                    tvRating.setTextColor(Color.parseColor("#F44336")); // Material Red
+                } else {
+                    tvRating.setTextColor(Color.WHITE);
+                }
+
+            } catch (JSONException e) {
+                Log.e(CHART_LOG_TAG, "Failed to parse AI JSON", e);
+                tvSentiment.setText("Error parsing analysis. Please try again.");
+            }
+
+            // Build and show the BottomSheetDialog or AlertDialog
+            dialog.setContentView(popupView);
+            dialog.show();
+        });
+    }
+
+    @Override
+    public void onSuccess(String result) {
+        cachedAiResponse = result;
+        showAiPopup(result);
+    }
+
+    @Override
+    public void onError(String error) {
+        runOnUiThread(() -> {
+                Toast.makeText(this, "Ai analysis failed", LENGTH_SHORT).show();
+        });
+    }
 }

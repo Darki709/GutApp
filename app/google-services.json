@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "436347666589",
+    "project_id": "gutapp-49ed4",
+    "storage_bucket": "gutapp-49ed4.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:436347666589:android:cec1530f473640f3d8d474",
+        "android_client_info": {
+          "package_name": "com.example.gutapp"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyClkfryoNY7HiSvRdG9J-er8TbAyTP4kC8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
