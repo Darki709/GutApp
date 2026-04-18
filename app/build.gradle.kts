@@ -76,5 +76,5 @@ dependencies {
     // Streams)
     implementation("org.reactivestreams:reactive-streams:1.0.4")
     implementation("com.google.firebase:firebase-analytics")
-
+    implementation("androidx.drawerlayout:drawerlayout:1.2.0")
 }

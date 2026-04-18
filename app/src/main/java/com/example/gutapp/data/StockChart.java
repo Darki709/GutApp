@@ -8,8 +8,11 @@ import android.graphics.Paint;
 import android.os.Handler;
 import android.os.Looper;
 import android.util.Log;
+import android.view.LayoutInflater;
 import android.view.View;
+import android.view.ViewGroup;
 import android.widget.LinearLayout;
+import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -17,7 +20,7 @@ import androidx.annotation.Nullable;
 import androidx.core.widget.NestedScrollView;
 
 import com.example.gutapp.data.indicators.Indicator;
-import com.example.gutapp.data.indicators.IndicatorRegistry;
+import com.example.gutapp.data.indicators.IndicatorSession;
 import com.example.gutapp.data.models.Candle;
 import com.example.gutapp.data.models.PriceChunk;
 import com.example.gutapp.database.StockDataHelper;
@@ -51,7 +54,6 @@ import java.util.Collections;
 import java.util.Date;
 import java.util.List;
 import java.util.Locale;
-import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -61,10 +63,8 @@ import lombok.Setter;
 
 public class StockChart implements SessionCallback {
 
-    // ── Chart display types ──────────────────────────────────────────
     public enum ChartType { CANDLE, BAR, LINE }
 
-    // ── Colors ───────────────────────────────────────────────────────
     private static final int COLOR_UP          = Color.parseColor("#00FF88");
     private static final int COLOR_DOWN        = Color.parseColor("#FF4444");
     private static final int COLOR_LINE        = Color.parseColor("#2196F3");
@@ -76,91 +76,53 @@ public class StockChart implements SessionCallback {
     private static final int COLOR_GRID        = Color.argb(20, 255, 255, 255);
     private static final int COLOR_HIGHLIGHT   = Color.parseColor("#FFFFFF");
 
-    // ── Core fields ───────────────────────────────────────────────────
     private final CombinedChart chart;
+    private final Context activityContext;
 
     /**
-     * Optional sub-chart views (one per sub-chart indicator like RSI, MACD).
-     * Pass them via attachSubChart() from your Activity after inflating.
-     * Each LineChart here is styled and updated alongside the main chart.
+     * Dynamic sub-chart container.
+     * Must be a LinearLayout (vertical). StockChart dynamically inflates/removes
+     * LineChart children — one per active sub-chart indicator.
+     * Pass this via setSubChartsContainer() from ChartActivity after layout inflation.
+     * -- SETTER --
+     * Pass the LinearLayout that will hold dynamic sub-chart LineChart views
+
      */
-    private final List<LineChart> subCharts = new ArrayList<>();
     @Setter
-    private Optional<View> subChartsContainer = Optional.empty();
+    @Nullable
+    private LinearLayout subChartsContainer = null;
+    @Setter
+    @Nullable
+    private NestedScrollView subChartsScroller = null;
+    /** Dynamically created sub-chart views, keyed by instanceId */
+    private final java.util.LinkedHashMap<String, LineChart> subChartViews = new java.util.LinkedHashMap<>();
 
     private final CopyOnWriteArrayList<Candle> allCandles = new CopyOnWriteArrayList<>();
     private final Set<Integer> reqIds = ConcurrentHashMap.<Integer>newKeySet();
     private StockDataHelper.Timeframe interval;
-
     private ChartType currentChartType = ChartType.CANDLE;
-
     private final AtomicBoolean isUpdatePending = new AtomicBoolean(false);
-    private final Context activityContext;
     private volatile boolean done = false;
-
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
     private final List<Candle> streamBuffer = new ArrayList<>();
 
-    @Nullable
-    private SessionCallback chainedListener = null;
-    @Nullable
-    private LimitLine currentPriceLine = null;
+    @Nullable private SessionCallback chainedListener = null;
+    @Nullable private LimitLine currentPriceLine = null;
 
-    // ── Stable-scroll state ───────────────────────────────────────────
-    // We track whether the user is "pinned to the right edge" to decide
-    // whether to auto-scroll on live updates, or leave the view where it is.
+    /** The indicator session to render from. Set from ChartActivity. */
+    @Setter
+    @Nullable private IndicatorSession indicatorSession = null;
+
     private boolean isPinnedToRight = true;
-    private float   savedLowestX    = -1f;
-    private float   savedHighestX   = -1f;
+    private float savedLowestX = -1f;
 
-    // ── Constructor ───────────────────────────────────────────────────
     public StockChart(CombinedChart chart, Context context) {
         this.chart = chart;
         this.activityContext = context;
     }
 
-    // ── Sub-chart management ──────────────────────────────────────────
-    /**
-     * Call from Activity after layout inflation.
-     * Order matters: subCharts.get(0) = first sub-chart indicator, etc.
-     * The Activity can re-call this when indicator panel changes.
-     */
-    public void attachSubChart(LineChart subChart) {
-        setupSubChart(subChart);
-        subCharts.add(subChart);
-    }
+    // ── Public API ────────────────────────────────────────────────────
 
-    public void clearSubCharts() {
-        subCharts.clear();
-    }
-
-    private void setupSubChart(LineChart sub) {
-        sub.setBackgroundColor(COLOR_BACKGROUND);
-        sub.setDrawGridBackground(false);
-        sub.setAutoScaleMinMaxEnabled(false);
-        sub.setTouchEnabled(false); // driven by main chart sync
-        sub.getLegend().setEnabled(false);
-        sub.getDescription().setEnabled(false);
-
-        XAxis xAxis = sub.getXAxis();
-        xAxis.setDrawGridLines(false);
-        xAxis.setDrawLabels(false);
-        xAxis.setDrawAxisLine(false);
-
-        YAxis left = sub.getAxisLeft();
-        left.setEnabled(false);
-
-        YAxis right = sub.getAxisRight();
-        right.setDrawGridLines(true);
-        right.setGridColor(COLOR_GRID);
-        right.setGridLineWidth(0.5f);
-        right.setTextColor(COLOR_AXIS_TEXT);
-        right.setTextSize(9f);
-        right.setLabelCount(4, false);
-        right.setDrawAxisLine(false);
-    }
-
-    // ── Public type/indicator API ─────────────────────────────────────
     public void setChartType(ChartType type) {
         this.currentChartType = type;
         triggerChartUpdate(true);
@@ -168,15 +130,13 @@ public class StockChart implements SessionCallback {
 
     public ChartType getChartType() { return currentChartType; }
 
-    /** Called from Activity when indicator settings change */
     public void applyIndicators() {
         triggerChartUpdate(true);
     }
 
-    // ── Zoom helpers (called from Activity zoom buttons) ─────────────
     public void zoomIn() {
         chart.zoom(1.5f, 1f, chart.getWidth() / 2f, chart.getHeight() / 2f);
-        chart.invalidate(); // Refreshes the view
+        chart.invalidate();
     }
 
     public void zoomOut() {
@@ -188,14 +148,10 @@ public class StockChart implements SessionCallback {
         ArrayList<Candle> snap = new ArrayList<>(allCandles);
         if (snap.isEmpty()) return;
         int total = snap.size();
-        float desired = 60f;
-        if (total > desired) {
-            float scaleX = total / desired;
-            chart.zoom(scaleX, 1f, 0f, 0f);
+        if (total > 60) {
+            chart.zoom(total / 60f, 1f, 0f, 0f);
             chart.moveViewToX(total - 1);
-        } else {
-            chart.fitScreen();
-        }
+        } else { chart.fitScreen(); }
         isPinnedToRight = true;
         chart.postInvalidate();
     }
@@ -210,49 +166,26 @@ public class StockChart implements SessionCallback {
         chart.setPinchZoom(true);
         chart.setDoubleTapToZoomEnabled(true);
         chart.setKeepPositionOnRotation(true);
-
         chart.setDrawOrder(new CombinedChart.DrawOrder[]{
-                CombinedChart.DrawOrder.BAR,
-                CombinedChart.DrawOrder.BUBBLE,
-                CombinedChart.DrawOrder.LINE,
-                CombinedChart.DrawOrder.SCATTER,
+                CombinedChart.DrawOrder.BAR, CombinedChart.DrawOrder.BUBBLE,
+                CombinedChart.DrawOrder.LINE, CombinedChart.DrawOrder.SCATTER,
                 CombinedChart.DrawOrder.CANDLE
         });
-
-        YAxis leftAxis = chart.getAxisLeft();
-        leftAxis.setDrawGridLines(true);
-        leftAxis.setGridColor(COLOR_GRID);
-        leftAxis.setGridLineWidth(0.5f);
-        leftAxis.setLabelCount(6, false);
-        leftAxis.setTextColor(COLOR_AXIS_TEXT);
-        leftAxis.setTextSize(10f);
-        leftAxis.setSpaceTop(15f);
-        leftAxis.setSpaceBottom(15f);
-        leftAxis.setDrawAxisLine(false);
-        leftAxis.setPosition(YAxis.YAxisLabelPosition.OUTSIDE_CHART);
-
-        YAxis rightAxis = chart.getAxisRight();
-        rightAxis.setEnabled(true);
-        rightAxis.setDrawGridLines(false);
-        rightAxis.setDrawLabels(false);
-        rightAxis.setDrawAxisLine(false);
-        rightAxis.setAxisMinimum(0f);
-
-        XAxis xAxis = chart.getXAxis();
-        xAxis.setDrawGridLines(false);
-        xAxis.setPosition(XAxis.XAxisPosition.BOTTOM);
-        xAxis.setSpaceMin(15f);
-        xAxis.setSpaceMax(15f);
-        xAxis.setTextColor(COLOR_AXIS_TEXT);
-        xAxis.setTextSize(10f);
-        xAxis.setDrawAxisLine(false);
-        xAxis.setAvoidFirstLastClipping(true);
-
-        chart.getLegend().setEnabled(false);
-        chart.getDescription().setEnabled(false);
+        YAxis left = chart.getAxisLeft();
+        left.setDrawGridLines(true); left.setGridColor(COLOR_GRID); left.setGridLineWidth(0.5f);
+        left.setLabelCount(6, false); left.setTextColor(COLOR_AXIS_TEXT); left.setTextSize(10f);
+        left.setSpaceTop(15f); left.setSpaceBottom(15f); left.setDrawAxisLine(false);
+        left.setPosition(YAxis.YAxisLabelPosition.OUTSIDE_CHART);
+        YAxis right = chart.getAxisRight();
+        right.setEnabled(true); right.setDrawGridLines(false); right.setDrawLabels(false);
+        right.setDrawAxisLine(false); right.setAxisMinimum(0f);
+        XAxis x = chart.getXAxis();
+        x.setDrawGridLines(false); x.setPosition(XAxis.XAxisPosition.BOTTOM);
+        x.setSpaceMin(15f); x.setSpaceMax(15f); x.setTextColor(COLOR_AXIS_TEXT);
+        x.setTextSize(10f); x.setDrawAxisLine(false); x.setAvoidFirstLastClipping(true);
+        chart.getLegend().setEnabled(false); chart.getDescription().setEnabled(false);
         chart.setVisibleXRangeMinimum(10f);
-        chart.setHighlightPerDragEnabled(true);
-        chart.setHighlightPerTapEnabled(true);
+        chart.setHighlightPerDragEnabled(true); chart.setHighlightPerTapEnabled(true);
         chart.setMaxHighlightDistance(20);
 
         chart.setOnChartValueSelectedListener(new OnChartValueSelectedListener() {
@@ -262,22 +195,15 @@ public class StockChart implements SessionCallback {
                 if (index >= 0 && index < allCandles.size()) {
                     Candle c = allCandles.get(index);
                     SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault());
-                    String dateStr = sdf.format(new Date(c.timestamp * 1000L));
-                    boolean isUp = c.close >= c.open;
-                    String arrow = isUp ? "▲" : "▼";
-                    String info = String.format(Locale.US,
-                            "%s  %s\nO: %.5f   H: %.5f\nL: %.5f   C: %.5f\nVol: %s",
-                            arrow, dateStr, c.open, c.high, c.low, c.close,
-                            formatVolume(c.volume));
+                    String info = String.format(Locale.US, "%s  %s\nO: %.5f   H: %.5f\nL: %.5f   C: %.5f\nVol: %s",
+                            c.close >= c.open ? "▲" : "▼",
+                            sdf.format(new Date(c.timestamp * 1000L)),
+                            c.open, c.high, c.low, c.close, formatVolume(c.volume));
                     candleDataTextView.setText(info);
                     candleDataTextView.setVisibility(View.VISIBLE);
                 }
             }
-
-            @Override
-            public void onNothingSelected() {
-                candleDataTextView.setVisibility(View.INVISIBLE);
-            }
+            @Override public void onNothingSelected() { candleDataTextView.setVisibility(View.INVISIBLE); }
         });
     }
 
@@ -285,197 +211,142 @@ public class StockChart implements SessionCallback {
     public void addChunk(List<Candle> chunk) {
         if (chunk == null || chunk.isEmpty()) return;
         synchronized (allCandles) {
-            for (Candle newCandle : chunk) {
+            for (Candle nc : chunk) {
                 if (!allCandles.isEmpty()) {
-                    Candle last = allCandles.get(allCandles.size() - 1);
-                    if (last.timestamp == newCandle.timestamp) {
-                        allCandles.set(allCandles.size() - 1, newCandle);
-                        continue;
-                    }
+                    Candle last = allCandles.get(allCandles.size()-1);
+                    if (last.timestamp == nc.timestamp) { allCandles.set(allCandles.size()-1, nc); continue; }
                 }
-                allCandles.add(newCandle);
+                allCandles.add(nc);
             }
         }
         triggerChartUpdate(false);
     }
 
-    // ── Throttled update trigger ──────────────────────────────────────
-    private void triggerChartUpdate(boolean isLiveUpdate) {
+    // ── Throttled update ──────────────────────────────────────────────
+    private void triggerChartUpdate(boolean isLive) {
         if (chart == null) return;
         if (isUpdatePending.compareAndSet(false, true)) {
             mainHandler.postDelayed(() -> {
-                // Save viewport position BEFORE touching data
-                if (isLiveUpdate && chart.getData() != null) {
-                    savedLowestX  = chart.getLowestVisibleX();
-                    savedHighestX = chart.getHighestVisibleX();
-                    // Pinned = user is at the rightmost candle
-                    float totalCount = allCandles.size();
-                    isPinnedToRight = (savedHighestX >= totalCount - 3);
+                if (isLive && chart.getData() != null) {
+                    savedLowestX = chart.getLowestVisibleX();
+                    isPinnedToRight = (chart.getHighestVisibleX() >= allCandles.size() - 3);
                 }
-                updateChartData(isLiveUpdate);
+                updateChartData(isLive);
                 isUpdatePending.set(false);
             }, 150);
         }
     }
 
     // ── Core render ───────────────────────────────────────────────────
-    private void updateChartData(boolean isLiveUpdate) {
-        Log.i(CHART_LOG_TAG, "Updating chart — type=" + currentChartType + " live=" + isLiveUpdate);
+    private void updateChartData(boolean isLive) {
+        ArrayList<Candle> snap = new ArrayList<>(allCandles);
+        if (snap.isEmpty()) return;
+        Collections.sort(snap, (a, b) -> Long.compare(a.timestamp, b.timestamp));
 
-        ArrayList<Candle> safeCopy = new ArrayList<>(allCandles);
-        if (safeCopy.isEmpty()) return;
-        Collections.sort(safeCopy, (c1, c2) -> Long.compare(c1.timestamp, c2.timestamp));
-
-        // ── Build price layer ─────────────────────────────────────
         CombinedData data = new CombinedData();
-        data.setData(generateVolumeData(safeCopy));
-
+        data.setData(generateVolumeData(snap));
         LineData lineData = new LineData();
 
-        // Overlay indicators
-        for (Indicator ind : IndicatorRegistry.getInstance().getEnabledOverlays()) {
-            Indicator.Result result = ind.compute(safeCopy);
-            for (LineDataSet set : result.overlayLines) lineData.addDataSet(set);
+        if (indicatorSession != null) {
+            for (Indicator ind : indicatorSession.getOverlays()) {
+                Indicator.Result res = ind.compute(snap);
+                for (LineDataSet s : res.overlayLines) lineData.addDataSet(s);
+            }
         }
 
         switch (currentChartType) {
-            case CANDLE: data.setData(generateCandleData(safeCopy)); break;
-            case BAR:    data.setData(generateOhlcBarData(safeCopy)); break;
-            case LINE:   lineData.addDataSet(generateLineData(safeCopy)); break;
+            case CANDLE: data.setData(generateCandleData(snap)); break;
+            case BAR:    data.setData(generateOhlcBarData(snap)); break;
+            case LINE:   lineData.addDataSet(generateLineData(snap)); break;
         }
-        data.setData(lineData);
+        if (lineData.getDataSetCount() > 0) data.setData(lineData);
 
-        // ── X-axis formatter ──────────────────────────────────────
         chart.getXAxis().setValueFormatter(new ValueFormatter() {
-            private final SimpleDateFormat dailyFmt = new SimpleDateFormat("MMM dd", Locale.getDefault());
-            private final SimpleDateFormat timeFmt  = new SimpleDateFormat("HH:mm",  Locale.getDefault());
-            @Override
-            public String getAxisLabel(float value, AxisBase axis) {
-                int index = Math.round(value);
-                if (index < 0 || index >= safeCopy.size()) return "";
-                Date d = new Date(safeCopy.get(index).timestamp * 1000L);
-                return (interval == StockDataHelper.Timeframe.DAILY)
-                        ? dailyFmt.format(d) : timeFmt.format(d);
+            final SimpleDateFormat df = new SimpleDateFormat("MMM dd", Locale.getDefault());
+            final SimpleDateFormat tf = new SimpleDateFormat("HH:mm",  Locale.getDefault());
+            @Override public String getAxisLabel(float value, AxisBase axis) {
+                int i = Math.round(value);
+                if (i<0||i>=snap.size()) return "";
+                Date d = new Date(snap.get(i).timestamp*1000L);
+                return interval == StockDataHelper.Timeframe.DAILY ? df.format(d) : tf.format(d);
             }
         });
 
         chart.setData(data);
-        updateCurrentPriceLine(safeCopy.get(safeCopy.size() - 1));
+        updateCurrentPriceLine(snap.get(snap.size()-1));
         chart.getData().notifyDataChanged();
         chart.notifyDataSetChanged();
 
-        // ── Viewport preservation (NO JUMP on live updates) ───────
-        if (!isLiveUpdate) {
-            // Initial load — animate to right edge
-            int totalCount = safeCopy.size();
-            float desiredVisible = 60f;
-            if (totalCount > desiredVisible) {
-                chart.setVisibleXRangeMinimum(10f);
-                float scaleX = totalCount / desiredVisible;
-                chart.zoom(scaleX, 1f, 0f, 0f);
-                chart.moveViewToX(totalCount - 1);
-            } else {
-                chart.fitScreen();
-            }
-            float maxVol = 0;
-            for (Candle c : safeCopy) if (c.volume > maxVol) maxVol = c.volume;
-            chart.getAxisRight().setAxisMaximum(maxVol * 10f);
+        if (!isLive) {
+            int total = snap.size();
+            if (total > 60) { chart.zoom(total/60f,1f,0f,0f); chart.moveViewToX(total-1); }
+            else { chart.fitScreen(); }
+            float maxVol=0; for(Candle c:snap) if(c.volume>maxVol) maxVol=c.volume;
+            chart.getAxisRight().setAxisMaximum(maxVol*10f);
             isPinnedToRight = true;
         } else {
-            // Live update — only move if pinned to right
-            if (isPinnedToRight) {
-                // Scroll to show the newest candle without zooming
-                chart.moveViewToX(safeCopy.size() - 1);
-            } else {
-                // User is scrolled back — restore their exact viewport
-                if (savedLowestX >= 0) {
-                    chart.moveViewToX(savedLowestX);
-                }
-            }
-            // Recalculate Y without resetting X
-            chart.getTransformer(YAxis.AxisDependency.LEFT).prepareMatrixValuePx(
-                    chart.getXAxis().mAxisMinimum,
-                    chart.getXAxis().mAxisRange,
-                    chart.getAxisLeft().mAxisRange,
-                    chart.getAxisLeft().mAxisMinimum
-            );
+            if (isPinnedToRight) chart.moveViewToX(snap.size()-1);
+            else if (savedLowestX>=0) chart.moveViewToX(savedLowestX);
+            try {
+                chart.getTransformer(YAxis.AxisDependency.LEFT).prepareMatrixValuePx(
+                        chart.getXAxis().mAxisMinimum, chart.getXAxis().mAxisRange,
+                        chart.getAxisLeft().mAxisRange, chart.getAxisLeft().mAxisMinimum);
+            } catch (Exception ignored) {}
             chart.calculateOffsets();
         }
-
         chart.postInvalidate();
-
-        // ── Update sub-charts ─────────────────────────────────────
-        updateSubCharts(safeCopy);
+        updateSubCharts(snap);
     }
 
-    // ── Sub-chart rendering ───────────────────────────────────────────
-    private void updateSubCharts(ArrayList<Candle> safeCopy) {
-        if(subChartsContainer.isEmpty()) return;
-        List<Indicator> subIndicators = IndicatorRegistry.getInstance().getEnabledSubCharts();
+    // ── Dynamic sub-chart management ──────────────────────────────────
+    private void updateSubCharts(ArrayList<Candle> snap) {
+        if (subChartsContainer == null || subChartsScroller == null) return;
 
-        for (int i = 0; i < subCharts.size(); i++) {
-            LineChart subChart = subCharts.get(i);
+        List<Indicator> subInds = indicatorSession != null
+                ? indicatorSession.getSubCharts() : new ArrayList<>();
 
-            if (i >= subIndicators.size()) {
-                subChart.setVisibility(View.GONE);
-                subChart.clear();
-                continue;
+        // Build set of needed instanceIds
+        java.util.Set<String> needed = new java.util.LinkedHashSet<>();
+        for (Indicator i : subInds) needed.add(i.getInstanceId());
+
+        // Remove views for indicators no longer active
+        java.util.Iterator<java.util.Map.Entry<String,LineChart>> it =
+                subChartViews.entrySet().iterator();
+        while (it.hasNext()) {
+            java.util.Map.Entry<String,LineChart> e = it.next();
+            if (!needed.contains(e.getKey())) {
+                subChartsContainer.removeView(e.getValue());
+                it.remove();
             }
-
-            Indicator ind = subIndicators.get(i);
-            Indicator.Result result = ind.compute(safeCopy);
-
-            if (result.subChartLines.isEmpty()) {
-                subChart.setVisibility(View.GONE);
-                continue;
-            }
-
-            subChart.setVisibility(View.VISIBLE);
-
-            // Sync X-axis formatter with main chart
-            subChart.getXAxis().setValueFormatter(chart.getXAxis().getValueFormatter());
-
-            LineData subData = new LineData();
-            for (LineDataSet set : result.subChartLines) subData.addDataSet(set);
-            subChart.setData(subData);
-
-            // Apply Y range hints
-            if (!Float.isNaN(result.subChartMin) && !Float.isNaN(result.subChartMax)) {
-                subChart.getAxisRight().setAxisMinimum(result.subChartMin);
-                subChart.getAxisRight().setAxisMaximum(result.subChartMax);
-            } else {
-                subChart.getAxisRight().resetAxisMinimum();
-                subChart.getAxisRight().resetAxisMaximum();
-            }
-
-            //set up indicator description
-            Description desc = new Description();
-            desc.setText(ind.getDisplayName());
-            desc.setTextColor(Color.parseColor("#78909C")); // Use a dim grey for a clean look
-            desc.setTextSize(12f);
-            desc.setPosition(140f, 40f);
-            subChart.setDescription(desc);
-
-            subChart.getData().notifyDataChanged();
-            subChart.notifyDataSetChanged();
-
-            // Mirror main chart's X viewport
-            try {
-                float lo = chart.getLowestVisibleX();
-                float hi = chart.getHighestVisibleX();
-                subChart.setVisibleXRange(hi - lo, hi - lo);
-                subChart.moveViewToX(lo);
-            } catch (Exception ignored) {}
-
-            subChart.postInvalidate();
         }
-        if(subIndicators.isEmpty()){
-            subChartsContainer.get().setVisibility(View.GONE);
-            setScrollViewWeight(0f, subChartsContainer.get());
+
+        if (subInds.isEmpty()) {
+            subChartsContainer.setVisibility(View.GONE);
+            subChartsScroller.setVisibility(View.GONE);
+            setScrollViewWeight(0, subChartsScroller);
+            return;
         }
-        else{
-            subChartsContainer.get().setVisibility(View.VISIBLE);
-            setScrollViewWeight(1f, subChartsContainer.get());
+        subChartsContainer.setVisibility(View.VISIBLE);
+        subChartsScroller.setVisibility(View.VISIBLE);
+        setScrollViewWeight(1, subChartsScroller);
+
+        // Add/update views
+        for (Indicator ind : subInds) {
+            LineChart sub = subChartViews.get(ind.getInstanceId());
+            if (sub == null) {
+                sub = createSubChartView(ind);
+                subChartViews.put(ind.getInstanceId(), sub);
+                subChartsContainer.addView(sub);
+                // Add divider above
+                View div = new View(activityContext);
+                LinearLayout.LayoutParams dp = new LinearLayout.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT, 1);
+                div.setLayoutParams(dp);
+                div.setBackgroundColor(Color.parseColor("#252323"));
+                div.setTag("div_" + ind.getInstanceId());
+                subChartsContainer.addView(div, subChartsContainer.indexOfChild(sub));
+            }
+            populateSubChart(sub, ind, snap);
         }
     }
 
@@ -493,146 +364,152 @@ public class StockChart implements SessionCallback {
         scrollView.setLayoutParams(params);
     }
 
-    // ── Current-price dashed line ─────────────────────────────────────
+    private LineChart createSubChartView(Indicator ind) {
+        LineChart sub = new LineChart(activityContext);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, dpToPx(160));
+        sub.setLayoutParams(lp);
+        sub.setBackgroundColor(COLOR_BACKGROUND);
+        sub.setDrawGridBackground(false);
+        sub.setAutoScaleMinMaxEnabled(true);
+        sub.setTouchEnabled(false);
+        sub.getLegend().setEnabled(false);
+
+        Description desc = new Description();
+        desc.setText(ind.getTag());
+        desc.setTextColor(COLOR_AXIS_TEXT);
+        desc.setTextSize(9f);
+        sub.setDescription(desc);
+
+        XAxis x = sub.getXAxis();
+        x.setDrawGridLines(false); x.setDrawLabels(false); x.setDrawAxisLine(false);
+        sub.getAxisLeft().setEnabled(false);
+        YAxis r = sub.getAxisRight();
+        r.setDrawGridLines(true); r.setGridColor(COLOR_GRID); r.setGridLineWidth(0.5f);
+        r.setTextColor(COLOR_AXIS_TEXT); r.setTextSize(9f); r.setLabelCount(4,false);
+        r.setDrawAxisLine(false);
+        return sub;
+    }
+
+    private void populateSubChart(LineChart sub, Indicator ind, ArrayList<Candle> snap) {
+        Indicator.Result res = ind.compute(snap);
+        if (res.subChartLines.isEmpty()) { sub.setVisibility(View.GONE); return; }
+        sub.setVisibility(View.VISIBLE);
+        sub.getXAxis().setValueFormatter(chart.getXAxis().getValueFormatter());
+        LineData d = new LineData();
+        for (LineDataSet s : res.subChartLines) d.addDataSet(s);
+        sub.setData(d);
+        if (!Float.isNaN(res.subChartMin)) sub.getAxisRight().setAxisMinimum(res.subChartMin);
+        else sub.getAxisRight().resetAxisMinimum();
+        if (!Float.isNaN(res.subChartMax)) sub.getAxisRight().setAxisMaximum(res.subChartMax);
+        else sub.getAxisRight().resetAxisMaximum();
+        sub.getData().notifyDataChanged();
+        sub.notifyDataSetChanged();
+        try {
+            float lo = chart.getLowestVisibleX(), hi = chart.getHighestVisibleX();
+            sub.setVisibleXRange(hi - lo, hi - lo);
+            sub.moveViewToX(lo);
+        } catch (Exception ignored) {}
+        sub.moveViewToX(res.subChartLines.get(0).getXMax());
+        sub.postInvalidate();
+    }
+
+    private int dpToPx(int dp) {
+        return Math.round(dp * activityContext.getResources().getDisplayMetrics().density);
+    }
+
+    // ── Price line ────────────────────────────────────────────────────
     private void updateCurrentPriceLine(Candle latest) {
-        YAxis leftAxis = chart.getAxisLeft();
-        if (currentPriceLine != null) leftAxis.removeLimitLine(currentPriceLine);
-
+        YAxis left = chart.getAxisLeft();
+        if (currentPriceLine != null) left.removeLimitLine(currentPriceLine);
         boolean isUp = latest.close >= latest.open;
-        int lineColor = isUp ? COLOR_UP : COLOR_DOWN;
-
-        currentPriceLine = new LimitLine((float) latest.close,
+        int c = isUp ? COLOR_UP : COLOR_DOWN;
+        currentPriceLine = new LimitLine((float)latest.close,
                 String.format(Locale.US, "%.5f", latest.close));
-        currentPriceLine.setLineColor(lineColor);
-        currentPriceLine.setLineWidth(1f);
-        currentPriceLine.enableDashedLine(8f, 4f, 0f);
-        currentPriceLine.setTextColor(lineColor);
-        currentPriceLine.setTextSize(9f);
+        currentPriceLine.setLineColor(c); currentPriceLine.setLineWidth(1f);
+        currentPriceLine.enableDashedLine(8f,4f,0f);
+        currentPriceLine.setTextColor(c); currentPriceLine.setTextSize(9f);
         currentPriceLine.setLabelPosition(LimitLine.LimitLabelPosition.RIGHT_TOP);
-
-        leftAxis.addLimitLine(currentPriceLine);
-        leftAxis.setDrawLimitLinesBehindData(false);
+        left.addLimitLine(currentPriceLine);
+        left.setDrawLimitLinesBehindData(false);
     }
 
-    // ── Price data generators ─────────────────────────────────────────
-    private CandleData generateCandleData(ArrayList<Candle> candles) {
-        List<CandleEntry> entries = new ArrayList<>();
-        for (int i = 0; i < candles.size(); i++) {
-            Candle c = candles.get(i);
-            entries.add(new CandleEntry(i, (float) c.high, (float) c.low, (float) c.open, (float) c.close));
+    // ── Data generators ───────────────────────────────────────────────
+    private CandleData generateCandleData(ArrayList<Candle> c) {
+        List<CandleEntry> e = new ArrayList<>();
+        for (int i=0;i<c.size();i++) {
+            Candle cv=c.get(i);
+            e.add(new CandleEntry(i,(float)cv.high,(float)cv.low,(float)cv.open,(float)cv.close));
         }
-        CandleDataSet set = new CandleDataSet(entries, "Prices");
-        set.setDecreasingColor(COLOR_DOWN);
-        set.setDecreasingPaintStyle(Paint.Style.FILL);
-        set.setIncreasingColor(COLOR_UP);
-        set.setIncreasingPaintStyle(Paint.Style.FILL);
-        set.setNeutralColor(Color.GRAY);
-        set.setShadowColorSameAsCandle(true);
-        set.setShadowWidth(1.5f);
-        set.setBarSpace(0.1f);
-        set.setDrawValues(false);
-        set.setHighlightEnabled(true);
-        set.setHighLightColor(COLOR_HIGHLIGHT);
-        set.setHighlightLineWidth(1f);
-        set.enableDashedHighlightLine(8f, 4f, 0f);
-        set.setAxisDependency(YAxis.AxisDependency.LEFT);
-        return new CandleData(set);
+        CandleDataSet s = new CandleDataSet(e,"Prices");
+        s.setDecreasingColor(COLOR_DOWN); s.setDecreasingPaintStyle(Paint.Style.FILL);
+        s.setIncreasingColor(COLOR_UP);   s.setIncreasingPaintStyle(Paint.Style.FILL);
+        s.setNeutralColor(Color.GRAY); s.setShadowColorSameAsCandle(true); s.setShadowWidth(1.5f);
+        s.setBarSpace(0.1f); s.setDrawValues(false); s.setHighlightEnabled(true);
+        s.setHighLightColor(COLOR_HIGHLIGHT); s.setHighlightLineWidth(1f);
+        s.enableDashedHighlightLine(8f,4f,0f); s.setAxisDependency(YAxis.AxisDependency.LEFT);
+        return new CandleData(s);
     }
 
-    private CandleData generateOhlcBarData(ArrayList<Candle> candles) {
-        List<CandleEntry> entries = new ArrayList<>();
-        for (int i = 0; i < candles.size(); i++) {
-            Candle c = candles.get(i);
-            entries.add(new CandleEntry(i, (float) c.high, (float) c.low, (float) c.open, (float) c.close));
+    private CandleData generateOhlcBarData(ArrayList<Candle> c) {
+        List<CandleEntry> e = new ArrayList<>();
+        for (int i=0;i<c.size();i++) {
+            Candle cv=c.get(i);
+            e.add(new CandleEntry(i,(float)cv.high,(float)cv.low,(float)cv.open,(float)cv.close));
         }
-        CandleDataSet set = new CandleDataSet(entries, "Prices");
-        set.setDecreasingColor(COLOR_DOWN);
-        set.setDecreasingPaintStyle(Paint.Style.STROKE);
-        set.setIncreasingColor(COLOR_UP);
-        set.setIncreasingPaintStyle(Paint.Style.STROKE);
-        set.setNeutralColor(Color.GRAY);
-        set.setShadowColorSameAsCandle(true);
-        set.setShadowWidth(1.5f);
-        set.setBarSpace(0.3f);
-        set.setDrawValues(false);
-        set.setHighlightEnabled(true);
-        set.setHighLightColor(COLOR_HIGHLIGHT);
-        set.setHighlightLineWidth(1f);
-        set.enableDashedHighlightLine(8f, 4f, 0f);
-        set.setAxisDependency(YAxis.AxisDependency.LEFT);
-        return new CandleData(set);
+        CandleDataSet s = new CandleDataSet(e,"Prices");
+        s.setDecreasingColor(COLOR_DOWN); s.setDecreasingPaintStyle(Paint.Style.STROKE);
+        s.setIncreasingColor(COLOR_UP);   s.setIncreasingPaintStyle(Paint.Style.STROKE);
+        s.setNeutralColor(Color.GRAY); s.setShadowColorSameAsCandle(true); s.setShadowWidth(1.5f);
+        s.setBarSpace(0.3f); s.setDrawValues(false); s.setHighlightEnabled(true);
+        s.setHighLightColor(COLOR_HIGHLIGHT); s.setHighlightLineWidth(1f);
+        s.enableDashedHighlightLine(8f,4f,0f); s.setAxisDependency(YAxis.AxisDependency.LEFT);
+        return new CandleData(s);
     }
 
-    private LineDataSet generateLineData(ArrayList<Candle> candles) {
-        List<Entry> entries = new ArrayList<>();
-        for (int i = 0; i < candles.size(); i++) {
-            entries.add(new Entry(i, (float) candles.get(i).close));
+    private LineDataSet generateLineData(ArrayList<Candle> c) {
+        List<Entry> e = new ArrayList<>();
+        for (int i=0;i<c.size();i++) e.add(new Entry(i,(float)c.get(i).close));
+        LineDataSet s = new LineDataSet(e,"Close");
+        s.setColor(COLOR_LINE); s.setLineWidth(1.8f); s.setDrawCircles(false); s.setDrawValues(false);
+        s.setMode(LineDataSet.Mode.LINEAR); s.setDrawFilled(true); s.setFillColor(COLOR_LINE);
+        s.setFillAlpha(25); s.setHighlightEnabled(true); s.setHighLightColor(COLOR_HIGHLIGHT);
+        s.setHighlightLineWidth(1f); s.enableDashedHighlightLine(8f,4f,0f);
+        s.setAxisDependency(YAxis.AxisDependency.LEFT);
+        return s;
+    }
+
+    private BarData generateVolumeData(ArrayList<Candle> c) {
+        List<BarEntry> e = new ArrayList<>();
+        int[] colors = new int[c.size()];
+        for (int i=0;i<c.size();i++) {
+            Candle cv=c.get(i); e.add(new BarEntry(i,cv.volume));
+            if (cv.close>cv.open) colors[i]=COLOR_VOL_UP;
+            else if (cv.close<cv.open) colors[i]=COLOR_VOL_DOWN;
+            else colors[i]=COLOR_VOL_NEUTRAL;
         }
-        LineDataSet set = new LineDataSet(entries, "Close");
-        set.setColor(COLOR_LINE);
-        set.setLineWidth(1.8f);
-        set.setDrawCircles(false);
-        set.setDrawValues(false);
-        set.setMode(LineDataSet.Mode.LINEAR);
-        set.setDrawFilled(true);
-        set.setFillColor(COLOR_LINE);
-        set.setFillAlpha(25);
-        set.setHighlightEnabled(true);
-        set.setHighLightColor(COLOR_HIGHLIGHT);
-        set.setHighlightLineWidth(1f);
-        set.enableDashedHighlightLine(8f, 4f, 0f);
-        set.setAxisDependency(YAxis.AxisDependency.LEFT);
-        return set;
+        BarDataSet s = new BarDataSet(e,"Volume");
+        s.setColors(colors); s.setAxisDependency(YAxis.AxisDependency.RIGHT);
+        s.setDrawValues(false); s.setHighlightEnabled(false);
+        BarData bd = new BarData(s); bd.setBarWidth(0.8f);
+        return bd;
     }
 
-    private BarData generateVolumeData(ArrayList<Candle> candles) {
-        List<BarEntry> entries = new ArrayList<>();
-        int[] colors = new int[candles.size()];
-        for (int i = 0; i < candles.size(); i++) {
-            Candle c = candles.get(i);
-            entries.add(new BarEntry(i, c.volume));
-            if (c.close > c.open)      colors[i] = COLOR_VOL_UP;
-            else if (c.close < c.open) colors[i] = COLOR_VOL_DOWN;
-            else                       colors[i] = COLOR_VOL_NEUTRAL;
-        }
-        BarDataSet set = new BarDataSet(entries, "Volume");
-        set.setColors(colors);
-        set.setAxisDependency(YAxis.AxisDependency.RIGHT);
-        set.setDrawValues(false);
-        set.setHighlightEnabled(false);
-        BarData barData = new BarData(set);
-        barData.setBarWidth(0.8f);
-        return barData;
-    }
-
-    // ── Stream / live update ──────────────────────────────────────────
+    // ── Stream update ─────────────────────────────────────────────────
     private void streamUpdate(List<Candle> chunk) {
-        if (chunk == null || chunk.isEmpty()) return;
-        Candle liveData = chunk.get(0);
-
+        if (chunk==null||chunk.isEmpty()) return;
+        Candle live = chunk.get(0);
         synchronized (allCandles) {
-            if (allCandles.isEmpty() && !done) {
-                streamBuffer.addAll(chunk);
-                return;
-            }
+            if (allCandles.isEmpty() && !done) { streamBuffer.addAll(chunk); return; }
             if (allCandles.isEmpty()) return;
-
-            Candle lastCandle = allCandles.get(allCandles.size() - 1);
-            if (lastCandle.timestamp + interval.interval > liveData.timestamp) {
-                allCandles.set(allCandles.size() - 1, new Candle(
-                        lastCandle.timestamp,
-                        lastCandle.open,
-                        Math.max(liveData.high, lastCandle.high),
-                        Math.min(liveData.low,  lastCandle.low),
-                        liveData.close,
-                        lastCandle.volume + liveData.volume
-                ));
+            Candle last = allCandles.get(allCandles.size()-1);
+            if (last.timestamp + interval.interval > live.timestamp) {
+                allCandles.set(allCandles.size()-1, new Candle(
+                        last.timestamp, last.open, Math.max(live.high,last.high),
+                        Math.min(live.low,last.low), live.close, last.volume+live.volume));
             } else {
-                allCandles.add(new Candle(
-                        lastCandle.timestamp + interval.interval,
-                        liveData.open, liveData.high, liveData.low,
-                        liveData.close, liveData.volume
-                ));
+                allCandles.add(new Candle(last.timestamp+interval.interval,
+                        live.open, live.high, live.low, live.close, live.volume));
             }
         }
         triggerChartUpdate(true);
@@ -642,75 +519,55 @@ public class StockChart implements SessionCallback {
     @Override
     public void onDataReceived(DataType msgType, Object parsedData) {
         if (msgType == DataType.TICKER_ERROR) {
-            mainHandler.post(() -> Toast.makeText(activityContext,
-                    (String) parsedData, Toast.LENGTH_SHORT).show());
-            flushRequests();
-            return;
+            mainHandler.post(() -> Toast.makeText(activityContext,(String)parsedData,Toast.LENGTH_SHORT).show());
+            flushRequests(); return;
         }
         if (!(parsedData instanceof PriceChunk)) return;
         PriceChunk chunk = (PriceChunk) parsedData;
         if (!reqIds.contains(chunk.reqId)) return;
-
         switch (msgType) {
             case TICKER_STREAM:
                 streamUpdate(chunk.chunk);
-                if (chainedListener != null) {
-                    synchronized (allCandles) {
-                        if (!allCandles.isEmpty())
-                            chainedListener.onDataReceived(DataType.MARKET_DATA,
-                                    allCandles.get(allCandles.size() - 1).close);
-                    }
+                if (chainedListener!=null) synchronized(allCandles) {
+                    if (!allCandles.isEmpty())
+                        chainedListener.onDataReceived(DataType.MARKET_DATA, allCandles.get(allCandles.size()-1).close);
                 }
                 break;
             case TICKER_SNAPSHOT:
-                addChunk(chunk.chunk);
-                break;
+                addChunk(chunk.chunk); break;
             case TICKER_REQUEST_DONE:
                 reqIds.remove(chunk.reqId);
-                if (chainedListener != null) {
-                    done = true;
-                    for (Candle buffed : streamBuffer) streamUpdate(List.of(buffed));
-                    synchronized (allCandles) {
+                if (chainedListener!=null) {
+                    done=true;
+                    for (Candle b:streamBuffer) streamUpdate(List.of(b));
+                    synchronized(allCandles) {
                         if (!allCandles.isEmpty())
-                            chainedListener.onDataReceived(DataType.MARKET_DATA,
-                                    allCandles.get(allCandles.size() - 1).close);
+                            chainedListener.onDataReceived(DataType.MARKET_DATA, allCandles.get(allCandles.size()-1).close);
                     }
                 }
                 break;
         }
     }
-
-    @Override
-    public void onActionRequired(int actionType, @Nullable Object data) {}
+    @Override public void onActionRequired(int a, @Nullable Object d) {}
 
     // ── Helpers ───────────────────────────────────────────────────────
-    private String formatVolume(float vol) {
-        if (vol >= 1_000_000) return String.format(Locale.US, "%.2fM", vol / 1_000_000);
-        if (vol >= 1_000)     return String.format(Locale.US, "%.1fK", vol / 1_000);
-        return String.format(Locale.US, "%.0f", vol);
+    private String formatVolume(float v) {
+        if (v>=1_000_000) return String.format(Locale.US,"%.2fM",v/1_000_000);
+        if (v>=1_000)     return String.format(Locale.US,"%.1fK",v/1_000);
+        return String.format(Locale.US,"%.0f",v);
     }
 
     public void clearChart() {
-        allCandles.clear();
-        done = false;
-        streamBuffer.clear();
-        isPinnedToRight = true;
-        savedLowestX = -1f;
-        if (currentPriceLine != null) {
-            chart.getAxisLeft().removeLimitLine(currentPriceLine);
-            currentPriceLine = null;
-        }
+        allCandles.clear(); done=false; streamBuffer.clear(); isPinnedToRight=true; savedLowestX=-1f;
+        if (currentPriceLine!=null) { chart.getAxisLeft().removeLimitLine(currentPriceLine); currentPriceLine=null; }
     }
-
     public void addToCurrentRequest(int reqId) { this.reqIds.add(reqId); }
-
     public void flushRequests() {
         NetworkClient.getInstance(null).getSessionManager()
                 .discardRequests(reqIds.stream().mapToInt(Integer::intValue).toArray());
-        this.reqIds.clear();
+        reqIds.clear();
     }
-
     public void bindListener(SessionCallback l) { this.chainedListener = l; }
-    public boolean isDone()                     { return done; }
+    public boolean isDone() { return done; }
     public void setInterval(StockDataHelper.Timeframe tf) { this.interval = tf; }
 }

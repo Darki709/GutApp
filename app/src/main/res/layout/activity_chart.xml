@@ -181,6 +181,29 @@
                 android:paddingEnd="12dp"
                 android:background="@drawable/chart_btn_inactive" />
 
+            <!-- Divider after Indicators (already exists — keep it) -->
+            <View
+                android:layout_width="1dp"
+                android:layout_height="18dp"
+                android:background="#383636"
+                android:layout_marginEnd="6dp"
+                android:layout_marginStart="4dp" />
+
+            <!-- ← NEW: Presets chip -->
+            <TextView
+                android:id="@+id/btnPresets"
+                android:layout_width="wrap_content"
+                android:layout_height="26dp"
+                android:text="🗂 Presets"
+                android:textSize="12sp"
+                android:textColor="#78909C"
+                android:gravity="center"
+                android:paddingStart="8dp"
+                android:paddingEnd="12dp"
+                android:background="@drawable/chart_btn_inactive"
+                android:layout_marginEnd="6dp" />
+
+            <!-- ← NEW: Divider before AI (replaces the old one) -->
             <View
                 android:layout_width="1dp"
                 android:layout_height="18dp"
@@ -218,6 +241,24 @@
          Constrained top=toolbar, bottom=zoomControlsBar.
          Sub-charts are GONE by default; StockChart shows/hides them.
     -->
+    <!-- REPLACE only the chartAreaContainer block in your existing activity_chart.xml.
+     The rest of the file (toolbar, bottom panel, orders section) stays identical.
+
+     Find this block:
+         <LinearLayout android:id="@+id/chartAreaContainer" ...>
+             ...all content...
+         </LinearLayout>
+
+     Replace the entire block with what's below.
+-->
+
+    <!-- ══ CHART AREA ════════════════════════════════════════════════
+         Main chart takes weight=3.
+         Sub-charts are dynamically added below by StockChart into
+         subChartsContainer (a vertical LinearLayout inside a ScrollView).
+         The outer LinearLayout has no fixed height — it fills the space
+         between the toolbar and the zoom bar via constraints.
+    -->
     <LinearLayout
         android:id="@+id/chartAreaContainer"
         android:layout_width="0dp"
@@ -228,7 +269,7 @@
         app:layout_constraintTop_toBottomOf="@+id/chartTypeBar"
         app:layout_constraintBottom_toTopOf="@+id/zoomControlsBar">
 
-        <!-- Main price chart — weight=3, always visible -->
+        <!-- Main price chart — always visible, takes 60% of space -->
         <com.github.mikephil.charting.charts.CombinedChart
             android:id="@+id/stockChart"
             android:layout_width="match_parent"
@@ -237,39 +278,24 @@
             android:background="@color/default_bg"
             android:animateLayoutChanges="false" />
 
+        <!-- Sub-chart scroll area — hidden until at least one sub-chart indicator is active.
+             StockChart calls setVisibility(VISIBLE/GONE) on subChartsContainer's parent.
+             Each sub-chart (RSI, MACD, …) is dynamically created as a LineChart child
+             inside subChartsContainer by StockChart.updateSubCharts(). -->
         <androidx.core.widget.NestedScrollView
-            android:id="@+id/subChartsScroll"
+            android:id="@+id/subChartsScrollView"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_weight="0"
-            android:fillViewport="true"
+            android:background="#0D0C0C"
             android:visibility="gone">
 
+            <!-- StockChart adds LineChart children here dynamically -->
             <LinearLayout
+                android:id="@+id/subChartsContainer"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:orientation="vertical">
+                android:orientation="vertical" />
 
-                <com.github.mikephil.charting.charts.LineChart
-                    android:id="@+id/subChart1"
-                    android:layout_width="match_parent"
-                    android:layout_height="180dp"
-                    android:background="#121111"
-                    android:visibility="gone" />
-
-                <View
-                    android:layout_width="match_parent"
-                    android:layout_height="1dp"
-                    android:background="#252323" />
-
-                <com.github.mikephil.charting.charts.LineChart
-                    android:id="@+id/subChart2"
-                    android:layout_width="match_parent"
-                    android:layout_height="180dp"
-                    android:background="#121111"
-                    android:visibility="gone" />
-
-            </LinearLayout>
         </androidx.core.widget.NestedScrollView>
 
     </LinearLayout>
