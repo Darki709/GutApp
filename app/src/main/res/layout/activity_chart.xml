@@ -9,6 +9,7 @@
     android:background="@color/default_bg"
     tools:context=".ui.ChartActivity">
 
+    <!-- ══ TOP BAR ═══════════════════════════════════════════════════ -->
     <ImageView
         android:id="@+id/imageViewLogo"
         android:layout_width="100dp"
@@ -43,6 +44,7 @@
         app:layout_constraintTop_toTopOf="parent"
         app:srcCompat="@drawable/home_btn" />
 
+    <!-- ══ TOOLBAR ═══════════════════════════════════════════════════ -->
     <HorizontalScrollView
         android:id="@+id/chartTypeBar"
         android:layout_width="0dp"
@@ -61,6 +63,7 @@
             android:paddingStart="8dp"
             android:paddingEnd="8dp">
 
+            <!-- Chart type chips -->
             <TextView
                 android:id="@+id/btnChartCandle"
                 android:layout_width="wrap_content"
@@ -106,6 +109,7 @@
                 android:background="#383636"
                 android:layout_marginEnd="10dp" />
 
+            <!-- Timeframe chips -->
             <TextView
                 android:id="@+id/button5m"
                 android:layout_width="wrap_content"
@@ -164,6 +168,7 @@
                 android:background="#383636"
                 android:layout_marginEnd="10dp" />
 
+            <!-- Indicators chip -->
             <TextView
                 android:id="@+id/indicatorsButton"
                 android:layout_width="wrap_content"
@@ -182,28 +187,94 @@
                 android:background="#383636"
                 android:layout_marginEnd="10dp" />
 
-            <ImageButton
-                android:id="@+id/btnAiAnalyze"
-                android:layout_width="40dp"
-                android:layout_height="40dp"
-                android:src="@drawable/ic_ai_sparkle"
-                android:background="?attr/selectableItemBackgroundBorderless"
-                android:contentDescription="AI Analysis"
-                />
+            <!-- AI button — from user's file, including ProgressBar overlay -->
+            <FrameLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center_horizontal">
+
+                <ImageButton
+                    android:id="@+id/btnAiAnalyze"
+                    android:layout_width="40dp"
+                    android:layout_height="40dp"
+                    android:src="@drawable/ic_ai_sparkle"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:contentDescription="AI Analysis" />
+
+                <ProgressBar
+                    android:id="@+id/pbAiLoading"
+                    android:layout_width="30dp"
+                    android:layout_height="30dp"
+                    android:layout_gravity="center"
+                    android:visibility="gone"
+                    android:indeterminateTint="@color/white" />
+            </FrameLayout>
+
         </LinearLayout>
     </HorizontalScrollView>
 
-    <com.github.mikephil.charting.charts.CombinedChart
-        android:id="@+id/stockChart"
+    <!-- ══ CHART AREA ════════════════════════════════════════════════
+         LinearLayout wraps main chart + two optional sub-chart panes.
+         Constrained top=toolbar, bottom=zoomControlsBar.
+         Sub-charts are GONE by default; StockChart shows/hides them.
+    -->
+    <LinearLayout
+        android:id="@+id/chartAreaContainer"
         android:layout_width="0dp"
         android:layout_height="0dp"
-        android:background="@color/default_bg"
-        android:animateLayoutChanges="false"
+        android:orientation="vertical"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@+id/chartTypeBar"
-        app:layout_constraintBottom_toTopOf="@+id/bottomPanel" />
+        app:layout_constraintBottom_toTopOf="@+id/zoomControlsBar">
 
+        <!-- Main price chart — weight=3, always visible -->
+        <com.github.mikephil.charting.charts.CombinedChart
+            android:id="@+id/stockChart"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="3"
+            android:background="@color/default_bg"
+            android:animateLayoutChanges="false" />
+
+        <androidx.core.widget.NestedScrollView
+            android:id="@+id/subChartsScroll"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_weight="0"
+            android:fillViewport="true"
+            android:visibility="gone">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical">
+
+                <com.github.mikephil.charting.charts.LineChart
+                    android:id="@+id/subChart1"
+                    android:layout_width="match_parent"
+                    android:layout_height="180dp"
+                    android:background="#121111"
+                    android:visibility="gone" />
+
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="1dp"
+                    android:background="#252323" />
+
+                <com.github.mikephil.charting.charts.LineChart
+                    android:id="@+id/subChart2"
+                    android:layout_width="match_parent"
+                    android:layout_height="180dp"
+                    android:background="#121111"
+                    android:visibility="gone" />
+
+            </LinearLayout>
+        </androidx.core.widget.NestedScrollView>
+
+    </LinearLayout>
+
+    <!-- OHLCV floating overlay, top-left of chart -->
     <TextView
         android:id="@+id/candleDataTextView"
         android:layout_width="wrap_content"
@@ -217,9 +288,59 @@
         android:layout_margin="8dp"
         android:visibility="invisible"
         android:elevation="4dp"
-        app:layout_constraintStart_toStartOf="@+id/stockChart"
-        app:layout_constraintTop_toTopOf="@+id/stockChart" />
+        app:layout_constraintStart_toStartOf="@+id/chartAreaContainer"
+        app:layout_constraintTop_toTopOf="@+id/chartAreaContainer" />
 
+    <!-- ══ ZOOM CONTROLS ════════════════════════════════════════════ -->
+    <LinearLayout
+        android:id="@+id/zoomControlsBar"
+        android:layout_width="0dp"
+        android:layout_height="28dp"
+        android:orientation="horizontal"
+        android:background="#181616"
+        android:gravity="center_vertical|end"
+        android:paddingEnd="10dp"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintBottom_toTopOf="@+id/bottomPanel">
+
+        <TextView
+            android:id="@+id/btnZoomOut"
+            android:layout_width="30dp"
+            android:layout_height="22dp"
+            android:text="−"
+            android:textSize="16sp"
+            android:textColor="#78909C"
+            android:gravity="center"
+            android:background="@drawable/chart_btn_inactive"
+            android:layout_marginEnd="4dp" />
+
+        <TextView
+            android:id="@+id/btnZoomReset"
+            android:layout_width="wrap_content"
+            android:layout_height="22dp"
+            android:text="⊡"
+            android:textSize="13sp"
+            android:textColor="#78909C"
+            android:gravity="center"
+            android:paddingStart="8dp"
+            android:paddingEnd="8dp"
+            android:background="@drawable/chart_btn_inactive"
+            android:layout_marginEnd="4dp" />
+
+        <TextView
+            android:id="@+id/btnZoomIn"
+            android:layout_width="30dp"
+            android:layout_height="22dp"
+            android:text="+"
+            android:textSize="16sp"
+            android:textColor="#78909C"
+            android:gravity="center"
+            android:background="@drawable/chart_btn_inactive" />
+
+    </LinearLayout>
+
+    <!-- ══ BOTTOM PANEL ═════════════════════════════════════════════ -->
     <LinearLayout
         android:id="@+id/bottomPanel"
         android:layout_width="match_parent"
@@ -229,8 +350,7 @@
         android:padding="12dp"
         app:layout_constraintBottom_toTopOf="@+id/sectionDivider"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/stockChart">
+        app:layout_constraintStart_toStartOf="parent">
 
         <RelativeLayout
             android:layout_width="match_parent"
@@ -323,6 +443,7 @@
         </LinearLayout>
     </LinearLayout>
 
+    <!-- ══ ORDERS ══════════════════════════════════════════════════ -->
     <View
         android:id="@+id/sectionDivider"
         android:layout_width="0dp"
@@ -362,7 +483,7 @@
     <FrameLayout
         android:id="@+id/ordersFragmentContainer"
         android:layout_width="0dp"
-        android:layout_height="160dp"
+        android:layout_height="80dp"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent" />

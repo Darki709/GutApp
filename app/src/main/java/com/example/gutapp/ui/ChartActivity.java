@@ -9,11 +9,14 @@ import android.graphics.Typeface;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.View;
+import android.widget.Button;
 import android.widget.ImageButton;
+import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.activity.EdgeToEdge;
+import androidx.annotation.Nullable;
 import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
@@ -23,6 +26,7 @@ import com.example.gutapp.data.OrderDialog;
 import com.example.gutapp.data.StockChart;
 import com.example.gutapp.data.UserGlobals;
 import com.example.gutapp.data.api.GeminiHelper;
+import com.example.gutapp.data.indicators.IndicatorRegistry;
 import com.example.gutapp.data.models.Candle;
 import com.example.gutapp.data.models.Order;
 import com.example.gutapp.data.models.TickerInfo;
@@ -40,6 +44,7 @@ import com.example.gutapp.session.SessionCallback;
 import com.example.gutapp.ui.fragments.IndicatorsPanel;
 import com.example.gutapp.ui.fragments.OrdersList;
 import com.github.mikephil.charting.charts.CombinedChart;
+import com.github.mikephil.charting.charts.LineChart;
 import com.google.android.material.bottomsheet.BottomSheetDialog;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import com.google.firebase.FirebaseApp;
@@ -49,13 +54,14 @@ import org.json.JSONObject;
 
 import java.util.ArrayList;
 import java.util.Locale;
+import java.util.Optional;
 
 public class ChartActivity extends SessionActivity implements
         View.OnClickListener,
         OrderDialog.OrderDialogListener,
         OrdersList.Listener,
-        IndicatorsPanel.IndicatorListener, GeminiHelper.AnalysisCallback
-{
+        IndicatorsPanel.IndicatorListener,
+        GeminiHelper.AnalysisCallback {
 
     public static final String CHART_LOG_TAG = "GutChart";
 
@@ -74,17 +80,18 @@ public class ChartActivity extends SessionActivity implements
     private OrdersList ordersFragment;
     private ArrayList<Order> allOrders = new ArrayList<>();
 
-    // Indicator state — kept alive across panel open/close
-    private IndicatorsPanel.IndicatorSettings indicatorSettings =
-            new IndicatorsPanel.IndicatorSettings();
-
-    // Chart type buttons (TextViews styled as chips)
+    // Chart type chips
     private TextView btnChartCandle, btnChartBar, btnChartLine;
     private TextView activeCTypeBtn;
 
-    // Timeframe buttons
+    // Timeframe chips
     private TextView btn5m, btn15m, btn1h, btn1d;
     private TextView activeTfBtn;
+
+    // Sub-chart LineChart views (wired to StockChart after inflation)
+    @Nullable private View subChartContainer;
+    @Nullable private LineChart subChart1;
+    @Nullable private LineChart subChart2;
 
     // ── onCreate ───────────────────────────────────────────────────────
     @Override
@@ -110,6 +117,16 @@ public class ChartActivity extends SessionActivity implements
         chartContainer.setupChart(findViewById(R.id.candleDataTextView));
         chartContainer.bindListener(this);
 
+        // ── Sub-chart views ────────────────────────────────────────
+        // Register each LineChart with StockChart so it can drive
+        // their data and visibility automatically.
+        subChartContainer = findViewById(R.id.subChartsScroll);
+        subChart1 = findViewById(R.id.subChart1);
+        subChart2 = findViewById(R.id.subChart2);
+        if (subChartContainer != null) chartContainer.setSubChartsContainer(Optional.of(subChartContainer));
+        if (subChart1 != null) chartContainer.attachSubChart(subChart1);
+        if (subChart2 != null) chartContainer.attachSubChart(subChart2);
+
         // ── Text views ─────────────────────────────────────────────
         textViewTitle = findViewById(R.id.textViewTitle);
         textViewPrice = findViewById(R.id.textViewPrice);
@@ -128,7 +145,7 @@ public class ChartActivity extends SessionActivity implements
         btnChartCandle = findViewById(R.id.btnChartCandle);
         btnChartBar    = findViewById(R.id.btnChartBar);
         btnChartLine   = findViewById(R.id.btnChartLine);
-        activeCTypeBtn = btnChartCandle; // default
+        activeCTypeBtn = btnChartCandle;
 
         btnChartCandle.setOnClickListener(this);
         btnChartBar.setOnClickListener(this);
@@ -148,14 +165,19 @@ public class ChartActivity extends SessionActivity implements
         // ── Indicators chip ────────────────────────────────────────
         findViewById(R.id.indicatorsButton).setOnClickListener(this);
 
+        // ── Zoom buttons ───────────────────────────────────────────
+        findViewById(R.id.btnZoomIn).setOnClickListener(this);
+        findViewById(R.id.btnZoomOut).setOnClickListener(this);
+        findViewById(R.id.btnZoomReset).setOnClickListener(this);
+
+        // ── AI button ──────────────────────────────────────────────
+        findViewById(R.id.btnAiAnalyze).setOnClickListener(this);
+
         // ── Initial state ──────────────────────────────────────────
         this.interval = StockDataHelper.Timeframe.DAILY;
         activeTfBtn = btn1d;
         setChipActive(btn1d, true);
         formatTitle(this.interval.value);
-
-        // ai analysis button
-        findViewById(R.id.btnAiAnalyze).setOnClickListener(this);
 
         TickerInfoRequest req = new TickerInfoRequest(symbol, this);
         NetworkClient.getInstance(null).getSessionManager().pushRequest(req);
@@ -191,37 +213,29 @@ public class ChartActivity extends SessionActivity implements
     public void onClick(View v) {
         int id = v.getId();
 
-        // ── Timeframe ─────────────────────────────────────────────
-        if (id == R.id.button5m) {
-            switchTimeframe(StockDataHelper.Timeframe.FIVE_MIN, btn5m);
-        } else if (id == R.id.button15m) {
-            switchTimeframe(StockDataHelper.Timeframe.FIFTEEN_MIN, btn15m);
-        } else if (id == R.id.button1h) {
-            switchTimeframe(StockDataHelper.Timeframe.HOURLY, btn1h);
-        } else if (id == R.id.button1d) {
-            switchTimeframe(StockDataHelper.Timeframe.DAILY, btn1d);
-        }
+        // Timeframe
+        if      (id == R.id.button5m)  switchTimeframe(StockDataHelper.Timeframe.FIVE_MIN,    btn5m);
+        else if (id == R.id.button15m) switchTimeframe(StockDataHelper.Timeframe.FIFTEEN_MIN, btn15m);
+        else if (id == R.id.button1h)  switchTimeframe(StockDataHelper.Timeframe.HOURLY,      btn1h);
+        else if (id == R.id.button1d)  switchTimeframe(StockDataHelper.Timeframe.DAILY,       btn1d);
 
-        // ── Chart types ───────────────────────────────────────────
-        else if (id == R.id.btnChartCandle) {
-            switchChartType(StockChart.ChartType.CANDLE, btnChartCandle);
-        } else if (id == R.id.btnChartBar) {
-            switchChartType(StockChart.ChartType.BAR, btnChartBar);
-        } else if (id == R.id.btnChartLine) {
-            switchChartType(StockChart.ChartType.LINE, btnChartLine);
-        }
+            // Chart types
+        else if (id == R.id.btnChartCandle) switchChartType(StockChart.ChartType.CANDLE, btnChartCandle);
+        else if (id == R.id.btnChartBar)    switchChartType(StockChart.ChartType.BAR,    btnChartBar);
+        else if (id == R.id.btnChartLine)   switchChartType(StockChart.ChartType.LINE,   btnChartLine);
 
-        // ── Indicators ────────────────────────────────────────────
-        else if (id == R.id.indicatorsButton) {
-            openIndicatorsPanel();
-        }
+            // Indicators
+        else if (id == R.id.indicatorsButton) openIndicatorsPanel();
 
-        // ── Navigation ────────────────────────────────────────────
-        else if (id == R.id.buttonHome) {
-            startActivity(new Intent(this, HomeActivity.class));
-        }
+            // Zoom
+        else if (id == R.id.btnZoomIn)    chartContainer.zoomIn();
+        else if (id == R.id.btnZoomOut)   chartContainer.zoomOut();
+        else if (id == R.id.btnZoomReset) chartContainer.zoomReset();
 
-        // ── Orders ────────────────────────────────────────────────
+            // Navigation
+        else if (id == R.id.buttonHome) startActivity(new Intent(this, HomeActivity.class));
+
+            // Orders
         else if (id == R.id.buttonBuy) {
             activeDialog = new OrderDialog(this, symbol, current_price, Order.OrderType.Long, this);
             activeDialog.show();
@@ -229,8 +243,11 @@ public class ChartActivity extends SessionActivity implements
             activeDialog = new OrderDialog(this, symbol, current_price, Order.OrderType.Short, this);
             activeDialog.show();
         }
-        //ai
-        else if (id == R.id.btnAiAnalyze){
+
+        // AI — from user's file: disable button + show spinner while loading
+        else if (id == R.id.btnAiAnalyze) {
+            findViewById(R.id.btnAiAnalyze).setEnabled(false);
+            findViewById(R.id.pbAiLoading).setVisibility(View.VISIBLE);
             performAiAnalysis();
         }
     }
@@ -255,11 +272,6 @@ public class ChartActivity extends SessionActivity implements
         formatTitle(interval.value);
     }
 
-    /**
-     * Applies selected / unselected visual state to a chip TextView.
-     * Active:   dark filled background, bright white text
-     * Inactive: transparent background, muted gray text
-     */
     private void setChipActive(TextView chip, boolean active) {
         if (chip == null) return;
         if (active) {
@@ -275,20 +287,48 @@ public class ChartActivity extends SessionActivity implements
 
     // ── Indicators panel ──────────────────────────────────────────────
     private void openIndicatorsPanel() {
-        IndicatorsPanel panel = IndicatorsPanel.newInstance(indicatorSettings);
+        // New API: no settings argument — panel reads/writes IndicatorRegistry directly
+        IndicatorsPanel panel = IndicatorsPanel.newInstance();
         panel.setListener(this);
         panel.show(getSupportFragmentManager(), "indicators");
     }
 
     /**
-     * Called by IndicatorsPanel every time the user toggles an indicator or
-     * adjusts a period slider. Passes the settings to StockChart for overlay rendering.
+     * Called by IndicatorsPanel after every toggle/slider change.
+     * New signature: no argument. IndicatorRegistry already holds the latest state.
      */
     @Override
-    public void onIndicatorsChanged(IndicatorsPanel.IndicatorSettings settings) {
-        this.indicatorSettings = settings;
-        // Delegate to chart — StockChart will re-render overlays
-        chartContainer.applyIndicators(settings);
+    public void onIndicatorsChanged() {
+        // Sync sub-chart divider visibility with active sub-chart count
+        refreshSubChartDividers();
+        // Tell StockChart to recompute and redraw all active indicators
+        chartContainer.applyIndicators();
+    }
+
+    /**
+     * Shows/hides the 1dp divider lines that sit above each sub-chart pane.
+     * Also updates the Indicators chip text with active count badge.
+     */
+    private void refreshSubChartDividers() {
+        int subCount = IndicatorRegistry.getInstance().getEnabledSubCharts().size();
+
+//        View div1 = findViewById(R.id.subChartDivider1);
+//        View div2 = findViewById(R.id.subChartDivider2);
+//        if (div1 != null) div1.setVisibility(subCount >= 1 ? View.VISIBLE : View.GONE);
+//        if (div2 != null) div2.setVisibility(subCount >= 2 ? View.VISIBLE : View.GONE);
+
+        // Update chip badge: "⊕ Indicators (3)" when any are active
+        TextView indBtn = findViewById(R.id.indicatorsButton);
+        if (indBtn != null) {
+            int totalActive = IndicatorRegistry.getInstance().getEnabled().size();
+            if (totalActive > 0) {
+                indBtn.setText("⊕ Indicators (" + totalActive + ")");
+                indBtn.setTextColor(Color.parseColor("#2196F3")); // blue accent when active
+            } else {
+                indBtn.setText("⊕ Indicators");
+                indBtn.setTextColor(Color.parseColor("#78909C"));
+            }
+        }
     }
 
     // ── Title helper ──────────────────────────────────────────────────
@@ -296,7 +336,7 @@ public class ChartActivity extends SessionActivity implements
         textViewTitle.setText(symbol + " (" + timeFrame + ")");
     }
 
-    // ── Chart data loading (unchanged logic) ──────────────────────────
+    // ── Chart data loading ─────────────────────────────────────────────
     private void updateChartData() {
         chartContainer.setInterval(interval);
         chartContainer.flushRequests();
@@ -388,27 +428,21 @@ public class ChartActivity extends SessionActivity implements
                 name = info.name;
                 runOnUiThread(() -> {
                     textViewName.setText(name);
-                    ((TextView)findViewById(R.id.tvExchange)).setText(info.exchange);
-                    ((TextView)findViewById(R.id.tvSector)).setText(info.sector);
-                    ((TextView)findViewById(R.id.tvType)).setText(info.type.type);
+                    ((TextView) findViewById(R.id.tvExchange)).setText(info.exchange);
+                    ((TextView) findViewById(R.id.tvSector)).setText(info.sector);
+                    ((TextView) findViewById(R.id.tvType)).setText(info.type.type);
                 });
                 break;
         }
     }
 
-    /**
-     * Updates the price TextView and color-codes it green/red vs previous tick.
-     */
     private double lastDisplayedPrice = 0;
 
     private void updatePriceDisplay(double price) {
         textViewPrice.setText(String.format(Locale.US, "%.6f", price));
         if (lastDisplayedPrice > 0) {
-            if (price > lastDisplayedPrice) {
-                textViewPrice.setTextColor(Color.parseColor("#00FF88"));
-            } else if (price < lastDisplayedPrice) {
-                textViewPrice.setTextColor(Color.parseColor("#FF4444"));
-            }
+            if      (price > lastDisplayedPrice) textViewPrice.setTextColor(Color.parseColor("#00FF88"));
+            else if (price < lastDisplayedPrice) textViewPrice.setTextColor(Color.parseColor("#FF4444"));
         }
         lastDisplayedPrice = price;
     }
@@ -460,10 +494,7 @@ public class ChartActivity extends SessionActivity implements
         });
     }
 
-
-
-
-    // calls gemini api to get analysis of the ticker
+    // ── AI Analysis — unchanged from user's file ──────────────────────
     private String cachedAiResponse = null;
 
     private void performAiAnalysis() {
@@ -476,48 +507,42 @@ public class ChartActivity extends SessionActivity implements
     }
 
     private void showAiPopup(String rawJson) {
-        runOnUiThread( () -> {
-            // Inflate the professional layout we created
+        runOnUiThread(() -> {
             View popupView = getLayoutInflater().inflate(R.layout.dialog_ai_analysis, null);
             BottomSheetDialog dialog = new BottomSheetDialog(this);
 
-            // Initialize the views from the popup layout
-            TextView tvRating = popupView.findViewById(R.id.tvRating);
-            TextView tvScore = popupView.findViewById(R.id.tvScore);
+            TextView tvRating   = popupView.findViewById(R.id.tvRating);
+            TextView tvScore    = popupView.findViewById(R.id.tvScore);
             TextView tvSentiment = popupView.findViewById(R.id.tvSentiment);
-            TextView tvHistory = popupView.findViewById(R.id.tvHistory);
+            TextView tvHistory  = popupView.findViewById(R.id.tvHistory);
             ImageButton btnClose = popupView.findViewById(R.id.btnClosePopup);
             btnClose.setOnClickListener(v -> dialog.dismiss());
 
             try {
-                // Parse the structured output from Gemini
-                JSONObject json = new JSONObject(rawJson);
-                String rating = json.optString("rating_word", "Neutral");
-                int score = json.optInt("score_out_of_hundred", 0);
-                String sentiment = json.optString("sentiment_analysis", "No sentiment data available.");
-                String history = json.optString("company_history", "No history available.");
+                // Re-enable AI button and hide spinner
+                findViewById(R.id.btnAiAnalyze).setEnabled(true);
+                findViewById(R.id.pbAiLoading).setVisibility(View.GONE);
 
-                // Set the text values
+                JSONObject json = new JSONObject(rawJson);
+                String rating   = json.optString("rating_word", "Neutral");
+                int    score    = json.optInt("score_out_of_hundred", 0);
+                String sentiment = json.optString("sentiment_analysis", "No sentiment data available.");
+                String history  = json.optString("company_history", "No history available.");
+
                 tvRating.setText(rating);
                 tvScore.setText(score + "/100");
                 tvSentiment.setText(sentiment);
                 tvHistory.setText(history);
 
-                // Apply professional styling based on the rating
-                if (rating.equalsIgnoreCase("Bullish")) {
-                    tvRating.setTextColor(Color.parseColor("#4CAF50")); // Material Green
-                } else if (rating.equalsIgnoreCase("Bearish")) {
-                    tvRating.setTextColor(Color.parseColor("#F44336")); // Material Red
-                } else {
-                    tvRating.setTextColor(Color.WHITE);
-                }
+                if      (rating.equalsIgnoreCase("Bullish")) tvRating.setTextColor(Color.parseColor("#4CAF50"));
+                else if (rating.equalsIgnoreCase("Bearish")) tvRating.setTextColor(Color.parseColor("#F44336"));
+                else                                          tvRating.setTextColor(Color.WHITE);
 
             } catch (JSONException e) {
                 Log.e(CHART_LOG_TAG, "Failed to parse AI JSON", e);
                 tvSentiment.setText("Error parsing analysis. Please try again.");
             }
 
-            // Build and show the BottomSheetDialog or AlertDialog
             dialog.setContentView(popupView);
             dialog.show();
         });
@@ -532,7 +557,10 @@ public class ChartActivity extends SessionActivity implements
     @Override
     public void onError(String error) {
         runOnUiThread(() -> {
-                Toast.makeText(this, "Ai analysis failed", LENGTH_SHORT).show();
+            // Re-enable AI button and hide spinner on error too
+            findViewById(R.id.btnAiAnalyze).setEnabled(true);
+            findViewById(R.id.pbAiLoading).setVisibility(View.GONE);
+            Toast.makeText(this, "AI analysis failed", LENGTH_SHORT).show();
         });
     }
 }

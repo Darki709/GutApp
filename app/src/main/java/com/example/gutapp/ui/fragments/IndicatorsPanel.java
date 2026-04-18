@@ -11,286 +11,239 @@ import android.widget.TextView;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
-import com.example.gutapp.R;
+import com.example.gutapp.data.indicators.Indicator;
+import com.example.gutapp.data.indicators.IndicatorRegistry;
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment;
 
+import java.util.List;
+
 /**
- * IndicatorsPanel — bottom sheet that controls which overlays are active on the chart.
+ * IndicatorsPanel — fully driven by IndicatorRegistry.
  *
- * Usage from ChartActivity:
- *     IndicatorsPanel panel = IndicatorsPanel.newInstance(currentSettings);
- *     panel.setListener(this);
- *     panel.show(getSupportFragmentManager(), "indicators");
+ * The panel never hardcodes indicator names. It reads every registered
+ * indicator's metadata (id, name, tag, params) and builds the UI rows
+ * automatically. To add a new indicator to the app you only need to:
+ *   1. Create the indicator class
+ *   2. Register it in IndicatorRegistry
+ * This panel needs no changes at all.
+ *
+ * Listener is called after every toggle/slider change so the chart
+ * updates in real time while the sheet is still open.
  */
 public class IndicatorsPanel extends BottomSheetDialogFragment {
 
     public interface IndicatorListener {
-        void onIndicatorsChanged(IndicatorSettings settings);
+        /** Called whenever any indicator's enabled state or params change */
+        void onIndicatorsChanged();
     }
 
-    // ── Settings bag passed back to the chart ───────────────────────
-    public static class IndicatorSettings {
-        public boolean maEnabled    = false;
-        public int     maPeriod     = 20;
-
-        public boolean emaEnabled   = false;
-        public int     emaPeriod    = 20;
-
-        public boolean bbEnabled    = false;
-        public int     bbPeriod     = 20;
-
-        public boolean rsiEnabled   = false;
-        public boolean macdEnabled  = false;
-        public boolean vwapEnabled  = false;
-
-        // Deep copy for safe passing between threads
-        public IndicatorSettings copy() {
-            IndicatorSettings s   = new IndicatorSettings();
-            s.maEnabled   = maEnabled;   s.maPeriod  = maPeriod;
-            s.emaEnabled  = emaEnabled;  s.emaPeriod = emaPeriod;
-            s.bbEnabled   = bbEnabled;   s.bbPeriod  = bbPeriod;
-            s.rsiEnabled  = rsiEnabled;
-            s.macdEnabled = macdEnabled;
-            s.vwapEnabled = vwapEnabled;
-            return s;
-        }
-    }
-
-    private static final String ARG_SETTINGS = "settings";
-
-    private IndicatorSettings settings = new IndicatorSettings();
     private IndicatorListener listener;
 
-    public static IndicatorsPanel newInstance(IndicatorSettings current) {
-        IndicatorsPanel f = new IndicatorsPanel();
-        if (current != null) f.settings = current.copy();
-        return f;
+    public static IndicatorsPanel newInstance() {
+        return new IndicatorsPanel();
     }
 
     public void setListener(IndicatorListener l) { this.listener = l; }
 
-    // ── Inflate the layout ──────────────────────────────────────────
     @Nullable
     @Override
     public View onCreateView(@NonNull LayoutInflater inflater,
                              @Nullable ViewGroup container,
                              @Nullable Bundle savedInstanceState) {
-        // We build the layout programmatically so you don't need a new XML file.
-        // (You can replace this with a proper XML layout file if preferred.)
-        return buildView(inflater.getContext());
+        return buildView(requireContext());
     }
 
+    // ── Layout builder — fully driven by IndicatorRegistry ────────────
     private View buildView(android.content.Context ctx) {
-        // Root scroll container
         android.widget.ScrollView root = new android.widget.ScrollView(ctx);
-        root.setBackgroundColor(android.graphics.Color.parseColor("#242222"));
+        root.setBackgroundColor(android.graphics.Color.parseColor("#1A1818"));
 
         android.widget.LinearLayout container = new android.widget.LinearLayout(ctx);
         container.setOrientation(android.widget.LinearLayout.VERTICAL);
-        int pad = dp(ctx, 16);
-        container.setPadding(pad, pad, pad, dp(ctx, 32));
+        int pad16 = dp(ctx, 16);
+        container.setPadding(pad16, pad16, pad16, dp(ctx, 40));
         root.addView(container);
 
-        // Title
+        // ── Title row ─────────────────────────────────────────────
+        android.widget.LinearLayout titleRow = new android.widget.LinearLayout(ctx);
+        titleRow.setOrientation(android.widget.LinearLayout.HORIZONTAL);
+        titleRow.setGravity(android.view.Gravity.CENTER_VERTICAL);
+        titleRow.setPadding(0, 0, 0, dp(ctx, 14));
+
         TextView title = new TextView(ctx);
         title.setText("Indicators");
         title.setTextColor(android.graphics.Color.parseColor("#ECEFF1"));
-        title.setTextSize(16f);
+        title.setTextSize(17f);
         title.setTypeface(null, android.graphics.Typeface.BOLD);
-        title.setPadding(0, 0, 0, dp(ctx, 12));
-        container.addView(title);
+        android.widget.LinearLayout.LayoutParams titleParams =
+                new android.widget.LinearLayout.LayoutParams(0,
+                        android.widget.LinearLayout.LayoutParams.WRAP_CONTENT, 1f);
+        title.setLayoutParams(titleParams);
+        titleRow.addView(title);
 
-        // Divider
-        container.addView(makeDivider(ctx));
-
-        // ── Moving Average ────────────────────────────────────────
-        addSectionHeader(ctx, container, "Overlays");
-
-        RowView maRow = addToggleRow(ctx, container, "MA", "Moving Average", settings.maEnabled);
-        SeekBar maSeek = addPeriodRow(ctx, container, "Period", settings.maPeriod, 5, 200, maRow.label);
-        maRow.check.setOnCheckedChangeListener((b, on) -> {
-            settings.maEnabled = on;
-            maSeek.setEnabled(on);
-            notifyListener();
-        });
-        maSeek.setOnSeekBarChangeListener(seekListener(v -> {
-            settings.maPeriod = v;
-            notifyListener();
-        }));
-
-        container.addView(makeSpacing(ctx, 8));
-
-        // ── EMA ──────────────────────────────────────────────────
-        RowView emaRow = addToggleRow(ctx, container, "EMA", "Exponential MA", settings.emaEnabled);
-        SeekBar emaSeek = addPeriodRow(ctx, container, "Period", settings.emaPeriod, 5, 200, emaRow.label);
-        emaRow.check.setOnCheckedChangeListener((b, on) -> {
-            settings.emaEnabled = on;
-            emaSeek.setEnabled(on);
-            notifyListener();
-        });
-        emaSeek.setOnSeekBarChangeListener(seekListener(v -> {
-            settings.emaPeriod = v;
-            notifyListener();
-        }));
-
-        container.addView(makeSpacing(ctx, 8));
-
-        // ── Bollinger Bands ───────────────────────────────────────
-        RowView bbRow = addToggleRow(ctx, container, "BB", "Bollinger Bands", settings.bbEnabled);
-        SeekBar bbSeek = addPeriodRow(ctx, container, "Period", settings.bbPeriod, 5, 50, bbRow.label);
-        bbRow.check.setOnCheckedChangeListener((b, on) -> {
-            settings.bbEnabled = on;
-            bbSeek.setEnabled(on);
-            notifyListener();
-        });
-        bbSeek.setOnSeekBarChangeListener(seekListener(v -> {
-            settings.bbPeriod = v;
-            notifyListener();
-        }));
-
-        // ── Oscillators section ───────────────────────────────────
-        container.addView(makeSpacing(ctx, 12));
-        container.addView(makeDivider(ctx));
-        addSectionHeader(ctx, container, "Oscillators  (shown below chart)");
-
-        addSimpleToggle(ctx, container, "RSI", "Relative Strength Index", settings.rsiEnabled, on -> {
-            settings.rsiEnabled = on;
-            notifyListener();
-        });
-        addSimpleToggle(ctx, container, "MACD", "Moving Avg Convergence Divergence", settings.macdEnabled, on -> {
-            settings.macdEnabled = on;
-            notifyListener();
-        });
-
-        // ── Other ─────────────────────────────────────────────────
-        container.addView(makeSpacing(ctx, 12));
-        container.addView(makeDivider(ctx));
-        addSectionHeader(ctx, container, "Other");
-
-        addSimpleToggle(ctx, container, "VWAP", "Volume Weighted Avg Price", settings.vwapEnabled, on -> {
-            settings.vwapEnabled = on;
-            notifyListener();
-        });
-
-        // ── Clear all button ─────────────────────────────────────
-        container.addView(makeSpacing(ctx, 16));
-        android.widget.Button clearBtn = new android.widget.Button(ctx);
-        clearBtn.setText("Clear All Indicators");
-        clearBtn.setTextColor(android.graphics.Color.parseColor("#EF5350"));
-        clearBtn.setBackgroundColor(android.graphics.Color.parseColor("#2E2C2C"));
-        clearBtn.setOnClickListener(v -> {
-            settings = new IndicatorSettings();
+        TextView clearAll = new TextView(ctx);
+        clearAll.setText("Clear All");
+        clearAll.setTextColor(android.graphics.Color.parseColor("#EF5350"));
+        clearAll.setTextSize(13f);
+        clearAll.setPadding(dp(ctx,8), dp(ctx,4), dp(ctx,8), dp(ctx,4));
+        clearAll.setOnClickListener(v -> {
+            IndicatorRegistry.getInstance().clearAll();
             notifyListener();
             dismiss();
         });
-        container.addView(clearBtn);
+        titleRow.addView(clearAll);
+        container.addView(titleRow);
+        container.addView(makeDivider(ctx));
+
+        // ── Overlay indicators ─────────────────────────────────────
+        boolean hasOverlay   = false;
+        boolean hasSubChart  = false;
+
+        for (Indicator ind : IndicatorRegistry.getInstance().getAll()) {
+            if (!ind.isSubChart() && !hasOverlay) {
+                addSectionHeader(ctx, container, "Overlays");
+                hasOverlay = true;
+            }
+            if (ind.isSubChart() && !hasSubChart) {
+                container.addView(makeSpacing(ctx, 12));
+                container.addView(makeDivider(ctx));
+                addSectionHeader(ctx, container, "Oscillators  (separate pane below chart)");
+                hasSubChart = true;
+            }
+            buildIndicatorRow(ctx, container, ind);
+        }
 
         return root;
     }
 
-    // ── UI builder helpers ───────────────────────────────────────────
-
-    private static class RowView {
-        CheckBox check;
-        TextView label;  // shows current period value
-    }
-
-    private RowView addToggleRow(android.content.Context ctx,
-                                 android.widget.LinearLayout parent,
-                                 String tag, String name, boolean checked) {
+    /**
+     * Builds one indicator's row: toggle checkbox + tag badge + name,
+     * then one SeekBar row per param.
+     */
+    private void buildIndicatorRow(android.content.Context ctx,
+                                   android.widget.LinearLayout parent,
+                                   Indicator ind) {
+        // ── Toggle row ─────────────────────────────────────────────
         android.widget.LinearLayout row = new android.widget.LinearLayout(ctx);
         row.setOrientation(android.widget.LinearLayout.HORIZONTAL);
         row.setGravity(android.view.Gravity.CENTER_VERTICAL);
-        row.setPadding(0, dp(ctx, 4), 0, dp(ctx, 2));
+        row.setPadding(0, dp(ctx, 6), 0, dp(ctx, 2));
 
         CheckBox cb = new CheckBox(ctx);
-        cb.setChecked(checked);
+        cb.setChecked(ind.isEnabled());
 
-        // Colored tag badge
-        TextView tagView = new TextView(ctx);
-        tagView.setText("  " + tag + "  ");
-        tagView.setTextColor(android.graphics.Color.parseColor("#ECEFF1"));
-        tagView.setTextSize(11f);
-        tagView.setBackgroundColor(android.graphics.Color.parseColor("#2E3347"));
-        android.widget.LinearLayout.LayoutParams tagParams =
+        // Tag badge
+        TextView tag = new TextView(ctx);
+        tag.setText("  " + ind.getTag() + "  ");
+        tag.setTextColor(android.graphics.Color.parseColor("#ECEFF1"));
+        tag.setTextSize(11f);
+        tag.setBackgroundColor(android.graphics.Color.parseColor("#252A3D"));
+        android.widget.LinearLayout.LayoutParams tagP =
                 new android.widget.LinearLayout.LayoutParams(
                         android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
                         android.widget.LinearLayout.LayoutParams.WRAP_CONTENT);
-        tagParams.setMarginStart(dp(ctx, 8));
-        tagParams.setMarginEnd(dp(ctx, 8));
-        tagView.setLayoutParams(tagParams);
+        tagP.setMarginStart(dp(ctx, 8));
+        tagP.setMarginEnd(dp(ctx, 8));
+        tag.setLayoutParams(tagP);
 
-        TextView nameView = new TextView(ctx);
-        nameView.setText(name);
-        nameView.setTextColor(android.graphics.Color.parseColor("#B0BEC5"));
-        nameView.setTextSize(13f);
-        android.widget.LinearLayout.LayoutParams nameParams =
+        // Indicator display name
+        TextView name = new TextView(ctx);
+        name.setText(ind.getDisplayName());
+        name.setTextColor(android.graphics.Color.parseColor("#B0BEC5"));
+        name.setTextSize(13f);
+        android.widget.LinearLayout.LayoutParams nameP =
                 new android.widget.LinearLayout.LayoutParams(0,
                         android.widget.LinearLayout.LayoutParams.WRAP_CONTENT, 1f);
-        nameView.setLayoutParams(nameParams);
+        name.setLayoutParams(nameP);
 
         row.addView(cb);
-        row.addView(tagView);
-        row.addView(nameView);
-
+        row.addView(tag);
+        row.addView(name);
         parent.addView(row);
 
-        RowView rv = new RowView();
-        rv.check = cb;
-        rv.label = nameView;
-        return rv;
+        // ── Param rows (seekbars) ──────────────────────────────────
+        List<Indicator.Param> params = ind.getParams();
+        List<View> paramRows = new java.util.ArrayList<>();
+
+        for (Indicator.Param param : params) {
+            View paramRow = buildParamRow(ctx, parent, param);
+            paramRows.add(paramRow);
+            // Start hidden if indicator is disabled
+            paramRow.setVisibility(ind.isEnabled() ? View.VISIBLE : View.GONE);
+        }
+
+        parent.addView(makeSpacing(ctx, 2));
+
+        // Checkbox toggles the indicator and shows/hides its param rows
+        cb.setOnCheckedChangeListener((btn, on) -> {
+            ind.setEnabled(on);
+            for (View pRow : paramRows) pRow.setVisibility(on ? View.VISIBLE : View.GONE);
+            notifyListener();
+        });
     }
 
-    private SeekBar addPeriodRow(android.content.Context ctx,
-                                 android.widget.LinearLayout parent,
-                                 String label, int currentVal,
-                                 int min, int max, TextView boundLabel) {
+    private View buildParamRow(android.content.Context ctx,
+                               android.widget.LinearLayout parent,
+                               Indicator.Param param) {
         android.widget.LinearLayout row = new android.widget.LinearLayout(ctx);
         row.setOrientation(android.widget.LinearLayout.HORIZONTAL);
         row.setGravity(android.view.Gravity.CENTER_VERTICAL);
-        row.setPadding(dp(ctx, 32), 0, 0, dp(ctx, 6));
+        row.setPadding(dp(ctx, 36), dp(ctx, 2), 0, dp(ctx, 4));
 
+        // Label
         TextView lbl = new TextView(ctx);
-        lbl.setText(label + ": ");
+        lbl.setText(param.label + ": ");
         lbl.setTextColor(android.graphics.Color.parseColor("#546E7A"));
         lbl.setTextSize(12f);
-        lbl.setMinWidth(dp(ctx, 60));
+        lbl.setMinWidth(dp(ctx, 72));
         row.addView(lbl);
 
+        // SeekBar
         SeekBar seek = new SeekBar(ctx);
-        seek.setMax(max - min);
-        seek.setProgress(currentVal - min);
-        android.widget.LinearLayout.LayoutParams seekParams =
+        int range = (int)(param.max - param.min);
+        seek.setMax(range);
+        seek.setProgress((int)(param.value - param.min));
+        android.widget.LinearLayout.LayoutParams seekP =
                 new android.widget.LinearLayout.LayoutParams(0,
                         android.widget.LinearLayout.LayoutParams.WRAP_CONTENT, 1f);
-        seek.setLayoutParams(seekParams);
+        seek.setLayoutParams(seekP);
         row.addView(seek);
 
-        TextView valView = new TextView(ctx);
-        valView.setText("  " + currentVal);
-        valView.setTextColor(android.graphics.Color.parseColor("#ECEFF1"));
-        valView.setTextSize(12f);
-        valView.setMinWidth(dp(ctx, 36));
-        row.addView(valView);
+        // Value label
+        TextView val = new TextView(ctx);
+        val.setMinWidth(dp(ctx, 40));
+        val.setTextColor(android.graphics.Color.parseColor("#ECEFF1"));
+        val.setTextSize(12f);
+        val.setPadding(dp(ctx, 6), 0, 0, 0);
+        updateValLabel(val, param);
+        row.addView(val);
 
-        // Update val label on seek
-        seek.setOnSeekBarChangeListener(seekListener(v -> {
-            valView.setText("  " + (v + min));
-        }));
+        seek.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            @Override
+            public void onProgressChanged(SeekBar s, int progress, boolean fromUser) {
+                if (!fromUser) return;
+                float newVal = param.min + progress;
+                param.value = newVal;
+                updateValLabel(val, param);
+                notifyListener();
+            }
+            @Override public void onStartTrackingTouch(SeekBar s) {}
+            @Override public void onStopTrackingTouch(SeekBar s) {}
+        });
 
         parent.addView(row);
-        return seek;
+        return row;
     }
 
-    private void addSimpleToggle(android.content.Context ctx,
-                                 android.widget.LinearLayout parent,
-                                 String tag, String name, boolean checked,
-                                 java.util.function.Consumer<Boolean> onChange) {
-        RowView rv = addToggleRow(ctx, parent, tag, name, checked);
-        rv.check.setOnCheckedChangeListener((b, on) -> onChange.accept(on));
-        parent.addView(makeSpacing(ctx, 4));
+    private void updateValLabel(TextView tv, Indicator.Param param) {
+        if (param.type == Indicator.Param.Type.INTEGER) {
+            tv.setText(String.valueOf(param.intValue()));
+        } else {
+            tv.setText(String.format(Locale.US, "%.1f", param.floatValue()));
+        }
     }
 
+    // ── Helpers ───────────────────────────────────────────────────────
     private void addSectionHeader(android.content.Context ctx,
                                   android.widget.LinearLayout parent, String text) {
         TextView tv = new TextView(ctx);
@@ -298,13 +251,13 @@ public class IndicatorsPanel extends BottomSheetDialogFragment {
         tv.setTextColor(android.graphics.Color.parseColor("#546E7A"));
         tv.setTextSize(10f);
         tv.setLetterSpacing(0.12f);
-        tv.setPadding(0, dp(ctx, 8), 0, dp(ctx, 4));
+        tv.setPadding(0, dp(ctx, 10), 0, dp(ctx, 4));
         parent.addView(tv);
     }
 
     private View makeDivider(android.content.Context ctx) {
         View v = new View(ctx);
-        v.setBackgroundColor(android.graphics.Color.parseColor("#2E2C2C"));
+        v.setBackgroundColor(android.graphics.Color.parseColor("#2A2828"));
         android.widget.LinearLayout.LayoutParams p =
                 new android.widget.LinearLayout.LayoutParams(
                         android.widget.LinearLayout.LayoutParams.MATCH_PARENT, 1);
@@ -325,18 +278,10 @@ public class IndicatorsPanel extends BottomSheetDialogFragment {
         return Math.round(dp * ctx.getResources().getDisplayMetrics().density);
     }
 
-    // Simple seek listener adapter
-    private SeekBar.OnSeekBarChangeListener seekListener(java.util.function.IntConsumer onProgress) {
-        return new SeekBar.OnSeekBarChangeListener() {
-            @Override public void onProgressChanged(SeekBar s, int v, boolean fromUser) {
-                if (fromUser) onProgress.accept(v);
-            }
-            @Override public void onStartTrackingTouch(SeekBar s) {}
-            @Override public void onStopTrackingTouch(SeekBar s) {}
-        };
+    private void notifyListener() {
+        if (listener != null) listener.onIndicatorsChanged();
     }
 
-    private void notifyListener() {
-        if (listener != null) listener.onIndicatorsChanged(settings.copy());
-    }
+    // Keep for import
+    private final java.util.Locale Locale = java.util.Locale.US;
 }

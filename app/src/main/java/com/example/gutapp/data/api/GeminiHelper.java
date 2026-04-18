@@ -44,6 +44,7 @@ public class GeminiHelper {
                     "SUMMARY: [A 2-3 sentence professional analysis]\n\n" +
                     "HISTORY/DESCRIPTION: a paragraph about the company's history and it's current practices" +
                     "(combine the market driver with the summary in json in the same header)" +
+                    "(don't put headers like \"SCORE:\" or \"MARKET DRIVER:\" and such in the text itself, the json headers are used to recognize each part of the response)" +
 
                     "EXAMPLE OF WANTED RESPONSE:\n" +
                     "SENTIMENT: Bullish\n" +
