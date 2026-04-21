@@ -43,6 +43,7 @@ android {
             excludes += "/META-INF/NOTICE*"
         }
     }
+    buildToolsVersion = "37.0.0"
 }
 
 dependencies {
@@ -78,4 +79,7 @@ dependencies {
     implementation("com.google.firebase:firebase-analytics")
     implementation("androidx.drawerlayout:drawerlayout:1.2.0")
     implementation("com.google.android.flexbox:flexbox:3.0.0")
+    implementation("com.squareup.retrofit2:retrofit:2.9.0")
+    implementation("com.squareup.retrofit2:converter-gson:2.9.0")
+    implementation("com.github.bumptech.glide:glide:4.15.1")
 }

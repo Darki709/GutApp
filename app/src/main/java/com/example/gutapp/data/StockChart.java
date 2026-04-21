@@ -19,6 +19,7 @@ import android.widget.Toast;
 import androidx.annotation.Nullable;
 import androidx.core.widget.NestedScrollView;
 
+import com.example.gutapp.data.drawing.ChartDrawing;
 import com.example.gutapp.data.indicators.Indicator;
 import com.example.gutapp.data.indicators.IndicatorSession;
 import com.example.gutapp.data.models.Candle;
@@ -27,7 +28,7 @@ import com.example.gutapp.database.StockDataHelper;
 import com.example.gutapp.session.DataType;
 import com.example.gutapp.session.NetworkClient;
 import com.example.gutapp.session.SessionCallback;
-import com.github.mikephil.charting.charts.CombinedChart;
+import com.example.gutapp.ui.chart.DrawingChart;
 import com.github.mikephil.charting.charts.LineChart;
 import com.github.mikephil.charting.components.AxisBase;
 import com.github.mikephil.charting.components.Description;
@@ -66,11 +67,24 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import lombok.Getter;
 import lombok.Setter;
 
+/**
+ * StockChart — data/rendering controller for the main price chart.
+ *
+ * ── Key change: DrawingChart ────────────────────────────────────────
+ * The constructor now accepts a DrawingChart instead of a CombinedChart.
+ * DrawingChart extends CombinedChart, so all existing MPAndroidChart APIs
+ * work identically. The added drawing layer is transparent to this class.
+ *
+ * After each updateChartData(), StockChart:
+ *  1. Collects all ChartDrawing objects from indicator results
+ *  2. Passes them to chart.replaceIndicatorDrawings() so they render on canvas
+ *  3. Passes the candle list to chart.setCandles() for coordinate conversion
+ */
 public class StockChart implements SessionCallback {
 
     public enum ChartType { CANDLE, BAR, LINE }
 
-    // ── Colors ───────────────────────────────────────────────────────
+    // ── Colors ────────────────────────────────────────────────────────
     private static final int COLOR_UP          = Color.parseColor("#00FF88");
     private static final int COLOR_DOWN        = Color.parseColor("#FF4444");
     private static final int COLOR_LINE        = Color.parseColor("#2196F3");
@@ -82,15 +96,16 @@ public class StockChart implements SessionCallback {
     private static final int COLOR_AXIS_TEXT   = Color.parseColor("#78909C");
     private static final int COLOR_GRID        = Color.argb(20, 255, 255, 255);
     private static final int COLOR_HIGHLIGHT   = Color.parseColor("#FFFFFF");
+    private static final int COLOR_PRICE_LINE  = Color.argb(200, 255, 255, 255);
 
     // ── Core fields ───────────────────────────────────────────────────
-    private final CombinedChart chart;
+    /** The chart view — DrawingChart (extends CombinedChart) */
+    private final DrawingChart chart;
     private final Context activityContext;
 
     @Setter @Nullable private LinearLayout subChartsContainer = null;
     @Setter @Nullable private NestedScrollView subChartsScroller = null;
 
-    /** Keyed by indicator instanceId */
     private final LinkedHashMap<String, LineChart> subChartViews = new LinkedHashMap<>();
 
     private final CopyOnWriteArrayList<Candle> allCandles = new CopyOnWriteArrayList<>();
@@ -109,37 +124,23 @@ public class StockChart implements SessionCallback {
     @Nullable private SessionCallback chainedListener = null;
     @Nullable private LimitLine currentPriceLine = null;
 
-    // ── Viewport state ────────────────────────────────────────────────
-    /**
-     * Whether the user is "pinned" to the right edge.
-     * true  → live updates auto-scroll to show newest candle.
-     * false → user has panned left; we preserve their viewport exactly.
-     *
-     * Set to true on initial load and on zoomReset().
-     * Set to false as soon as we detect the user has scrolled away from the right.
-     */
-    private boolean isPinnedToRight = true;
-
-    /**
-     * The lowest visible X index saved just before we rebuild chart data.
-     * Used to restore the viewport position when !isPinnedToRight.
-     */
-    private float savedLowestX  = -1f;
-    private float savedHighestX = -1f;
-
-    /**
-     * Whether the initial view (first data load) has been applied yet.
-     * Once applied, live updates never re-zoom — they only scroll.
-     */
+    // ── Viewport state ─────────────────────────────────────────────────
+    private boolean isPinnedToRight    = true;
+    private float   savedLowestX       = -1f;
+    private float   savedHighestX      = -1f;
     private boolean initialViewApplied = false;
 
-    // ── Constructor ───────────────────────────────────────────────────
-    public StockChart(CombinedChart chart, Context context) {
-        this.chart = chart;
+    // ── Constructor ────────────────────────────────────────────────────
+    /**
+     * @param chart The DrawingChart view from the inflated layout.
+     *              In ChartActivity: DrawingChart chart = findViewById(R.id.stockChart);
+     */
+    public StockChart(DrawingChart chart, Context context) {
+        this.chart          = chart;
         this.activityContext = context;
     }
 
-    // ── Public API ────────────────────────────────────────────────────
+    // ── Public API ─────────────────────────────────────────────────────
 
     public void setChartType(ChartType type) {
         this.currentChartType = type;
@@ -148,6 +149,9 @@ public class StockChart implements SessionCallback {
     public ChartType getChartType() { return currentChartType; }
 
     public void applyIndicators() { triggerChartUpdate(true); }
+
+    /** Expose the DrawingChart so ChartActivity can access drawing tools */
+    public DrawingChart getDrawingChart() { return chart; }
 
     public void zoomIn() {
         chart.zoom(1.5f, 1f, chart.getWidth() / 2f, chart.getHeight() / 2f);
@@ -165,13 +169,17 @@ public class StockChart implements SessionCallback {
         ArrayList<Candle> snap = new ArrayList<>(allCandles);
         if (snap.isEmpty()) return;
         applyInitialView(snap.size());
-        isPinnedToRight   = true;
+        isPinnedToRight    = true;
         initialViewApplied = true;
         chart.postInvalidate();
         syncSubChartsToMain();
     }
 
-    // ── Chart setup ───────────────────────────────────────────────────
+    public ArrayList<Candle> getAllCandles() {
+        synchronized (allCandles) { return new ArrayList<>(allCandles); }
+    }
+
+    // ── Chart setup ────────────────────────────────────────────────────
     public void setupChart(TextView candleDataTextView) {
         chart.setBackgroundColor(COLOR_BACKGROUND);
         chart.setAutoScaleMinMaxEnabled(true);
@@ -182,10 +190,12 @@ public class StockChart implements SessionCallback {
         chart.setDoubleTapToZoomEnabled(true);
         chart.setKeepPositionOnRotation(true);
 
-        chart.setDrawOrder(new CombinedChart.DrawOrder[]{
-                CombinedChart.DrawOrder.BAR, CombinedChart.DrawOrder.BUBBLE,
-                CombinedChart.DrawOrder.LINE, CombinedChart.DrawOrder.SCATTER,
-                CombinedChart.DrawOrder.CANDLE
+        chart.setDrawOrder(new com.github.mikephil.charting.charts.CombinedChart.DrawOrder[]{
+                com.github.mikephil.charting.charts.CombinedChart.DrawOrder.BAR,
+                com.github.mikephil.charting.charts.CombinedChart.DrawOrder.BUBBLE,
+                com.github.mikephil.charting.charts.CombinedChart.DrawOrder.LINE,
+                com.github.mikephil.charting.charts.CombinedChart.DrawOrder.SCATTER,
+                com.github.mikephil.charting.charts.CombinedChart.DrawOrder.CANDLE
         });
 
         YAxis left = chart.getAxisLeft();
@@ -213,7 +223,6 @@ public class StockChart implements SessionCallback {
         chart.setHighlightPerTapEnabled(true);
         chart.setMaxHighlightDistance(20);
 
-        // Candle selection → OHLCV overlay
         chart.setOnChartValueSelectedListener(new OnChartValueSelectedListener() {
             @Override
             public void onValueSelected(Entry e, Highlight h) {
@@ -226,8 +235,7 @@ public class StockChart implements SessionCallback {
                             "%s  %s\nO: %.5f   H: %.5f\nL: %.5f   C: %.5f\nVol: %s",
                             isUp ? "▲" : "▼",
                             sdf.format(new Date(c.timestamp * 1000L)),
-                            c.open, c.high, c.low, c.close,
-                            formatVolume(c.volume));
+                            c.open, c.high, c.low, c.close, formatVolume(c.volume));
                     candleDataTextView.setText(info);
                     candleDataTextView.setVisibility(View.VISIBLE);
                 }
@@ -238,46 +246,28 @@ public class StockChart implements SessionCallback {
             }
         });
 
-        // Gesture listener: detects pan/zoom so we know the user left the right edge
         chart.setOnChartGestureListener(new OnChartGestureListener() {
-            @Override
-            public void onChartGestureStart(MotionEvent me, ChartTouchListener.ChartGesture lg) {}
-            @Override
-            public void onChartGestureEnd(MotionEvent me, ChartTouchListener.ChartGesture lg) {
-                // After any gesture, re-evaluate pin state and sync sub-charts
-                updatePinState();
-                syncSubChartsToMain();
+            @Override public void onChartGestureStart(MotionEvent me, ChartTouchListener.ChartGesture lg) {}
+            @Override public void onChartGestureEnd(MotionEvent me, ChartTouchListener.ChartGesture lg) {
+                updatePinState(); syncSubChartsToMain();
             }
             @Override public void onChartLongPressed(MotionEvent me) {}
             @Override public void onChartDoubleTapped(MotionEvent me) { updatePinState(); syncSubChartsToMain(); }
             @Override public void onChartSingleTapped(MotionEvent me) {}
             @Override public void onChartFling(MotionEvent me1, MotionEvent me2, float vX, float vY) { updatePinState(); syncSubChartsToMain(); }
-            @Override
-            public void onChartScale(MotionEvent me, float scaleX, float scaleY) {
-                updatePinState();
-                syncSubChartsToMain();
-            }
-            @Override
-            public void onChartTranslate(MotionEvent me, float dX, float dY) {
-                updatePinState();
-                syncSubChartsToMain();
-            }
+            @Override public void onChartScale(MotionEvent me, float sX, float sY) { updatePinState(); syncSubChartsToMain(); }
+            @Override public void onChartTranslate(MotionEvent me, float dX, float dY) { updatePinState(); syncSubChartsToMain(); }
         });
     }
 
-    /**
-     * Re-evaluate whether the user is at the right edge.
-     * Called after every user gesture. Only updates the flag; never moves the view.
-     */
     private void updatePinState() {
         if (chart.getData() == null) return;
         float highest = chart.getHighestVisibleX();
         float total   = allCandles.size() - 1f;
-        // Pinned if within 2 candles of the last data point
         isPinnedToRight = (total - highest <= 2f);
     }
 
-    // ── Data ingestion ────────────────────────────────────────────────
+    // ── Data ingestion ─────────────────────────────────────────────────
     public void addChunk(List<Candle> chunk) {
         if (chunk == null || chunk.isEmpty()) return;
         synchronized (allCandles) {
@@ -295,16 +285,11 @@ public class StockChart implements SessionCallback {
         triggerChartUpdate(false);
     }
 
-    // ── Throttled update scheduler ────────────────────────────────────
-    /**
-     * @param isLiveUpdate true = streaming tick, false = snapshot/initial load or
-     *                     indicator change (anything that warrants re-evaluating viewport)
-     */
+    // ── Throttled update ───────────────────────────────────────────────
     private void triggerChartUpdate(boolean isLiveUpdate) {
         if (chart == null) return;
         if (isUpdatePending.compareAndSet(false, true)) {
             mainHandler.postDelayed(() -> {
-                // Save viewport BEFORE touching the data so we can restore it
                 if (chart.getData() != null) {
                     savedLowestX  = chart.getLowestVisibleX();
                     savedHighestX = chart.getHighestVisibleX();
@@ -315,32 +300,36 @@ public class StockChart implements SessionCallback {
         }
     }
 
-    // ── Core render ───────────────────────────────────────────────────
+    // ── Core render ────────────────────────────────────────────────────
     private void updateChartData(boolean isLiveUpdate) {
         ArrayList<Candle> snap = new ArrayList<>(allCandles);
         if (snap.isEmpty()) return;
         Collections.sort(snap, (a, b) -> Long.compare(a.timestamp, b.timestamp));
 
-        // ── Build data ────────────────────────────────────────────
+        // ── Build price/volume data ────────────────────────────────
         CombinedData data = new CombinedData();
         data.setData(generateVolumeData(snap));
         LineData lineData = new LineData();
 
+        // ── Collect indicator results ──────────────────────────────
+        List<ChartDrawing> indicatorDrawings = new ArrayList<>();
+
         if (indicatorSession != null) {
             for (Indicator ind : indicatorSession.getOverlays()) {
                 Indicator.Result res = ind.compute(snap);
-                for (LineDataSet s : res.overlayLines) lineData.addDataSet(s);
+                for (LineDataSet s : res.overlayLines)  lineData.addDataSet(s);
+                indicatorDrawings.addAll(res.drawings);  // ← collect drawings
             }
         }
 
         switch (currentChartType) {
-            case CANDLE: data.setData(generateCandleData(snap));   break;
-            case BAR:    data.setData(generateOhlcBarData(snap));  break;
+            case CANDLE: data.setData(generateCandleData(snap));  break;
+            case BAR:    data.setData(generateOhlcBarData(snap)); break;
             case LINE:   lineData.addDataSet(generateLineData(snap)); break;
         }
         if (lineData.getDataSetCount() > 0) data.setData(lineData);
 
-        // ── Shared X formatter ─────────────────────────────────────
+        // ── X formatter (shared with sub-charts) ──────────────────
         ValueFormatter xFormatter = buildXFormatter(snap);
         chart.getXAxis().setValueFormatter(xFormatter);
         chart.setData(data);
@@ -349,51 +338,44 @@ public class StockChart implements SessionCallback {
         chart.getData().notifyDataChanged();
         chart.notifyDataSetChanged();
 
-        // ── Viewport management ───────────────────────────────────
+        // ── Pass candle list + indicator drawings to DrawingChart ──
+        chart.setCandles(snap);
+        chart.replaceIndicatorDrawings(indicatorDrawings);
+
+        // ── Viewport ───────────────────────────────────────────────
         int total = snap.size();
 
         if (!initialViewApplied) {
-            // ── FIRST LOAD: set initial zoom to show ~60 candles ──
             float maxVol = 0;
             for (Candle c : snap) if (c.volume > maxVol) maxVol = c.volume;
             chart.getAxisRight().setAxisMaximum(maxVol * 8f);
-
             applyInitialView(total);
             initialViewApplied = true;
             isPinnedToRight    = true;
 
         } else if (!isLiveUpdate) {
-            // ── INDICATOR CHANGE / TYPE CHANGE / TF CHANGE ─────────
-            // Preserve the user's current viewport exactly — never re-zoom
             if (savedLowestX >= 0 && savedHighestX > savedLowestX) {
                 float range = savedHighestX - savedLowestX;
                 chart.setVisibleXRangeMaximum(range);
                 chart.setVisibleXRangeMinimum(range);
                 chart.moveViewToX(savedLowestX);
-                // Release the lock immediately so user can still zoom freely
                 mainHandler.postDelayed(() -> {
                     chart.setVisibleXRangeMinimum(10f);
                     chart.setVisibleXRangeMaximum(total);
                 }, 50);
             }
-
         } else {
-            // ── LIVE STREAMING TICK ────────────────────────────────
             if (isPinnedToRight) {
-                // Smoothly keep newest candle visible without touching zoom level
                 chart.moveViewToX(total - 1);
-            } else {
-                // User has scrolled back — lock their exact viewport
-                if (savedLowestX >= 0 && savedHighestX > savedLowestX) {
-                    float range = savedHighestX - savedLowestX;
-                    chart.setVisibleXRangeMaximum(range);
-                    chart.setVisibleXRangeMinimum(range);
-                    chart.moveViewToX(savedLowestX);
-                    mainHandler.postDelayed(() -> {
-                        chart.setVisibleXRangeMinimum(10f);
-                        chart.setVisibleXRangeMaximum(total);
-                    }, 50);
-                }
+            } else if (savedLowestX >= 0 && savedHighestX > savedLowestX) {
+                float range = savedHighestX - savedLowestX;
+                chart.setVisibleXRangeMaximum(range);
+                chart.setVisibleXRangeMinimum(range);
+                chart.moveViewToX(savedLowestX);
+                mainHandler.postDelayed(() -> {
+                    chart.setVisibleXRangeMinimum(10f);
+                    chart.setVisibleXRangeMaximum(total);
+                }, 50);
             }
         }
 
@@ -401,39 +383,28 @@ public class StockChart implements SessionCallback {
         chart.calculateOffsets();
         chart.postInvalidate();
 
-        // ── Update sub-charts ────────────────────────────────────
         updateSubCharts(snap, xFormatter);
     }
 
-    /**
-     * Apply the standard initial zoom: show the last 60 candles (or all if fewer).
-     * Does NOT change isPinnedToRight — caller must set that.
-     */
     private void applyInitialView(int total) {
         chart.fitScreen();
         if (total > 60) {
-            // Show exactly 60 candles from the right
             chart.setVisibleXRangeMaximum(60f);
             chart.setVisibleXRangeMinimum(10f);
             chart.moveViewToX(total - 1);
-            // Release the max restriction after a short delay so user can zoom out
-            mainHandler.postDelayed(() -> {
-                chart.setVisibleXRangeMaximum(total);
-            }, 100);
+            mainHandler.postDelayed(() -> chart.setVisibleXRangeMaximum(total), 100);
         } else {
             chart.moveViewToX(total - 1);
         }
     }
 
-    // ── Sub-chart management ──────────────────────────────────────────
-
+    // ── Sub-chart management ───────────────────────────────────────────
     private void updateSubCharts(ArrayList<Candle> snap, ValueFormatter xFormatter) {
         if (subChartsContainer == null || subChartsScroller == null) return;
 
         List<Indicator> subInds = indicatorSession != null
                 ? indicatorSession.getSubCharts() : new ArrayList<>();
 
-        // Remove views for indicators that were removed from the session
         Set<String> needed = new java.util.LinkedHashSet<>();
         for (Indicator i : subInds) needed.add(i.getInstanceId());
 
@@ -441,10 +412,9 @@ public class StockChart implements SessionCallback {
         while (it.hasNext()) {
             Map.Entry<String, LineChart> e = it.next();
             if (!needed.contains(e.getKey())) {
-                // Remove the chart view and its divider
                 subChartsContainer.removeView(e.getValue());
-                View divider = subChartsContainer.findViewWithTag("div_" + e.getKey());
-                if (divider != null) subChartsContainer.removeView(divider);
+                View div = subChartsContainer.findViewWithTag("div_" + e.getKey());
+                if (div != null) subChartsContainer.removeView(div);
                 it.remove();
             }
         }
@@ -462,7 +432,6 @@ public class StockChart implements SessionCallback {
             LineChart sub = subChartViews.get(ind.getInstanceId());
             boolean isNew = (sub == null);
             if (isNew) {
-                // Create divider first, then the chart
                 View div = new View(activityContext);
                 LinearLayout.LayoutParams divLp = new LinearLayout.LayoutParams(
                         ViewGroup.LayoutParams.MATCH_PARENT, 1);
@@ -475,48 +444,35 @@ public class StockChart implements SessionCallback {
                 subChartViews.put(ind.getInstanceId(), sub);
                 subChartsContainer.addView(sub);
             } else {
-                // Refresh the X formatter in case interval changed
                 configureSubChartXAxis(sub, xFormatter);
             }
-
             populateSubChart(sub, ind, snap, isNew);
         }
     }
 
-    /**
-     * Create and fully configure a new LineChart for a sub-chart indicator.
-     * Touch is enabled so user can pan/zoom the sub-chart independently.
-     * The NestedScrollView handles vertical scrolling between multiple sub-charts.
-     */
     @SuppressLint("ClickableViewAccessibility")
     private LineChart createSubChartView(Indicator ind, ValueFormatter xFormatter) {
         LineChart sub = new LineChart(activityContext);
-
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, dpToPx(160));
         sub.setLayoutParams(lp);
         sub.setBackgroundColor(COLOR_BACKGROUND);
         sub.setDrawGridBackground(false);
         sub.setAutoScaleMinMaxEnabled(true);
-
-        // Touch: allow horizontal drag/zoom on the sub-chart
         sub.setTouchEnabled(true);
         sub.setDragEnabled(true);
         sub.setScaleXEnabled(true);
-        sub.setScaleYEnabled(false);   // only horizontal zoom makes sense for oscillators
+        sub.setScaleYEnabled(false);
         sub.setPinchZoom(false);
         sub.setDoubleTapToZoomEnabled(false);
-
         sub.getLegend().setEnabled(false);
 
-        // Indicator tag as description label (top-right corner)
         Description desc = new Description();
         desc.setText(ind.getTag());
         desc.setTextColor(COLOR_AXIS_TEXT);
         desc.setTextSize(9f);
         sub.setDescription(desc);
 
-        // X axis — labels ON, matching the main chart format
         XAxis x = sub.getXAxis();
         x.setDrawGridLines(false);
         x.setPosition(XAxis.XAxisPosition.BOTTOM);
@@ -529,94 +485,35 @@ public class StockChart implements SessionCallback {
         x.setSpaceMin(15f);
         x.setSpaceMax(15f);
 
-
-        // Y axis
         sub.getAxisLeft().setEnabled(false);
         YAxis r = sub.getAxisRight();
-        r.setDrawGridLines(true);     r.setGridColor(COLOR_GRID);
-        r.setGridLineWidth(0.5f);     r.setTextColor(COLOR_AXIS_TEXT);
-        r.setTextSize(9f);            r.setLabelCount(4, false);
-        r.setDrawAxisLine(false);
-        r.setSpaceTop(15f);         r.setSpaceBottom(15f);
+        r.setDrawGridLines(true);  r.setGridColor(COLOR_GRID);
+        r.setGridLineWidth(0.5f);  r.setTextColor(COLOR_AXIS_TEXT);
+        r.setTextSize(9f);         r.setLabelCount(4, false);
+        r.setDrawAxisLine(false);  r.setSpaceTop(15f); r.setSpaceBottom(15f);
 
-        // When the user drags the sub-chart, sync main chart position
         sub.setOnChartGestureListener(new OnChartGestureListener() {
             @Override public void onChartGestureStart(MotionEvent me, ChartTouchListener.ChartGesture lg) {}
-            @Override
-            public void onChartGestureEnd(MotionEvent me, ChartTouchListener.ChartGesture lg) {
-                syncMainChartFromSub(sub);
-            }
+            @Override public void onChartGestureEnd(MotionEvent me, ChartTouchListener.ChartGesture lg) { syncMainChartFromSub(sub); }
             @Override public void onChartLongPressed(MotionEvent me) {}
             @Override public void onChartDoubleTapped(MotionEvent me) {}
             @Override public void onChartSingleTapped(MotionEvent me) {}
             @Override public void onChartFling(MotionEvent me1, MotionEvent me2, float vX, float vY) {}
-            @Override
-            public void onChartScale(MotionEvent me, float scaleX, float scaleY) {
-                syncMainChartFromSub(sub);
-            }
-            @Override
-            public void onChartTranslate(MotionEvent me, float dX, float dY) {
-                syncMainChartFromSub(sub);
-            }
+            @Override public void onChartScale(MotionEvent me, float sX, float sY) { syncMainChartFromSub(sub); }
+            @Override public void onChartTranslate(MotionEvent me, float dX, float dY) { syncMainChartFromSub(sub); }
         });
 
-        // Intercept vertical scroll so the NestedScrollView can still scroll vertically
-        // while the sub-chart handles horizontal drag
-        sub.setOnTouchListener(new View.OnTouchListener() {
-            private static final int SCROLL_THRESHOLD = 20; // pixels
-            private static final long LONG_PRESS_TIMEOUT = 200; // milliseconds
-
-            private float startX, startY;
-            private long startTime;
-            private boolean isChartLocked = false;
-
-            @Override
-            public boolean onTouch(View v, MotionEvent event) {
-                switch (event.getAction()) {
-                    case MotionEvent.ACTION_DOWN:
-                        startX = event.getX();
-                        startY = event.getY();
-                        startTime = System.currentTimeMillis();
-                        isChartLocked = false;
-                        // Initially, let the parent be able to intercept
-                        v.getParent().requestDisallowInterceptTouchEvent(false);
-                        break;
-
-                    case MotionEvent.ACTION_MOVE:
-                        float deltaX = Math.abs(event.getX() - startX);
-                        float deltaY = Math.abs(event.getY() - startY);
-                        long duration = System.currentTimeMillis() - startTime;
-
-                        // 1. If user holds for longer than 200ms, lock to the chart
-                        if (duration > LONG_PRESS_TIMEOUT && !isChartLocked) {
-                            isChartLocked = true;
-                            v.getParent().requestDisallowInterceptTouchEvent(true);
-                        }
-
-                        // 2. If user moves horizontally (panning chart) more than vertically
-                        if (deltaX > SCROLL_THRESHOLD && deltaX > deltaY && !isChartLocked) {
-                            isChartLocked = true;
-                            v.getParent().requestDisallowInterceptTouchEvent(true);
-                        }
-
-                        // 3. If it's a clear vertical swipe and we aren't locked, let parent scroll
-                        if (deltaY > SCROLL_THRESHOLD && deltaY > deltaX && !isChartLocked) {
-                            v.getParent().requestDisallowInterceptTouchEvent(false);
-                            return false; // Exit and let ScrollView take over
-                        }
-                        break;
-
-                    case MotionEvent.ACTION_UP:
-                    case MotionEvent.ACTION_CANCEL:
-                        v.getParent().requestDisallowInterceptTouchEvent(false);
-                        isChartLocked = false;
-                        break;
-                }
-
-                // Forward events to chart for zoom/panning if we are locked or touching
-                v.onTouchEvent(event);
-                return true;
+        sub.setOnTouchListener((v, event) -> {
+            switch (event.getAction()) {
+                case MotionEvent.ACTION_DOWN:
+                case MotionEvent.ACTION_MOVE:
+                    v.getParent().requestDisallowInterceptTouchEvent(true); break;
+                case MotionEvent.ACTION_UP:
+                case MotionEvent.ACTION_CANCEL:
+                    v.getParent().requestDisallowInterceptTouchEvent(false); break;
             }
+            v.onTouchEvent(event);
+            return true;
         });
 
         return sub;
@@ -626,28 +523,18 @@ public class StockChart implements SessionCallback {
         sub.getXAxis().setValueFormatter(xFormatter);
     }
 
-    /**
-     * Fill a sub-chart with indicator data and sync its viewport to the main chart.
-     * @param isNew true on first population — applies the same initial 60-candle view.
-     */
     private void populateSubChart(LineChart sub, Indicator ind,
                                   ArrayList<Candle> snap, boolean isNew) {
         Indicator.Result res = ind.compute(snap);
-        if (res.subChartLines.isEmpty()) {
-            sub.setVisibility(View.GONE);
-            return;
-        }
+        if (res.subChartLines.isEmpty()) { sub.setVisibility(View.GONE); return; }
         sub.setVisibility(View.VISIBLE);
 
         LineData d = new LineData();
         for (LineDataSet s : res.subChartLines) {
-            s.setDrawCircles(false);
-            s.setDrawValues(false);
-            d.addDataSet(s);
+            s.setDrawCircles(false); s.setDrawValues(false); d.addDataSet(s);
         }
         sub.setData(d);
 
-        // Apply fixed Y range if the indicator supplies one (e.g. RSI 0–100)
         if (!Float.isNaN(res.subChartMin) && !Float.isNaN(res.subChartMax)) {
             sub.getAxisRight().setAxisMinimum(res.subChartMin);
             sub.getAxisRight().setAxisMaximum(res.subChartMax);
@@ -661,22 +548,17 @@ public class StockChart implements SessionCallback {
         sub.notifyDataSetChanged();
 
         if (isNew) {
-            // First paint: mirror the main chart's initial 60-candle view
             int total = snap.size();
             sub.fitScreen();
             if (total > 60) {
                 sub.setVisibleXRangeMaximum(60f);
                 sub.setVisibleXRangeMinimum(10f);
                 sub.moveViewToX(total - 1);
-                mainHandler.postDelayed(() -> {
-                    sub.setVisibleXRangeMaximum(total);
-                    sub.postInvalidate();
-                }, 120);
+                mainHandler.postDelayed(() -> { sub.setVisibleXRangeMaximum(total); sub.postInvalidate(); }, 120);
             } else {
                 sub.moveViewToX(total - 1);
             }
         } else {
-            // Subsequent updates: keep viewport exactly in sync with main chart
             syncSubChartToMain(sub);
         }
 
@@ -684,32 +566,18 @@ public class StockChart implements SessionCallback {
         sub.postInvalidate();
     }
 
-    // ── Viewport sync helpers ─────────────────────────────────────────
-
-    /**
-     * Push the main chart's current viewport to ALL sub-charts.
-     * Called after main chart gestures and after zoom buttons.
-     */
+    // ── Viewport sync ──────────────────────────────────────────────────
     private void syncSubChartsToMain() {
-        for (LineChart sub : subChartViews.values()) {
-            syncSubChartToMain(sub);
-        }
+        for (LineChart sub : subChartViews.values()) syncSubChartToMain(sub);
     }
 
-    /** Sync one sub-chart to match the main chart's X viewport. */
     private void syncSubChartToMain(LineChart sub) {
-        if (sub == null || sub.getData() == null) return;
-        if (chart.getData() == null) return;
-
-        float lo    = chart.getLowestVisibleX();
-        float range = chart.getVisibleXRange();
-
+        if (sub == null || sub.getData() == null || chart.getData() == null) return;
+        float lo = chart.getLowestVisibleX(), range = chart.getVisibleXRange();
         if (range <= 0) return;
-
         sub.setVisibleXRangeMaximum(range);
         sub.setVisibleXRangeMinimum(range);
         sub.moveViewToX(lo);
-        // Immediately unlock range so user can zoom the sub-chart
         mainHandler.postDelayed(() -> {
             int total = allCandles.size();
             sub.setVisibleXRangeMinimum(10f);
@@ -718,74 +586,53 @@ public class StockChart implements SessionCallback {
         }, 30);
     }
 
-    /**
-     * When user pans/zooms a sub-chart, push that viewport back to the main chart
-     * and all other sub-charts, and update the pin state.
-     */
     private void syncMainChartFromSub(LineChart sub) {
         if (sub.getData() == null || chart.getData() == null) return;
-
-        float lo    = sub.getLowestVisibleX();
-        float range = sub.getVisibleXRange();
+        float lo = sub.getLowestVisibleX(), range = sub.getVisibleXRange();
         if (range <= 0) return;
-
         int total = allCandles.size();
-
-        // Push to main chart
-        chart.setVisibleXRangeMaximum(range);
-        chart.setVisibleXRangeMinimum(range);
+        chart.setVisibleXRangeMaximum(range); chart.setVisibleXRangeMinimum(range);
         chart.moveViewToX(lo);
         mainHandler.postDelayed(() -> {
-            chart.setVisibleXRangeMinimum(10f);
-            chart.setVisibleXRangeMaximum(total);
-            chart.postInvalidate();
-            updatePinState();
+            chart.setVisibleXRangeMinimum(10f); chart.setVisibleXRangeMaximum(total);
+            chart.postInvalidate(); updatePinState();
         }, 30);
-
-        // Push to all OTHER sub-charts
-        for (Map.Entry<String, LineChart> entry : subChartViews.entrySet()) {
-            LineChart other = entry.getValue();
+        for (Map.Entry<String, LineChart> e : subChartViews.entrySet()) {
+            LineChart other = e.getValue();
             if (other == sub || other.getData() == null) continue;
-            other.setVisibleXRangeMaximum(range);
-            other.setVisibleXRangeMinimum(range);
+            other.setVisibleXRangeMaximum(range); other.setVisibleXRangeMinimum(range);
             other.moveViewToX(lo);
-            mainHandler.postDelayed(() -> {
-                other.setVisibleXRangeMinimum(10f);
-                other.setVisibleXRangeMaximum(total);
-                other.postInvalidate();
-            }, 30);
+            mainHandler.postDelayed(() -> { other.setVisibleXRangeMinimum(10f); other.setVisibleXRangeMaximum(total); other.postInvalidate(); }, 30);
         }
     }
 
-    /** Apply weight-based height to the NestedScrollView */
     private void setScrollerWeight(float weight) {
         if (subChartsScroller == null) return;
         ViewGroup.LayoutParams rawLp = subChartsScroller.getLayoutParams();
-        LinearLayout.LayoutParams lp = (LinearLayout.LayoutParams) rawLp;
-        lp.weight  = weight;
-        lp.height  = 0;
-        subChartsScroller.setLayoutParams(lp);
+        if (rawLp instanceof LinearLayout.LayoutParams) {
+            LinearLayout.LayoutParams lp = (LinearLayout.LayoutParams) rawLp;
+            lp.weight = weight; lp.height = 0;
+            subChartsScroller.setLayoutParams(lp);
+        }
     }
 
-    // ── Price limit line ─────────────────────────────────────────────
+    // ── Price line ─────────────────────────────────────────────────────
     private void updateCurrentPriceLine(Candle latest) {
         YAxis left = chart.getAxisLeft();
         if (currentPriceLine != null) left.removeLimitLine(currentPriceLine);
         boolean isUp = latest.close >= latest.open;
         int c = isUp ? COLOR_UP : COLOR_DOWN;
-        currentPriceLine = new LimitLine((float) latest.close,
+        currentPriceLine = new LimitLine((float)latest.close,
                 String.format(Locale.US, "%.5f", latest.close));
-        currentPriceLine.setLineColor(c);
-        currentPriceLine.setLineWidth(1f);
+        currentPriceLine.setLineColor(c);   currentPriceLine.setLineWidth(1f);
         currentPriceLine.enableDashedLine(8f, 4f, 0f);
-        currentPriceLine.setTextColor(c);
-        currentPriceLine.setTextSize(9f);
+        currentPriceLine.setTextColor(c);   currentPriceLine.setTextSize(9f);
         currentPriceLine.setLabelPosition(LimitLine.LimitLabelPosition.RIGHT_TOP);
         left.addLimitLine(currentPriceLine);
         left.setDrawLimitLinesBehindData(false);
     }
 
-    // ── X formatter factory ───────────────────────────────────────────
+    // ── X formatter ────────────────────────────────────────────────────
     private ValueFormatter buildXFormatter(ArrayList<Candle> snap) {
         return new ValueFormatter() {
             final SimpleDateFormat dailyFmt = new SimpleDateFormat("MMM dd", Locale.getDefault());
@@ -801,185 +648,136 @@ public class StockChart implements SessionCallback {
         };
     }
 
-    // ── Data generators ───────────────────────────────────────────────
+    // ── Data generators ────────────────────────────────────────────────
     private CandleData generateCandleData(ArrayList<Candle> c) {
         List<CandleEntry> e = new ArrayList<>();
-        for (int i = 0; i < c.size(); i++) {
-            Candle cv = c.get(i);
-            e.add(new CandleEntry(i, (float)cv.high, (float)cv.low, (float)cv.open, (float)cv.close));
-        }
-        CandleDataSet s = new CandleDataSet(e, "Prices");
-        s.setDecreasingColor(COLOR_DOWN);  s.setDecreasingPaintStyle(Paint.Style.FILL);
-        s.setIncreasingColor(COLOR_UP);    s.setIncreasingPaintStyle(Paint.Style.FILL);
-        s.setNeutralColor(Color.GRAY);     s.setShadowColorSameAsCandle(true);
-        s.setShadowWidth(1.5f);            s.setBarSpace(0.1f);
-        s.setDrawValues(false);            s.setHighlightEnabled(true);
+        for (int i=0;i<c.size();i++) { Candle cv=c.get(i); e.add(new CandleEntry(i,(float)cv.high,(float)cv.low,(float)cv.open,(float)cv.close)); }
+        CandleDataSet s = new CandleDataSet(e,"Prices");
+        s.setDecreasingColor(COLOR_DOWN); s.setDecreasingPaintStyle(Paint.Style.FILL);
+        s.setIncreasingColor(COLOR_UP);   s.setIncreasingPaintStyle(Paint.Style.FILL);
+        s.setNeutralColor(Color.GRAY); s.setShadowColorSameAsCandle(true); s.setShadowWidth(1.5f);
+        s.setBarSpace(0.1f); s.setDrawValues(false); s.setHighlightEnabled(true);
         s.setHighLightColor(COLOR_HIGHLIGHT); s.setHighlightLineWidth(1f);
-        s.enableDashedHighlightLine(8f, 4f, 0f);
-        s.setAxisDependency(YAxis.AxisDependency.LEFT);
+        s.enableDashedHighlightLine(8f,4f,0f); s.setAxisDependency(YAxis.AxisDependency.LEFT);
         return new CandleData(s);
     }
 
     private CandleData generateOhlcBarData(ArrayList<Candle> c) {
         List<CandleEntry> e = new ArrayList<>();
-        for (int i = 0; i < c.size(); i++) {
-            Candle cv = c.get(i);
-            e.add(new CandleEntry(i, (float)cv.high, (float)cv.low, (float)cv.open, (float)cv.close));
-        }
-        CandleDataSet s = new CandleDataSet(e, "Prices");
-        s.setDecreasingColor(COLOR_DOWN);  s.setDecreasingPaintStyle(Paint.Style.STROKE);
-        s.setIncreasingColor(COLOR_UP);    s.setIncreasingPaintStyle(Paint.Style.STROKE);
-        s.setNeutralColor(Color.GRAY);     s.setShadowColorSameAsCandle(true);
-        s.setShadowWidth(1.5f);            s.setBarSpace(0.3f);
-        s.setDrawValues(false);            s.setHighlightEnabled(true);
+        for (int i=0;i<c.size();i++) { Candle cv=c.get(i); e.add(new CandleEntry(i,(float)cv.high,(float)cv.low,(float)cv.open,(float)cv.close)); }
+        CandleDataSet s = new CandleDataSet(e,"Prices");
+        s.setDecreasingColor(COLOR_DOWN); s.setDecreasingPaintStyle(Paint.Style.STROKE);
+        s.setIncreasingColor(COLOR_UP);   s.setIncreasingPaintStyle(Paint.Style.STROKE);
+        s.setNeutralColor(Color.GRAY); s.setShadowColorSameAsCandle(true); s.setShadowWidth(1.5f);
+        s.setBarSpace(0.3f); s.setDrawValues(false); s.setHighlightEnabled(true);
         s.setHighLightColor(COLOR_HIGHLIGHT); s.setHighlightLineWidth(1f);
-        s.enableDashedHighlightLine(8f, 4f, 0f);
-        s.setAxisDependency(YAxis.AxisDependency.LEFT);
+        s.enableDashedHighlightLine(8f,4f,0f); s.setAxisDependency(YAxis.AxisDependency.LEFT);
         return new CandleData(s);
     }
 
     private LineDataSet generateLineData(ArrayList<Candle> c) {
         List<Entry> e = new ArrayList<>();
-        for (int i = 0; i < c.size(); i++) e.add(new Entry(i, (float)c.get(i).close));
-        LineDataSet s = new LineDataSet(e, "Close");
-        s.setColor(COLOR_LINE);    s.setLineWidth(1.8f);
-        s.setDrawCircles(false);   s.setDrawValues(false);
-        s.setMode(LineDataSet.Mode.LINEAR);
-        s.setDrawFilled(true);     s.setFillColor(COLOR_LINE); s.setFillAlpha(25);
-        s.setHighlightEnabled(true); s.setHighLightColor(COLOR_HIGHLIGHT);
-        s.setHighlightLineWidth(1f); s.enableDashedHighlightLine(8f, 4f, 0f);
-        s.setAxisDependency(YAxis.AxisDependency.LEFT);
+        for (int i=0;i<c.size();i++) e.add(new Entry(i,(float)c.get(i).close));
+        LineDataSet s = new LineDataSet(e,"Close");
+        s.setColor(COLOR_LINE); s.setLineWidth(1.8f); s.setDrawCircles(false); s.setDrawValues(false);
+        s.setMode(LineDataSet.Mode.LINEAR); s.setDrawFilled(true); s.setFillColor(COLOR_LINE); s.setFillAlpha(25);
+        s.setHighlightEnabled(true); s.setHighLightColor(COLOR_HIGHLIGHT); s.setHighlightLineWidth(1f);
+        s.enableDashedHighlightLine(8f,4f,0f); s.setAxisDependency(YAxis.AxisDependency.LEFT);
         return s;
     }
 
     private BarData generateVolumeData(ArrayList<Candle> c) {
         List<BarEntry> e = new ArrayList<>();
         int[] colors = new int[c.size()];
-        for (int i = 0; i < c.size(); i++) {
-            Candle cv = c.get(i);
-            e.add(new BarEntry(i, cv.volume));
-            if      (cv.close > cv.open) colors[i] = COLOR_VOL_UP;
-            else if (cv.close < cv.open) colors[i] = COLOR_VOL_DOWN;
-            else                         colors[i] = COLOR_VOL_NEUTRAL;
+        for (int i=0;i<c.size();i++) {
+            Candle cv=c.get(i); e.add(new BarEntry(i,cv.volume));
+            if      (cv.close>cv.open) colors[i]=COLOR_VOL_UP;
+            else if (cv.close<cv.open) colors[i]=COLOR_VOL_DOWN;
+            else                        colors[i]=COLOR_VOL_NEUTRAL;
         }
-        BarDataSet s = new BarDataSet(e, "Volume");
-        s.setColors(colors);
-        s.setAxisDependency(YAxis.AxisDependency.RIGHT);
-        s.setDrawValues(false);
-        s.setHighlightEnabled(false);
-        BarData bd = new BarData(s);
-        bd.setBarWidth(0.8f);
+        BarDataSet s = new BarDataSet(e,"Volume");
+        s.setColors(colors); s.setAxisDependency(YAxis.AxisDependency.RIGHT);
+        s.setDrawValues(false); s.setHighlightEnabled(false);
+        BarData bd = new BarData(s); bd.setBarWidth(0.8f);
         return bd;
     }
 
-    // ── Utility ───────────────────────────────────────────────────────
+    // ── Utility ────────────────────────────────────────────────────────
     private int dpToPx(int dp) {
         return Math.round(dp * activityContext.getResources().getDisplayMetrics().density);
     }
-
     private String formatVolume(long v) {
-        if (v >= 1_000_000) return String.format(Locale.US, "%dM", v / 1_000_000);
-        if (v >= 1_000)     return String.format(Locale.US, "%dK", v / 1_000);
-        return String.format(Locale.US, "%d", v);
+        if (v>=1_000_000) return String.format(Locale.US,"%dM",v/1_000_000);
+        if (v>=1_000)     return String.format(Locale.US,"%dK",v/1_000);
+        return String.format(Locale.US,"%d",v);
     }
 
-    // ── Stream update ─────────────────────────────────────────────────
+    // ── Stream update ──────────────────────────────────────────────────
     private void streamUpdate(List<Candle> chunk) {
-        if (chunk == null || chunk.isEmpty()) return;
+        if (chunk==null||chunk.isEmpty()) return;
         Candle live = chunk.get(0);
         synchronized (allCandles) {
-            if (allCandles.isEmpty() && !done) { streamBuffer.addAll(chunk); return; }
+            if (allCandles.isEmpty()&&!done) { streamBuffer.addAll(chunk); return; }
             if (allCandles.isEmpty()) return;
-            Candle last = allCandles.get(allCandles.size() - 1);
-            if (last.timestamp + interval.interval > live.timestamp) {
-                allCandles.set(allCandles.size() - 1, new Candle(
-                        last.timestamp, last.open,
-                        Math.max(live.high, last.high),
-                        Math.min(live.low, last.low),
-                        live.close, last.volume + live.volume));
+            Candle last = allCandles.get(allCandles.size()-1);
+            if (last.timestamp+interval.interval>live.timestamp) {
+                allCandles.set(allCandles.size()-1, new Candle(last.timestamp,last.open,
+                        Math.max(live.high,last.high),Math.min(live.low,last.low),live.close,last.volume+live.volume));
             } else {
-                allCandles.add(new Candle(
-                        last.timestamp + interval.interval,
-                        live.open, live.high, live.low, live.close, live.volume));
+                allCandles.add(new Candle(last.timestamp+interval.interval,live.open,live.high,live.low,live.close,live.volume));
             }
         }
         triggerChartUpdate(true);
     }
 
-    // ── SessionCallback ───────────────────────────────────────────────
+    // ── SessionCallback ────────────────────────────────────────────────
     @Override
     public void onDataReceived(DataType msgType, Object parsedData) {
-        if (msgType == DataType.TICKER_ERROR) {
-            mainHandler.post(() -> Toast.makeText(activityContext,
-                    (String) parsedData, Toast.LENGTH_SHORT).show());
-            flushRequests();
-            return;
+        if (msgType==DataType.TICKER_ERROR) {
+            mainHandler.post(()->Toast.makeText(activityContext,(String)parsedData,Toast.LENGTH_SHORT).show());
+            flushRequests(); return;
         }
         if (!(parsedData instanceof PriceChunk)) return;
-        PriceChunk chunk = (PriceChunk) parsedData;
+        PriceChunk chunk=(PriceChunk)parsedData;
         if (!reqIds.contains(chunk.reqId)) return;
-
         switch (msgType) {
             case TICKER_STREAM:
                 streamUpdate(chunk.chunk);
-                if (chainedListener != null) {
-                    synchronized (allCandles) {
-                        if (!allCandles.isEmpty())
-                            chainedListener.onDataReceived(DataType.MARKET_DATA,
-                                    allCandles.get(allCandles.size() - 1).close);
-                    }
+                if (chainedListener!=null) synchronized(allCandles) {
+                    if (!allCandles.isEmpty())
+                        chainedListener.onDataReceived(DataType.MARKET_DATA,allCandles.get(allCandles.size()-1).close);
                 }
                 break;
-            case TICKER_SNAPSHOT:
-                addChunk(chunk.chunk);
-                break;
+            case TICKER_SNAPSHOT: addChunk(chunk.chunk); break;
             case TICKER_REQUEST_DONE:
                 reqIds.remove(chunk.reqId);
-                if (chainedListener != null) {
-                    done = true;
-                    for (Candle buffed : streamBuffer) streamUpdate(List.of(buffed));
-                    synchronized (allCandles) {
+                if (chainedListener!=null) {
+                    done=true;
+                    for (Candle b:streamBuffer) streamUpdate(List.of(b));
+                    synchronized(allCandles) {
                         if (!allCandles.isEmpty())
-                            chainedListener.onDataReceived(DataType.MARKET_DATA,
-                                    allCandles.get(allCandles.size() - 1).close);
+                            chainedListener.onDataReceived(DataType.MARKET_DATA,allCandles.get(allCandles.size()-1).close);
                     }
                 }
                 break;
         }
     }
-
     @Override public void onActionRequired(int a, @Nullable Object d) {}
 
-    // ── Public lifecycle API ──────────────────────────────────────────
+    // ── Lifecycle ──────────────────────────────────────────────────────
     public void clearChart() {
-        allCandles.clear();
-        done               = false;
-        streamBuffer.clear();
-        isPinnedToRight    = true;
-        initialViewApplied = false;
-        savedLowestX       = -1f;
-        savedHighestX      = -1f;
-        if (currentPriceLine != null) {
-            chart.getAxisLeft().removeLimitLine(currentPriceLine);
-            currentPriceLine = null;
-        }
+        allCandles.clear(); done=false; streamBuffer.clear();
+        isPinnedToRight=true; initialViewApplied=false;
+        savedLowestX=-1f; savedHighestX=-1f;
+        if (currentPriceLine!=null) { chart.getAxisLeft().removeLimitLine(currentPriceLine); currentPriceLine=null; }
     }
-
     public void addToCurrentRequest(int reqId) { this.reqIds.add(reqId); }
-
     public void flushRequests() {
         NetworkClient.getInstance(null).getSessionManager()
                 .discardRequests(reqIds.stream().mapToInt(Integer::intValue).toArray());
         this.reqIds.clear();
     }
-
-    public void bindListener(SessionCallback l) { this.chainedListener = l; }
+    public void bindListener(SessionCallback l) { this.chainedListener=l; }
     public boolean isDone() { return done; }
-    public void setInterval(StockDataHelper.Timeframe tf) { this.interval = tf; }
-
-    public ArrayList<Candle> getAllCandles(){
-        synchronized (allCandles){
-        return new ArrayList<>(allCandles);
-        }
-    }
+    public void setInterval(StockDataHelper.Timeframe tf) { this.interval=tf; }
 }

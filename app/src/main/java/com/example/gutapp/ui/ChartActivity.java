@@ -50,11 +50,13 @@ import com.example.gutapp.session.Requests.RequestTickerData;
 import com.example.gutapp.session.Requests.SendOrder;
 import com.example.gutapp.session.Requests.TickerInfoRequest;
 import com.example.gutapp.session.SessionCallback;
+import com.example.gutapp.ui.fragments.DrawingToolbarFragment;
 import com.example.gutapp.ui.fragments.IndicatorsPanel;
 import com.example.gutapp.ui.fragments.OrdersList;
-import com.github.mikephil.charting.charts.CombinedChart;
 import com.google.android.material.bottomsheet.BottomSheetDialog;
 import com.google.android.material.snackbar.Snackbar;
+import com.example.gutapp.ui.chart.DrawingChart;
+import com.example.gutapp.data.drawing.DrawingManager;
 
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -117,7 +119,7 @@ public class ChartActivity extends SessionActivity implements
         CurrentSessionHolder.set(indicatorSession);
 
         // ── Chart setup ────────────────────────────────────────────
-        CombinedChart chart = findViewById(R.id.stockChart);
+        DrawingChart chart = findViewById(R.id.stockChart);
         chartContainer = new StockChart(chart, this);
         chartContainer.setupChart(findViewById(R.id.candleDataTextView));
         chartContainer.bindListener(this);
@@ -143,6 +145,7 @@ public class ChartActivity extends SessionActivity implements
         findViewById(R.id.btnZoomOut).setOnClickListener(this);
         findViewById(R.id.btnZoomReset).setOnClickListener(this);
         findViewById(R.id.btnCalculateBias).setOnClickListener(this);
+        findViewById(R.id.drawingPanel).setOnClickListener(this);
 
 
 
@@ -177,6 +180,7 @@ public class ChartActivity extends SessionActivity implements
         NetworkClient.getInstance(null).getSessionManager()
                 .pushRequest(new FetchOrders(symbol, FetchOrders.OrderView.ACTIVE, 0, this));
 
+        DrawingToolbarFragment sheet = DrawingToolbarFragment.newInstance(chartContainer.getDrawingChart());
         refreshIndicatorChip();
     }
 
@@ -262,6 +266,7 @@ public class ChartActivity extends SessionActivity implements
             Snackbar.make(v, "Market Bias: " + finalScore + "/100 (" + sentiment + ")",
                     Snackbar.LENGTH_LONG).show();
         }
+        else if(id == R.id.drawingPanel) openDrawingPanel();
     }
 
     // ── Chart type / timeframe switchers ───────────────────────────────
@@ -321,6 +326,11 @@ public class ChartActivity extends SessionActivity implements
             indBtn.setText("⊕ Indicators");
             indBtn.setTextColor(Color.parseColor("#78909C"));
         }
+    }
+
+    private void openDrawingPanel(){
+        DrawingToolbarFragment sheet = DrawingToolbarFragment.newInstance(chartContainer.getDrawingChart());
+       sheet.show(getSupportFragmentManager(), "drawing_tools");
     }
 
     // ── Preset picker ─────────────────────────────────────────────────
@@ -742,5 +752,21 @@ public class ChartActivity extends SessionActivity implements
             ((ProgressBar) findViewById(R.id.pbAiLoading)).setVisibility(View.GONE);
             Toast.makeText(this, "AI analysis failed", LENGTH_SHORT).show();
         });
+    }
+
+    /**
+     * Activate a drawing tool. Call with null to return to normal pan/zoom.
+     * Example:
+     *   setDrawingTool(DrawingManager.DrawingTool.HORIZONTAL_LINE);
+     *   setDrawingTool(null); // deactivate
+     */
+    private void setDrawingTool(@Nullable DrawingManager.DrawingTool tool) {
+        chartContainer.getDrawingChart().getDrawingManager().setActiveTool(tool);
+        // Visual feedback: update active tool button state in your toolbar
+    }
+
+    private void clearAllUserDrawings() {
+        chartContainer.getDrawingChart().getDrawingManager().clearUserDrawings();
+        chartContainer.getDrawingChart().postInvalidate();
     }
 }

@@ -2,6 +2,7 @@ package com.example.gutapp.data.indicators;
 
 import android.graphics.Color;
 
+import com.example.gutapp.data.drawing.ChartDrawing;
 import com.example.gutapp.data.models.Candle;
 import com.github.mikephil.charting.data.LineDataSet;
 
@@ -10,16 +11,13 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * Base class for all chart indicators.
+ * Indicator — base class for all chart indicators.
  *
- * KEY CHANGES vs previous version:
- *  - instanceId: each ADDED indicator gets a unique UUID, allowing multiple
- *    instances of the same type (e.g., MA(20) and MA(50) both active at once).
- *  - color: user-selectable color stored per-instance.
- *  - newInstance(): each Indicator subclass must be able to produce a fresh copy
- *    of itself (used when user adds another instance of the same type).
- *  - The registry now stores TYPES (factories), not live instances.
- *    Live instances are stored in IndicatorSession.
+ * Key additions in this version:
+ *  - Result.drawings: indicators can now produce ChartDrawing objects in addition to
+ *    line datasets. These appear as locked overlays on the DrawingChart canvas.
+ *    Example: a support/resistance indicator can emit HorizontalLine drawings.
+ *    Example: a pivot point indicator can emit multiple HorizontalLine drawings.
  */
 public abstract class Indicator {
 
@@ -44,34 +42,80 @@ public abstract class Indicator {
     }
 
     // ── Result container ──────────────────────────────────────────────
+    /**
+     * Everything an indicator can produce in one compute() call:
+     *
+     *  overlayLines   → LineDataSet objects drawn ON the main price chart
+     *  subChartLines  → LineDataSet objects drawn in a separate pane below
+     *  drawings       → ChartDrawing objects (locked, INDICATOR source) drawn
+     *                   on the DrawingChart canvas — supports all drawing types:
+     *                   horizontal lines, trend lines, regression channels, etc.
+     *
+     * Indicators should only populate the lists they need. An indicator can
+     * use ANY combination (e.g. VWAP = one overlayLine; a Pivot Point indicator
+     * might produce zero lines but several HorizontalLine drawings).
+     */
     public static class Result {
-        public final List<LineDataSet> overlayLines   = new ArrayList<>();
-        public final List<LineDataSet> subChartLines  = new ArrayList<>();
+        public final List<LineDataSet>    overlayLines  = new ArrayList<>();
+        public final List<LineDataSet>    subChartLines = new ArrayList<>();
+        public final List<ChartDrawing>   drawings      = new ArrayList<>();
+
+        // Sub-chart Y-axis range hints (Float.NaN = auto)
         public float subChartMin = Float.NaN;
         public float subChartMax = Float.NaN;
+
+        // ── Helper factories for common drawing types ─────────────────
+
+        /** Add a locked horizontal line at a fixed price (e.g. RSI 70/30 level) */
+        public void addHorizontalLine(double price, String label,
+                                      ChartDrawing.DrawingStyle style) {
+            drawings.add(new ChartDrawing.HorizontalLine(
+                    price, label, style, ChartDrawing.Source.INDICATOR));
+        }
+
+        /** Add a locked trend line */
+        public void addTrendLine(int startIdx, double startPrice,
+                                 int endIdx, double endPrice,
+                                 ChartDrawing.DrawingStyle style) {
+            drawings.add(new ChartDrawing.TrendLine(
+                    startIdx, startPrice, endIdx, endPrice,
+                    style, ChartDrawing.Source.INDICATOR));
+        }
+
+        /** Add a locked linear regression channel */
+        public void addRegressionChannel(int startIdx, int endIdx,
+                                         ChartDrawing.DrawingStyle style) {
+            ChartDrawing.LinearRegression r = new ChartDrawing.LinearRegression(
+                    startIdx, endIdx, style, ChartDrawing.Source.INDICATOR);
+            r.drawChannel = true;
+            drawings.add(r);
+        }
+
+        /** Add a locked price range / zone */
+        public void addPriceRange(double high, double low,
+                                  ChartDrawing.DrawingStyle style) {
+            ChartDrawing.DrawingStyle s = new ChartDrawing.DrawingStyle(
+                    style.color, style.strokeWidth, style.dashed);
+            s.filled = true;
+            drawings.add(new ChartDrawing.PriceRange(
+                    high, low, s, ChartDrawing.Source.INDICATOR));
+        }
     }
 
     // ── Instance identity ─────────────────────────────────────────────
-    /** Unique per-instance ID (UUID). Two MA(20) indicators have different instanceIds. */
     private String instanceId = UUID.randomUUID().toString();
-    /** User-chosen display color for the main line of this indicator */
-    private int color = Color.parseColor("#FFC107"); // default amber
+    private int    color      = Color.parseColor("#FFC107");
 
-    public String getInstanceId() { return instanceId; }
+    public String getInstanceId()       { return instanceId; }
     public void   setInstanceId(String id) { this.instanceId = id; }
-    public int    getColor()      { return color; }
-    public void   setColor(int c) { this.color = c; }
+    public int    getColor()            { return color; }
+    public void   setColor(int c)       { this.color = c; }
 
-    // ── Type identity (class-level, not instance-level) ───────────────
-    public abstract String getId();          // type id: "ma", "ema", "rsi"
-    public abstract String getDisplayName(); // "Moving Average"
-    public abstract String getTag();         // "MA"
+    // ── Type identity ─────────────────────────────────────────────────
+    public abstract String  getId();
+    public abstract String  getDisplayName();
+    public abstract String  getTag();
     public abstract boolean isSubChart();
-
-    /**
-     * Produce a fresh instance of this indicator type with default params.
-     * Used by IndicatorSession.addInstance(typeId).
-     */
     public abstract Indicator newInstance();
 
     // ── Parameters ────────────────────────────────────────────────────
@@ -83,7 +127,9 @@ public abstract class Indicator {
         throw new IllegalArgumentException("Unknown param: " + key);
     }
     public void setParam(String key, float value) {
-        for (Param p : params) { if (p.key.equals(key)) { p.value = value; return; } }
+        for (Param p : params) {
+            if (p.key.equals(key)) { p.value = value; return; }
+        }
         throw new IllegalArgumentException("Unknown param: " + key);
     }
     public List<Param> copyParams() {
@@ -100,7 +146,7 @@ public abstract class Indicator {
     // ── Computation ───────────────────────────────────────────────────
     public abstract Result compute(ArrayList<Candle> candles);
 
-    // ── Helpers ───────────────────────────────────────────────────────
+    // ── Line helpers ──────────────────────────────────────────────────
     protected LineDataSet makeLineSet(List<com.github.mikephil.charting.data.Entry> entries,
                                       String label, int c, float width) {
         LineDataSet set = new LineDataSet(entries, label);
@@ -116,7 +162,7 @@ public abstract class Indicator {
         return set;
     }
 
-    // ── Serialization snapshot ────────────────────────────────────────
+    // ── Serialization ─────────────────────────────────────────────────
     public IndicatorSnapshot snapshot() {
         return new IndicatorSnapshot(getId(), instanceId, color, copyParams());
     }
@@ -128,17 +174,13 @@ public abstract class Indicator {
         public final List<Param> params;
         public IndicatorSnapshot(String typeId, String instanceId, int color, List<Param> params) {
             this.typeId = typeId; this.instanceId = instanceId;
-            this.color = color;   this.params = params;
+            this.color = color; this.params = params;
         }
     }
 
     /**
-     * Returns a score from 0 to 100.
-     * 0-30:   Strong Bearish
-     * 30-45:  Bearish
-     * 45-55:  Neutral
-     * 55-70:  Bullish
-     * 70-100: Strong Bullish
-     */
-    public abstract int calculateBias(ArrayList<Candle> candles);
+     * Calculates the bias of and indicator based on current price
+     * Returns a score from 0-100 (100 is bullish 0 is bearish) so the user can infer the current direction the chart might move
+    **/
+    public abstract int calculateBias(ArrayList<Candle> data);
 }
