@@ -10,7 +10,9 @@ import android.graphics.Typeface;
 import android.os.Bundle;
 import android.text.InputType;
 import android.util.Log;
+import android.view.LayoutInflater;
 import android.view.View;
+import android.view.ViewParent;
 import android.widget.EditText;
 import android.widget.ImageButton;
 import android.widget.LinearLayout;
@@ -52,6 +54,7 @@ import com.example.gutapp.ui.fragments.IndicatorsPanel;
 import com.example.gutapp.ui.fragments.OrdersList;
 import com.github.mikephil.charting.charts.CombinedChart;
 import com.google.android.material.bottomsheet.BottomSheetDialog;
+import com.google.android.material.snackbar.Snackbar;
 
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -139,6 +142,9 @@ public class ChartActivity extends SessionActivity implements
         findViewById(R.id.btnZoomIn).setOnClickListener(this);
         findViewById(R.id.btnZoomOut).setOnClickListener(this);
         findViewById(R.id.btnZoomReset).setOnClickListener(this);
+        findViewById(R.id.btnCalculateBias).setOnClickListener(this);
+
+
 
         // ── Chart type chips ───────────────────────────────────────
         btnChartCandle = findViewById(R.id.btnChartCandle);
@@ -172,6 +178,14 @@ public class ChartActivity extends SessionActivity implements
                 .pushRequest(new FetchOrders(symbol, FetchOrders.OrderView.ACTIVE, 0, this));
 
         refreshIndicatorChip();
+    }
+
+    private String getSentimentString(int score) {
+        if (score >= 70) return "Strong Bullish 🚀";
+        if (score >= 55) return "Bullish 📈";
+        if (score > 45) return "Neutral ⚖";
+        if (score > 30) return "Bearish 📉";
+        return "Strong Bearish 🩸";
     }
 
     // ── Lifecycle ──────────────────────────────────────────────────────
@@ -228,6 +242,25 @@ public class ChartActivity extends SessionActivity implements
             findViewById(R.id.btnAiAnalyze).setEnabled(false);
             ((ProgressBar) findViewById(R.id.pbAiLoading)).setVisibility(View.VISIBLE);
             performAiAnalysis();
+        }
+        else if(id == R.id.btnCalculateBias){
+            List<Indicator> active = indicatorSession.getAll();
+            if (active.isEmpty()) {
+                Toast.makeText(this, "Add indicators to calculate bias", Toast.LENGTH_SHORT).show();
+                return;
+            }
+
+            int totalScore = 0;
+            for (Indicator ind : active) {
+                totalScore += ind.calculateBias(chartContainer.getAllCandles());
+            }
+
+            int finalScore = totalScore / active.size();
+            String sentiment = getSentimentString(finalScore);
+
+            // Show a custom SnackBar or Alert
+            Snackbar.make(v, "Market Bias: " + finalScore + "/100 (" + sentiment + ")",
+                    Snackbar.LENGTH_LONG).show();
         }
     }
 
@@ -307,82 +340,42 @@ public class ChartActivity extends SessionActivity implements
     }
 
     private View buildPresetPickerView(List<PresetRepository.Preset> presets) {
-        android.content.Context ctx = this;
-        int pad = dpI(16);
+        // Inflate the XML layout
+        View v = LayoutInflater.from(this).inflate(R.layout.view_preset_picker, null);
 
-        android.widget.ScrollView scroll = new android.widget.ScrollView(ctx);
-        scroll.setBackgroundColor(Color.parseColor("#1A1818"));
-
-        LinearLayout root = new LinearLayout(ctx);
-        root.setOrientation(LinearLayout.VERTICAL);
-        root.setPadding(pad, pad, pad, dpI(40));
-        scroll.addView(root);
-
-        // ── Header ────────────────────────────────────────────────
-        LinearLayout header = new LinearLayout(ctx);
-        header.setOrientation(LinearLayout.HORIZONTAL);
-        header.setGravity(android.view.Gravity.CENTER_VERTICAL);
-        header.setPadding(0, 0, 0, dpI(12));
-
-        TextView title = new TextView(ctx);
-        title.setText("Indicator Presets");
-        title.setTextColor(Color.parseColor("#ECEFF1"));
-        title.setTextSize(16f);
-        title.setTypeface(null, Typeface.BOLD);
-        LinearLayout.LayoutParams tlp = new LinearLayout.LayoutParams(
-                0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f);
-        title.setLayoutParams(tlp);
-        header.addView(title);
-
-        // "Manage" → opens ProfileActivity
-        TextView manageBtn = new TextView(ctx);
-        manageBtn.setText("Manage ›");
-        manageBtn.setTextColor(Color.parseColor("#546E7A"));
-        manageBtn.setTextSize(12f);
-        manageBtn.setPadding(dpI(8), dpI(4), dpI(4), dpI(4));
-        manageBtn.setOnClickListener(v -> {
+        // Bind the Manage button
+        v.findViewById(R.id.btnManagePresets).setOnClickListener(view -> {
             isManagerReturned = true;
             startActivity(new Intent(this, ProfileActivity.class));
         });
-        header.addView(manageBtn);
 
-        root.addView(header);
-        root.addView(makeDivider(ctx));
+        // Get the containers
+        LinearLayout actionRowContainer = v.findViewById(R.id.actionRowContainer);
+        presetListContainer = v.findViewById(R.id.presetListContainer);
 
-        // ── Save current as new preset ────────────────────────────
-        View saveRow = makeActionRow(ctx,
-                "💾", "Save Current as Preset…",
-                "#26A69A",
-                v -> promptSaveCurrentPreset());
-        root.addView(saveRow);
+        // Add Action Rows (using your existing helpers)
+        actionRowContainer.addView(makeActionRow(this, "💾", "Save Current as Preset…", "#26A69A",
+                view -> promptSaveCurrentPreset()));
 
-        // ── Clear current session ─────────────────────────────────
-        View clearRow = makeActionRow(ctx,
-                "✕", "Clear All Indicators",
-                "#EF5350",
-                v -> {
+        actionRowContainer.addView(makeActionRow(this, "✕", "Clear All Indicators", "#EF5350",
+                view -> {
                     indicatorSession.clearAll();
                     presetRepo.autoSave(symbol, indicatorSession);
                     refreshIndicatorChip();
                     chartContainer.applyIndicators();
-                    // close the dialog — find it by traversing the view hierarchy
-                    android.view.ViewParent p = root.getParent();
+
+                    // Dismiss BottomSheet Logic
+                    ViewParent p = v.getParent();
                     while (p != null) {
                         if (p instanceof BottomSheetDialog) { ((BottomSheetDialog) p).dismiss(); break; }
-                        if (p instanceof android.view.View) p = ((android.view.View) p).getParent(); else break;
+                        p = p.getParent();
                     }
-                });
-        root.addView(clearRow);
+                }));
 
-        // ── Preset list container ──
-        presetListContainer = new LinearLayout(this);
-        presetListContainer.setOrientation(LinearLayout.VERTICAL);
-        root.addView(presetListContainer);
-
-        // Initial fill
+        // Initial fill of the preset list
         refreshPresetListUI();
 
-        return scroll;
+        return v;
     }
 
     private void refreshPresetListUI() {

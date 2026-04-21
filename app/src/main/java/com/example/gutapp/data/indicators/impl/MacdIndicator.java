@@ -51,4 +51,17 @@ public class MacdIndicator extends Indicator {
         for(int i=1;i<c.size();i++) e[i]=(c.get(i).close-e[i-1])*m+e[i-1];
         return e;
     }
+
+    @Override
+    public int calculateBias(ArrayList<Candle> candles) {
+        Result res = compute(candles);
+        if (res.subChartLines.size() < 3) return 50; // Need MACD, Signal, and Histogram
+
+        // Assuming histogram is the 3rd line in your compute() result
+        float histogram = res.subChartLines.get(2).getYMax();
+
+        if (histogram > 0) return 75; // Bullish momentum
+        if (histogram < 0) return 25; // Bearish momentum
+        return 50;
+    }
 }

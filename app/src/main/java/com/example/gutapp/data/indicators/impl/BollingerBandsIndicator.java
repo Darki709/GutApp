@@ -37,4 +37,21 @@ public class BollingerBandsIndicator extends Indicator {
         r.overlayLines.add(makeDashedLineSet(mid,"BB Mid",mid_c));
         return r;
     }
+
+    @Override
+    public int calculateBias(ArrayList<Candle> candles) {
+        Result res = compute(candles);
+        if (res.overlayLines.size() < 3) return 50;
+
+        float lastPrice = (float) candles.get(candles.size() - 1).close;
+        float upper = res.overlayLines.get(0).getYMax(); // Simplified access
+        float lower = res.overlayLines.get(2).getYMin();
+        float middle = res.overlayLines.get(1).getYMax();
+
+        if (lastPrice >= upper) return 20; // Overextended Bullish (Expect Bearish Reversal)
+        if (lastPrice <= lower) return 80; // Overextended Bearish (Expect Bullish Reversal)
+
+        // Trend following
+        return (lastPrice > middle) ? 60 : 40;
+    }
 }

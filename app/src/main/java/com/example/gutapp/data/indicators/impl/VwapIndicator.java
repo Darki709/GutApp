@@ -25,4 +25,17 @@ public class VwapIndicator extends Indicator {
         r.overlayLines.add(makeLineSet(e,"VWAP",getColor(),1.6f));
         return r;
     }
+
+    @Override
+    public int calculateBias(ArrayList<Candle> candles) {
+        Result res = compute(candles);
+        if (res.overlayLines.isEmpty()) return 50;
+
+        float lastPrice = (float) candles.get(candles.size() - 1).close;
+        float vwapVal = res.overlayLines.get(0).getValues().get(res.overlayLines.get(0).getEntryCount() - 1).getY();
+
+        if (lastPrice > vwapVal) return 75; // Strong intraday bullish
+        if (lastPrice < vwapVal) return 25; // Strong intraday bearish
+        return 50;
+    }
 }

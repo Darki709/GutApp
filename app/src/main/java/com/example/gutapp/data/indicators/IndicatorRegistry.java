@@ -1,11 +1,15 @@
 package com.example.gutapp.data.indicators;
 
+import com.example.gutapp.data.indicators.impl.AtrIndicator;
 import com.example.gutapp.data.indicators.impl.BollingerBandsIndicator;
+import com.example.gutapp.data.indicators.impl.CciIndicator;
 import com.example.gutapp.data.indicators.impl.EmaIndicator;
 import com.example.gutapp.data.indicators.impl.MacdIndicator;
 import com.example.gutapp.data.indicators.impl.MaIndicator;
 import com.example.gutapp.data.indicators.impl.RsiIndicator;
+import com.example.gutapp.data.indicators.impl.StochasticIndicator;
 import com.example.gutapp.data.indicators.impl.VwapIndicator;
+import com.example.gutapp.data.indicators.impl.WmaIndicator;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -40,6 +44,10 @@ public class IndicatorRegistry {
         register(new VwapIndicator());
         register(new RsiIndicator());
         register(new MacdIndicator());
+        register(new CciIndicator());
+        register(new StochasticIndicator());
+        register(new WmaIndicator());
+        register(new AtrIndicator());
     }
 
     private void register(Indicator prototype) {

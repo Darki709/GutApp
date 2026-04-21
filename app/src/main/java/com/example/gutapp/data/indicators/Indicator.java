@@ -131,4 +131,14 @@ public abstract class Indicator {
             this.color = color;   this.params = params;
         }
     }
+
+    /**
+     * Returns a score from 0 to 100.
+     * 0-30:   Strong Bearish
+     * 30-45:  Bearish
+     * 45-55:  Neutral
+     * 55-70:  Bullish
+     * 70-100: Strong Bullish
+     */
+    public abstract int calculateBias(ArrayList<Candle> candles);
 }

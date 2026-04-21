@@ -27,4 +27,22 @@ public class MaIndicator extends Indicator {
         r.overlayLines.add(makeLineSet(e,"MA("+period+")",getColor(),1.4f));
         return r;
     }
+    @Override
+    public int calculateBias(ArrayList<Candle> candles) {
+        if (candles.size() < (int)getParam("period")) return 50;
+
+        Result res = compute(candles);
+        float lastClose = (float) candles.get(candles.size() - 1).close;
+        float maValue = res.overlayLines.get(0).getValues().get(res.overlayLines.get(0).getEntryCount() - 1).getY();
+
+        // Price > MA is Bullish, Price < MA is Bearish
+        if (lastClose > maValue) {
+            // More bullish if price is significantly far from MA
+            float strength = (lastClose / maValue);
+            return strength > 1.05 ? 85 : 65;
+        } else {
+            float strength = (maValue / lastClose);
+            return strength > 1.05 ? 15 : 35;
+        }
+    }
 }

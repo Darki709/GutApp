@@ -8,12 +8,14 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.EditText;
+import android.widget.LinearLayout;
 import android.widget.SeekBar;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
+import com.example.gutapp.R;
 import com.example.gutapp.data.indicators.Indicator;
 import com.example.gutapp.data.indicators.IndicatorRegistry;
 import com.example.gutapp.data.indicators.IndicatorSession;
@@ -74,10 +76,31 @@ public class IndicatorsPanel extends BottomSheetDialogFragment {
     public void setListener(IndicatorListener l) { this.listener = l; }
 
     @Nullable @Override
-    public View onCreateView(@NonNull LayoutInflater inflater,
-                             @Nullable ViewGroup container,
-                             @Nullable Bundle savedInstanceState) {
-        return buildView(requireContext());
+    public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
+        View v = inflater.inflate(R.layout.fragment_indicators_panel, container, false);
+
+        activeContainer = v.findViewById(R.id.activeContainer);
+        catalogContainer = v.findViewById(R.id.catalogContainer);
+        EditText searchBar = v.findViewById(R.id.searchBar);
+
+        v.findViewById(R.id.btnClearAll).setOnClickListener(view -> {
+            session.clearAll();
+            rebuildActiveList(requireContext());
+            notifyListener();
+        });
+
+        searchBar.addTextChangedListener(new TextWatcher() {
+            @Override public void onTextChanged(CharSequence s, int a, int b, int c) {
+                searchQuery = s.toString().trim().toLowerCase();
+                rebuildCatalog(requireContext());
+            }
+            @Override public void beforeTextChanged(CharSequence s, int a, int b, int c) {}
+            @Override public void afterTextChanged(Editable s) {}
+        });
+
+        rebuildActiveList(requireContext());
+        rebuildCatalog(requireContext());
+        return v;
     }
 
     // ── Root layout ───────────────────────────────────────────────────
@@ -180,13 +203,45 @@ public class IndicatorsPanel extends BottomSheetDialogFragment {
             TextView empty = new TextView(ctx);
             empty.setText("No indicators active");
             empty.setTextColor(Color.parseColor("#546E7A"));
-            empty.setTextSize(12f);
-            empty.setPadding(0, dp(ctx,8), 0, dp(ctx,4));
+            empty.setPadding(0, dp(ctx, 8), 0, 0);
             activeContainer.addView(empty);
             return;
         }
         for (Indicator ind : all) {
-            activeContainer.addView(buildActiveRow(ctx, ind));
+            View row = LayoutInflater.from(ctx).inflate(R.layout.item_indicator_active, activeContainer, false);
+
+            // Bind UI
+            View colorDot = row.findViewById(R.id.colorDot);
+            TextView tag = row.findViewById(R.id.indicatorTag);
+            TextView name = row.findViewById(R.id.indicatorNameSummary);
+            TextView editBtn = row.findViewById(R.id.btnEdit);
+            LinearLayout editor = row.findViewById(R.id.paramEditor);
+
+            colorDot.setBackgroundColor(ind.getColor());
+            tag.setText(ind.getTag());
+            name.setText(ind.getDisplayName() + " " + buildParamSummary(ind));
+
+            // Inject Params
+            for (Indicator.Param p : ind.getParams()) {
+                editor.addView(buildParamRow(ctx, p, ind, name, (LinearLayout)row));
+            }
+
+            // Listeners
+            editBtn.setOnClickListener(v -> {
+                boolean isVisible = editor.getVisibility() == View.VISIBLE;
+                editor.setVisibility(isVisible ? View.GONE : View.VISIBLE);
+                editBtn.setTextColor(isVisible ? Color.parseColor("#78909C") : Color.parseColor("#2196F3"));
+            });
+
+            row.findViewById(R.id.btnRemove).setOnClickListener(v -> {
+                session.removeInstance(ind.getInstanceId());
+                rebuildActiveList(ctx);
+                notifyListener();
+            });
+
+            colorDot.setOnClickListener(v -> showColorPicker(ctx, ind, colorDot));
+
+            activeContainer.addView(row);
         }
     }
 

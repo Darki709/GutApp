@@ -54,9 +54,7 @@ public class ProfileActivity extends SessionActivity implements IndicatorsPanel.
     private PresetRepository repo;
     private LinearLayout presetsContainer;
 
-    // The session being edited right now (null when no panel is open)
     private IndicatorSession editingSession = null;
-    // The name of the preset being edited (null when creating new)
     private String editingPresetName = null;
 
     @Override
@@ -64,11 +62,16 @@ public class ProfileActivity extends SessionActivity implements IndicatorsPanel.
         super.onCreate(savedInstanceState);
         EdgeToEdge.enable(this);
         setContentView(R.layout.activity_profile);
-        ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main), (v, insets) -> {
-            Insets sb = insets.getInsets(WindowInsetsCompat.Type.systemBars());
-            v.setPadding(sb.left, sb.top, sb.right, sb.bottom);
-            return insets;
-        });
+
+        // Ensure the main layout ID matches your XML (usually 'main' in EdgeToEdge templates)
+        View mainView = findViewById(R.id.main);
+        if (mainView != null) {
+            ViewCompat.setOnApplyWindowInsetsListener(mainView, (v, insets) -> {
+                Insets sb = insets.getInsets(WindowInsetsCompat.Type.systemBars());
+                v.setPadding(sb.left, sb.top, sb.right, sb.bottom);
+                return insets;
+            });
+        }
 
         repo = new PresetRepository(this);
         presetsContainer = findViewById(R.id.presetsContainer);
@@ -76,7 +79,6 @@ public class ProfileActivity extends SessionActivity implements IndicatorsPanel.
         View back = findViewById(R.id.btnBack);
         if (back != null) back.setOnClickListener(v -> finish());
 
-        // User info
         TextView tvName = findViewById(R.id.tvProfileName);
         if (tvName != null)
             tvName.setText(UserGlobals.USER_NAME != null ? UserGlobals.USER_NAME : "—");
@@ -86,45 +88,43 @@ public class ProfileActivity extends SessionActivity implements IndicatorsPanel.
             UserGlobals.getBalance().observe(this,
                     b -> tvBalance.setText(String.format(Locale.US, "$%.4f", b)));
 
-        // "+ New Preset" → ask for name first, then open editor panel
         View newBtn = findViewById(R.id.btnNewPreset);
         if (newBtn != null) newBtn.setOnClickListener(v -> promptNewPresetName());
 
         renderPresets();
     }
 
-    // ── New preset flow ───────────────────────────────────────────────
-
-    /**
-     * Step 1: ask for a name, then open the indicator panel to configure.
-     */
     private void promptNewPresetName() {
-        EditText input = new EditText(this);
-        input.setInputType(InputType.TYPE_CLASS_TEXT);
-        input.setHint("e.g. Trend Setup, Scalping…");
-        input.setTextColor(Color.parseColor("#ECEFF1"));
-        input.setHintTextColor(Color.parseColor("#546E7A"));
-        input.setBackgroundColor(Color.parseColor("#252323"));
-        input.setPadding(dp(14), dp(10), dp(14), dp(10));
+        // Create a container for padding around the EditText in the dialog
+        LinearLayout container = new LinearLayout(this);
+        container.setOrientation(LinearLayout.VERTICAL);
+        int p = dp(20);
+        container.setPadding(p, dp(10), p, 0);
 
-        new AlertDialog.Builder(this)
+        EditText input = new EditText(this);
+        input.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_WORDS);
+        input.setHint("e.g. Scalping, Trend");
+        input.setTextColor(Color.WHITE);
+        input.setHintTextColor(Color.GRAY);
+        // Use the app's dark style for the input background if possible, or keep manual
+        input.getBackground().mutate().setColorFilter(Color.parseColor("#26A69A"), android.graphics.PorterDuff.Mode.SRC_ATOP);
+
+        container.addView(input);
+
+        new AlertDialog.Builder(this, android.R.style.Theme_DeviceDefault_Dialog_Alert)
                 .setTitle("New Preset")
-                .setMessage("Enter a name for this preset:")
-                .setView(input)
-                .setPositiveButton("Next: Add Indicators", (d, w) -> {
+                .setMessage("Enter a name for this setup:")
+                .setView(container)
+                .setPositiveButton("Continue", (d, w) -> {
                     String name = input.getText().toString().trim();
                     if (name.isEmpty()) {
-                        Toast.makeText(this, "Name cannot be empty", Toast.LENGTH_SHORT).show();
+                        Toast.makeText(this, "Name is required", Toast.LENGTH_SHORT).show();
                         return;
                     }
-                    // Check for duplicates
-                    for (PresetRepository.Preset p : repo.getAllPresets()) {
-                        if (p.name.equalsIgnoreCase(name)) {
-                            Toast.makeText(this,
-                                    "A preset named \"" + name + "\" already exists",
-                                    Toast.LENGTH_SHORT).show();
-                            return;
-                        }
+                    // Check duplicates
+                    if (repo.getAllPresets().stream().anyMatch(p1 -> p1.name.equalsIgnoreCase(name))) {
+                        Toast.makeText(this, "Preset already exists", Toast.LENGTH_SHORT).show();
+                        return;
                     }
                     openEditorPanel(name, new IndicatorSession());
                 })
@@ -132,64 +132,53 @@ public class ProfileActivity extends SessionActivity implements IndicatorsPanel.
                 .show();
     }
 
-    // ── Edit preset flow ──────────────────────────────────────────────
-
-    /**
-     * Opens the indicator panel pre-populated with the preset's indicators.
-     */
     private void editPreset(PresetRepository.Preset preset) {
-        // Restore preset into a temporary session
         IndicatorSession session = new IndicatorSession();
         session.loadPreset(preset.snapshots);
         openEditorPanel(preset.name, session);
     }
 
-    // ── Shared: open panel ────────────────────────────────────────────
-
-    /**
-     * Opens IndicatorsPanel bottom sheet for the given session.
-     * A "Save Preset" button is shown inside the panel (via the SaveableIndicatorsPanel subclass).
-     * When the user taps Save, the session is persisted.
-     */
     private void openEditorPanel(String presetName, IndicatorSession session) {
-        editingSession    = session;
+        editingSession = session;
         editingPresetName = presetName;
 
-        // We use SaveableIndicatorsPanel — a subclass of IndicatorsPanel that adds
-        // a "Save Preset" button in the title row. (Defined below.)
         SaveableIndicatorsPanel panel = SaveableIndicatorsPanel.newSaveable(session, presetName);
         panel.setListener(this);
         panel.setSaveListener(this::onPresetSaveRequested);
+
+        // Reset state on dismiss
+        getSupportFragmentManager().registerFragmentLifecycleCallbacks(new FragmentManager.FragmentLifecycleCallbacks() {
+            @Override
+            public void onFragmentDestroyed(@NonNull FragmentManager fm, @NonNull androidx.fragment.app.Fragment f) {
+                if (f instanceof SaveableIndicatorsPanel) {
+                    editingSession = null;
+                    editingPresetName = null;
+                    getSupportFragmentManager().unregisterFragmentLifecycleCallbacks(this);
+                }
+            }
+        }, false);
+
         panel.show(getSupportFragmentManager(), "preset_editor");
     }
 
-    /**
-     * Called by SaveableIndicatorsPanel when the user taps "Save Preset".
-     * @param presetName the name shown in the panel header (immutable once the panel is open)
-     */
     private void onPresetSaveRequested(String presetName) {
         if (editingSession == null) return;
+
+        // Capture the snapshots from the current session
         repo.savePreset(new PresetRepository.Preset(presetName, editingSession.savePreset()));
-        Toast.makeText(this, "Preset \"" + presetName + "\" saved", Toast.LENGTH_SHORT).show();
-        editingSession    = null;
-        editingPresetName = null;
+
+        Toast.makeText(this, "Saved " + presetName, Toast.LENGTH_SHORT).show();
         renderPresets();
-        // Close the panel if still open
-        FragmentManager fm = getSupportFragmentManager();
-        androidx.fragment.app.Fragment f = fm.findFragmentByTag("preset_editor");
-        if (f instanceof androidx.fragment.app.DialogFragment)
+
+        // Close panel
+        androidx.fragment.app.Fragment f = getSupportFragmentManager().findFragmentByTag("preset_editor");
+        if (f instanceof androidx.fragment.app.DialogFragment) {
             ((androidx.fragment.app.DialogFragment) f).dismiss();
+        }
     }
 
-    // ── IndicatorsPanel.IndicatorListener ────────────────────────────
-    // This fires on every toggle/slider change while the panel is open.
-    // We don't auto-save here — only the explicit "Save Preset" tap saves.
     @Override
-    public void onIndicatorsChanged() {
-        // no-op in profile context: save is manual via the Save button
-    }
-
-    // ── Preset list rendering ─────────────────────────────────────────
+    public void onIndicatorsChanged() { /* Manual save only */ }
 
     private void renderPresets() {
         presetsContainer.removeAllViews();
@@ -197,16 +186,17 @@ public class ProfileActivity extends SessionActivity implements IndicatorsPanel.
 
         if (presets.isEmpty()) {
             TextView empty = new TextView(this);
-            empty.setText("No saved presets yet.\nTap \"+ New Preset\" to create one.");
-            empty.setTextColor(Color.parseColor("#546E7A"));
-            empty.setTextSize(13f);
-            empty.setPadding(dp(4), dp(10), dp(4), dp(8));
+            empty.setText("No presets saved.");
+            empty.setTextColor(Color.parseColor("#78909C"));
+            empty.setGravity(android.view.Gravity.CENTER);
+            empty.setPadding(0, dp(20), 0, dp(20));
             presetsContainer.addView(empty);
             return;
         }
 
-        for (PresetRepository.Preset preset : presets)
+        for (PresetRepository.Preset preset : presets) {
             presetsContainer.addView(buildPresetCard(preset));
+        }
     }
 
     private View buildPresetCard(PresetRepository.Preset preset) {
@@ -229,8 +219,9 @@ public class ProfileActivity extends SessionActivity implements IndicatorsPanel.
 
         // ── Indicator chips row ──────────────────────────────────────
         if (!preset.snapshots.isEmpty()) {
-            LinearLayout chips = new LinearLayout(this);
-            chips.setOrientation(LinearLayout.HORIZONTAL);
+            com.google.android.flexbox.FlexboxLayout chips = new com.google.android.flexbox.FlexboxLayout(this);
+            chips.setFlexWrap(com.google.android.flexbox.FlexWrap.WRAP);
+            chips.setAlignItems(com.google.android.flexbox.AlignItems.STRETCH);
             LinearLayout.LayoutParams chipRowLp = new LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
             chipRowLp.topMargin = dp(5); chipRowLp.bottomMargin = dp(8);
@@ -292,7 +283,7 @@ public class ProfileActivity extends SessionActivity implements IndicatorsPanel.
         chip.setBackgroundColor(Color.parseColor("#252A3D"));
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
-        lp.setMarginEnd(dp(6));
+        lp.setMargins(0, 0, dp(8), dp(8));
         chip.setLayoutParams(lp);
         chip.setPadding(dp(6), dp(3), dp(8), dp(3));
 

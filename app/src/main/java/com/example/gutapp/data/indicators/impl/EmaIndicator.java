@@ -28,4 +28,16 @@ public class EmaIndicator extends Indicator {
         r.overlayLines.add(makeLineSet(e,"EMA("+period+")",getColor(),1.4f));
         return r;
     }
+
+    @Override
+    public int calculateBias(ArrayList<Candle> candles) {
+        if (candles.size() < (int)getParam("period")) return 50;
+        Result res = compute(candles);
+        float lastPrice = (float) candles.get(candles.size() - 1).close;
+        float emaVal = res.overlayLines.get(0).getValues().get(res.overlayLines.get(0).getEntryCount() - 1).getY();
+
+        if (lastPrice > emaVal) return 70; // Bullish
+        if (lastPrice < emaVal) return 30; // Bearish
+        return 50;
+    }
 }

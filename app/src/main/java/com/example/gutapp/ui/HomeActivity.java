@@ -136,6 +136,7 @@ public class HomeActivity extends SessionActivity implements OrdersList.Listener
         if (orders == null || orders.isEmpty()) {
             runOnUiThread(() -> {
                 findViewById(R.id.orders_container).setVisibility(View.GONE);
+                findViewById(R.id.ordersTitle).setVisibility(GONE);
                 PL.setVisibility(View.INVISIBLE);
             });
         } else {
@@ -161,7 +162,7 @@ public class HomeActivity extends SessionActivity implements OrdersList.Listener
     @Override
     public void PLUpdate(double totalPL) {
         runOnUiThread(() -> {
-            String fmt = totalPL > 0 ? "+$%.10f" : "-$%.10f";
+            String fmt = totalPL > 0 ? "+$%.10f" : (totalPL == 0 ? "$0" : "-$%.10f");
             PL.setText(String.format(Locale.US, fmt, Math.abs(totalPL)));
             if      (totalPL > 0) PL.setTextColor(Color.parseColor("#00FF88"));
             else if (totalPL < 0) PL.setTextColor(Color.parseColor("#FF4444"));
@@ -185,6 +186,7 @@ public class HomeActivity extends SessionActivity implements OrdersList.Listener
     @Override
     protected void onResume(){
         super.onResume();
+        ordersList = null;
         FetchOrders fetchOrder = new FetchOrders(null, FetchOrders.OrderView.ACTIVE, 0, this);
         NetworkClient.getInstance(null).getSessionManager().pushRequest(fetchOrder);
     }
