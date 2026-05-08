@@ -2,8 +2,12 @@ package com.example.gutapp.session;
 
 import android.content.Context;
 
+import lombok.Getter;
+
 public class NetworkClient {
     private static NetworkClient instance;
+
+    @Getter
     private SessionManager sessionManager;
     private Thread networkThread;
     private Context appContext;
@@ -17,10 +21,6 @@ public class NetworkClient {
             instance = new NetworkClient(context);
         }
         return instance;
-    }
-
-    public SessionManager getSessionManager(){
-        return this.sessionManager;
     }
 
     public synchronized void start(SessionCallback cb) {
@@ -41,6 +41,7 @@ public class NetworkClient {
         }
         if (networkThread != null) {
             networkThread.interrupt();
+            networkThread = null;
         }
     }
 }

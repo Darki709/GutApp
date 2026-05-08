@@ -26,4 +26,8 @@ import java.util.concurrent.atomic.AtomicReference;
         // This is internally thread-safe for Android.
         BALANCE.postValue(currentBalance + delta);
     }
+
+    public static void setBalance(double balance) {
+        BALANCE.postValue(balance);
+    }
 }

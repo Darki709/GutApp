@@ -128,6 +128,8 @@ public class RequestTickerData extends AsyncRequest {
 
     private void cachePriceData(ArrayList<Candle> entries, StockDataHelper.Timeframe interval) {
         StockDataHelper stockDataHelper = new StockDataHelper(DB_Helper.getInstance(null));
+        //remove the last data point to prevent corrupted half baked data points
+        //entries.remove(entries.size() - 1);
         stockDataHelper.saveStockData(symbol, interval, entries);
     }
 }

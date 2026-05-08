@@ -316,6 +316,8 @@ public class SessionManager implements Runnable {
         }
         if(sendThread != null) sendThread.interrupt();
         if(recvThread != null) recvThread.interrupt();
+        if(currentCallback!=null){
+            currentCallback.onActionRequired(1,null);}
     }
 
     private void sendLoop(){

@@ -74,6 +74,12 @@ public class HomeActivity extends SessionActivity implements OrdersList.Listener
         findViewById(R.id.navHome).setOnClickListener(v ->
                 drawerLayout.closeDrawers());
 
+        findViewById(R.id.navLogout).setOnClickListener( v -> {
+            NetworkClient.getInstance(null).stop();
+            Intent intent = new Intent(this, LoginPage.class);
+            startActivity(intent);
+        });
+
         // ── Drawer username ───────────────────────────────────────
         TextView drawerName = findViewById(R.id.drawerUserName);
         if (drawerName != null && UserGlobals.USER_NAME != null)
