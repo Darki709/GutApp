@@ -106,12 +106,13 @@ public class StockRow implements SessionCallback {
         else {
             String errMsg = Instant.now().getEpochSecond() - cachedPrice.timestamp > 3600 ? " (outdated)" : "";
             priceView.setText(String.format("%.4f" + errMsg, cachedPrice.close));
-            priceView.setTypeface(Typeface.MONOSPACE, Typeface.BOLD);
             this.lastPrice = cachedPrice.close;
             Candle.Direction direction = cachedPrice.getDirection();
             boolean isUp = direction == Candle.Direction.UP;
             priceView.setTextColor(isUp ? Color.parseColor("#00FF88") : Color.parseColor("#FF4444"));
         }
+        priceView.setTypeface(Typeface.MONOSPACE, Typeface.BOLD);
+
         priceView.setTextSize(17);
         stockRow.addView(textGroup);
         stockRow.addView(priceView);

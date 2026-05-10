@@ -124,6 +124,11 @@ public class StockChart implements SessionCallback {
     @Nullable private SessionCallback chainedListener = null;
     @Nullable private LimitLine currentPriceLine = null;
 
+    /** Fired every time a fresh candle batch is applied to the chart (including timeframe switches). */
+    @Nullable private Runnable candlesReadyCallback = null;
+
+    public void setCandlesReadyCallback(@Nullable Runnable r) { this.candlesReadyCallback = r; }
+
     // ── Viewport state ─────────────────────────────────────────────────
     private boolean isPinnedToRight    = true;
     private float   savedLowestX       = -1f;
@@ -223,6 +228,7 @@ public class StockChart implements SessionCallback {
         chart.setHighlightPerTapEnabled(true);
         chart.setMaxHighlightDistance(20);
 
+        // Candle selection → OHLCV overlay
         chart.setOnChartValueSelectedListener(new OnChartValueSelectedListener() {
             @Override
             public void onValueSelected(Entry e, Highlight h) {
@@ -246,17 +252,30 @@ public class StockChart implements SessionCallback {
             }
         });
 
+        // Gesture listener: detects pan/zoom so we know the user left the right edge
         chart.setOnChartGestureListener(new OnChartGestureListener() {
-            @Override public void onChartGestureStart(MotionEvent me, ChartTouchListener.ChartGesture lg) {}
-            @Override public void onChartGestureEnd(MotionEvent me, ChartTouchListener.ChartGesture lg) {
-                updatePinState(); syncSubChartsToMain();
+            @Override
+            public void onChartGestureStart(MotionEvent me, ChartTouchListener.ChartGesture lg) {}
+            @Override
+            public void onChartGestureEnd(MotionEvent me, ChartTouchListener.ChartGesture lg) {
+                // After any gesture, re-evaluate pin state and sync sub-charts
+                updatePinState();
+                syncSubChartsToMain();
             }
             @Override public void onChartLongPressed(MotionEvent me) {}
             @Override public void onChartDoubleTapped(MotionEvent me) { updatePinState(); syncSubChartsToMain(); }
             @Override public void onChartSingleTapped(MotionEvent me) {}
             @Override public void onChartFling(MotionEvent me1, MotionEvent me2, float vX, float vY) { updatePinState(); syncSubChartsToMain(); }
-            @Override public void onChartScale(MotionEvent me, float sX, float sY) { updatePinState(); syncSubChartsToMain(); }
-            @Override public void onChartTranslate(MotionEvent me, float dX, float dY) { updatePinState(); syncSubChartsToMain(); }
+            @Override
+            public void onChartScale(MotionEvent me, float scaleX, float scaleY) {
+                updatePinState();
+                syncSubChartsToMain();
+            }
+            @Override
+            public void onChartTranslate(MotionEvent me, float dX, float dY) {
+                updatePinState();
+                syncSubChartsToMain();
+            }
         });
     }
 
@@ -352,6 +371,11 @@ public class StockChart implements SessionCallback {
             applyInitialView(total);
             initialViewApplied = true;
             isPinnedToRight    = true;
+            // Notify that candles + coordinate system are ready — safe to load saved drawings.
+            // Fires on every timeframe switch so drawings are always reloaded from storage.
+            if (candlesReadyCallback != null) {
+                candlesReadyCallback.run();
+            }
 
         } else if (!isLiveUpdate) {
             if (savedLowestX >= 0 && savedHighestX > savedLowestX) {
@@ -494,25 +518,34 @@ public class StockChart implements SessionCallback {
 
         sub.setOnChartGestureListener(new OnChartGestureListener() {
             @Override public void onChartGestureStart(MotionEvent me, ChartTouchListener.ChartGesture lg) {}
-            @Override public void onChartGestureEnd(MotionEvent me, ChartTouchListener.ChartGesture lg) { syncMainChartFromSub(sub); }
-            @Override public void onChartLongPressed(MotionEvent me) {}
+            @Override public void onChartGestureEnd(MotionEvent me, ChartTouchListener.ChartGesture lg) {
+                sub.getParent().requestDisallowInterceptTouchEvent(false);
+                syncMainChartFromSub(sub); }
+            @Override public void onChartLongPressed(MotionEvent me) {
+                // LOCK: Take control away from the NestedScrollView
+                // This enables horizontal dragging inside the chart
+                sub.getParent().requestDisallowInterceptTouchEvent(true);
+
+                // Visual/Physical feedback (Optional)
+                sub.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS);
+            }
             @Override public void onChartDoubleTapped(MotionEvent me) {}
             @Override public void onChartSingleTapped(MotionEvent me) {}
-            @Override public void onChartFling(MotionEvent me1, MotionEvent me2, float vX, float vY) {}
+            @Override public void onChartFling(MotionEvent me1, MotionEvent me2, float vX, float vY) {syncMainChartFromSub(sub);}
             @Override public void onChartScale(MotionEvent me, float sX, float sY) { syncMainChartFromSub(sub); }
             @Override public void onChartTranslate(MotionEvent me, float dX, float dY) { syncMainChartFromSub(sub); }
         });
 
+        // --- TOUCH LISTENER (The "Passive" State) ---
         sub.setOnTouchListener((v, event) -> {
-            switch (event.getAction()) {
-                case MotionEvent.ACTION_DOWN:
-                case MotionEvent.ACTION_MOVE:
-                    v.getParent().requestDisallowInterceptTouchEvent(true); break;
-                case MotionEvent.ACTION_UP:
-                case MotionEvent.ACTION_CANCEL:
-                    v.getParent().requestDisallowInterceptTouchEvent(false); break;
-            }
+            // We do NOT call requestDisallowIntercept here.
+            // We let the event pass to the GestureListener above.
             v.onTouchEvent(event);
+
+            // When the touch is finished, ensure we release the parent scroll lock
+            if (event.getAction() == MotionEvent.ACTION_UP || event.getAction() == MotionEvent.ACTION_CANCEL) {
+                v.getParent().requestDisallowInterceptTouchEvent(false);
+            }
             return true;
         });
 

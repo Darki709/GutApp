@@ -57,6 +57,8 @@ import com.google.android.material.bottomsheet.BottomSheetDialog;
 import com.google.android.material.snackbar.Snackbar;
 import com.example.gutapp.ui.chart.DrawingChart;
 import com.example.gutapp.data.drawing.DrawingManager;
+import com.example.gutapp.data.drawing.DrawingPersistence;
+import com.example.gutapp.data.drawing.ChartDrawing;
 
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -96,6 +98,9 @@ public class ChartActivity extends SessionActivity implements
     private boolean isManagerReturned = false;
     private LinearLayout presetListContainer = null;
 
+    // Drawing persistence (auto-save / auto-load per ticker)
+    private DrawingPersistence drawingPersistence;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -126,6 +131,26 @@ public class ChartActivity extends SessionActivity implements
         chartContainer.setIndicatorSession(indicatorSession);
         chartContainer.setSubChartsContainer(
                 (LinearLayout) findViewById(R.id.subChartsContainer));
+
+        // ── Drawing persistence (auto-save / auto-load) ────────────
+        drawingPersistence = new DrawingPersistence(this);
+        chart.setDrawingEventListener(new DrawingChart.DrawingEventListener() {
+            @Override public void onDrawingCreated(ChartDrawing drawing) { /* no-op; handled by onDrawingsChanged */ }
+            @Override public void onDrawingRemoved(ChartDrawing drawing) { /* no-op; handled by onDrawingsChanged */ }
+            @Override public void onDrawingSelected(@androidx.annotation.Nullable ChartDrawing drawing) { /* no-op */ }
+            @Override public void onDrawingsChanged() {
+                // Save every change immediately so nothing is lost on force-quit
+                drawingPersistence.save(symbol, chart.getDrawingManager());
+            }
+        });
+
+        // Reload saved drawings every time a fresh candle batch arrives (covers timeframe switches).
+        // We clear user drawings first so switching 1D→5m doesn't duplicate them.
+        chartContainer.setCandlesReadyCallback(() -> {
+            chart.getDrawingManager().clearUserDrawingsSilent();
+            drawingPersistence.load(symbol, chart.getDrawingManager());
+            chart.postInvalidate();
+        });
         chartContainer.setSubChartsScroller((NestedScrollView) findViewById(R.id.subChartsScrollView));
 
         // ── Text views ─────────────────────────────────────────────
@@ -208,6 +233,12 @@ public class ChartActivity extends SessionActivity implements
     protected void onPause() {
         super.onPause();
         presetRepo.autoSave(symbol, indicatorSession);
+        // Persist all user drawings for this ticker before going to background
+        if (drawingPersistence != null) {
+            DrawingChart drawingChart = chartContainer.getDrawingChart();
+            if (drawingChart != null)
+                drawingPersistence.save(symbol, drawingChart.getDrawingManager());
+        }
         chartContainer.flushRequests();
         chartContainer.clearChart();
     }
@@ -330,7 +361,7 @@ public class ChartActivity extends SessionActivity implements
 
     private void openDrawingPanel(){
         DrawingToolbarFragment sheet = DrawingToolbarFragment.newInstance(chartContainer.getDrawingChart());
-       sheet.show(getSupportFragmentManager(), "drawing_tools");
+        sheet.show(getSupportFragmentManager(), "drawing_tools");
     }
 
     // ── Preset picker ─────────────────────────────────────────────────
