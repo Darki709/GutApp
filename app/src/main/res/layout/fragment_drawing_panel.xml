@@ -1,0 +1,132 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Bottom sheet fragment showing all USER drawings currently on the chart.
+    Each drawing row is inflated from item_drawing.xml.
+    Opened by tapping the "Draw" chip in the toolbar.
+-->
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:background="#1A1818"
+    android:paddingBottom="32dp">
+
+    <!-- Drag handle -->
+    <View
+        android:layout_width="40dp"
+        android:layout_height="4dp"
+        android:layout_gravity="center_horizontal"
+        android:layout_marginTop="10dp"
+        android:layout_marginBottom="6dp"
+        android:background="#3A3838" />
+
+    <!-- ── Header row ── -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="44dp"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingStart="16dp"
+        android:paddingEnd="12dp">
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="Drawing Tools"
+            android:textColor="#ECEFF1"
+            android:textSize="16sp"
+            android:textStyle="bold" />
+
+        <!-- Clear all user drawings -->
+        <TextView
+            android:id="@+id/btnClearAll"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Clear All"
+            android:textColor="#EF5350"
+            android:textSize="12sp"
+            android:paddingStart="8dp"
+            android:paddingEnd="4dp"
+            android:paddingTop="6dp"
+            android:paddingBottom="6dp" />
+
+    </LinearLayout>
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:background="#252323" />
+
+    <!-- ── Tool picker (horizontal scroll) ── -->
+    <HorizontalScrollView
+        android:layout_width="match_parent"
+        android:layout_height="52dp"
+        android:scrollbars="none"
+        android:fillViewport="false">
+
+        <LinearLayout
+            android:id="@+id/toolPickerRow"
+            android:layout_width="wrap_content"
+            android:layout_height="match_parent"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp">
+
+            <!-- Tool buttons are added programmatically in DrawingPanelFragment
+                 because the tool list comes from the DrawingManager.DrawingTool enum.
+                 Each button uses the chip style below for consistency. -->
+
+        </LinearLayout>
+    </HorizontalScrollView>
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:background="#252323" />
+
+    <!-- ── Active drawings section header ── -->
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="ON CHART"
+        android:textColor="#546E7A"
+        android:textSize="10sp"
+        android:letterSpacing="0.12"
+        android:textStyle="bold"
+        android:paddingStart="16dp"
+        android:paddingTop="10dp"
+        android:paddingBottom="4dp" />
+
+    <!-- ── List of active drawings (scrollable) ── -->
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:scrollbars="none">
+
+        <LinearLayout
+            android:id="@+id/drawingsListContainer"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:paddingBottom="8dp" />
+
+    </ScrollView>
+
+    <!-- Empty state (shown when no user drawings exist) -->
+    <TextView
+        android:id="@+id/emptyDrawingsText"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="No drawings yet.\nTap a tool above, then draw on the chart."
+        android:textColor="#546E7A"
+        android:textSize="13sp"
+        android:gravity="center"
+        android:paddingTop="16dp"
+        android:paddingBottom="8dp"
+        android:visibility="gone" />
+
+</LinearLayout>

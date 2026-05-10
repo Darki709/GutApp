@@ -44,7 +44,7 @@ public class StockDataHelper {
         this.db_helper = db_helper;
     }
 
-    public ArrayList<Candle> getCachedStockData(String symbol, Timeframe timeframe) throws Exception {
+    public ArrayList<Candle> getCachedStockData(String symbol, Timeframe timeframe) {
         ArrayList<Candle> stockData = new ArrayList<>();
         Log.i(db_helper.DB_LOG_TAG, "Fetching data for timeframe: " + timeframe.value);
         SQLiteDatabase db = db_helper.getReadableDatabase();
@@ -115,11 +115,11 @@ public class StockDataHelper {
 
             db.setTransactionSuccessful();
         }catch (Exception e){
-            Log.e(db_helper.DB_LOG_TAG, "Error saving stock data: " + e.getMessage());
+            Log.e(DB_Helper.DB_LOG_TAG, "Error saving stock data: " + e.getMessage());
         }
         finally {
             db.endTransaction();
-            Log.i(db_helper.DB_LOG_TAG, "Finished saving data for symbol " + symbol + " and timeframe " + timeframe.value);
+            Log.i(DB_Helper.DB_LOG_TAG, "Finished saving data for symbol " + symbol + " and timeframe " + timeframe.value);
         }
     }
 
@@ -198,23 +198,26 @@ public class StockDataHelper {
         return db_helper.getReadableDatabase().rawQuery(query.toString(), selectionArgs);
     }
 
-
-    public double getLatestPrice(String symbol) {
+    public Candle getLatestPrice(String symbol) {
         try {
-            Cursor cursor = readFromDB(new String[]{StockDataHelper.COLUMN_CLOSE}, "symbol = ?",
+            Cursor cursor = readFromDB(new String[]{StockDataHelper.COLUMN_DATE ,StockDataHelper.COLUMN_OPEN, StockDataHelper.COLUMN_HIGH, StockDataHelper.COLUMN_LOW, StockDataHelper.COLUMN_CLOSE, StockDataHelper.COLUMN_VOLUME}, "symbol = ?",
                     new String[]{symbol}, "date DESC", 2);
             cursor.moveToFirst();
-            Double current = cursor.getDouble(0);
+            Candle candle = new Candle(cursor.getLong(0), cursor.getDouble(1), cursor.getDouble(2), cursor.getDouble(3), cursor.getDouble(4), cursor.getLong(5));
             if(!cursor.isLast()) cursor.moveToNext();
-            else return current; //there might be only one entry so the default will be green
+            else{
+                candle.setDirection(Candle.Direction.UP);
+                return candle;
+            }
 
-            Double before = cursor.getDouble(0);
-            Log.i(DB_Helper.DB_LOG_TAG, "Getting latest price for " + symbol + " : " + current + " vs " + before);
-            return (current > before) ? current : -1 * current;
+            double before = cursor.getDouble(4);
+            Log.i(DB_Helper.DB_LOG_TAG, "Getting latest price for " + symbol + " : " + candle.close + " vs " + before);
+            if(candle.close > before) candle.setDirection(Candle.Direction.UP); else candle.setDirection(Candle.Direction.DOWN);
+            return candle;
         }
         catch (Exception e){
             Log.e(DB_Helper.DB_LOG_TAG, "Error getting latest price: " + e.getMessage());
-            return 0; //meaning no price data
+            return null; //meaning no price data
         }
     }
 

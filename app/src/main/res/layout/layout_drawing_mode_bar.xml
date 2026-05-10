@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Drawing mode banner — shown at the top of the chart area when a drawing
+    tool is active. Tells the user which tool is selected and gives them a
+    clear one-tap way to exit drawing mode.
+
+    In activity_chart.xml: place this just above the stockChart / drawingOverlay,
+    constrained top=chartTypeBar, visibility=gone by default.
+    ChartActivity shows/hides it via setDrawingModeActive(boolean).
+-->
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="36dp"
+    android:orientation="horizontal"
+    android:gravity="center_vertical"
+    android:background="#1B3A2E"
+    android:paddingStart="12dp"
+    android:paddingEnd="8dp">
+
+    <!-- Pencil icon -->
+    <TextView
+        android:layout_width="24dp"
+        android:layout_height="24dp"
+        android:text="✏"
+        android:textSize="14sp"
+        android:textColor="#26A69A"
+        android:gravity="center"
+        android:layout_marginEnd="8dp" />
+
+    <!-- Active tool name (updated by ChartActivity) -->
+    <TextView
+        android:id="@+id/tvActiveToolName"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:text="Drawing: Horizontal Line"
+        android:textColor="#80CBBF"
+        android:textSize="12sp"
+        android:fontFamily="monospace" />
+
+    <!-- "Tap chart to draw" hint -->
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Tap chart to place"
+        android:textColor="#4A7A70"
+        android:textSize="11sp"
+        android:layout_marginEnd="12dp" />
+
+    <!-- Exit drawing mode button -->
+    <TextView
+        android:id="@+id/btnExitDrawingMode"
+        android:layout_width="wrap_content"
+        android:layout_height="26dp"
+        android:text="✓ Done"
+        android:textSize="12sp"
+        android:textColor="#26A69A"
+        android:textStyle="bold"
+        android:gravity="center"
+        android:paddingStart="10dp"
+        android:paddingEnd="10dp"
+        android:background="@drawable/chart_btn_inactive" />
+
+</LinearLayout>

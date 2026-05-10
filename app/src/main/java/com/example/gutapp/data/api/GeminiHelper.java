@@ -15,10 +15,8 @@ import com.google.firebase.ai.type.GenerateContentResponse;
 import com.google.firebase.ai.type.GenerationConfig;
 import com.google.firebase.ai.type.GenerativeBackend;
 import com.google.firebase.ai.type.Schema;
-import com.google.firebase.ai.type.Tool;
 
 import java.util.Collections;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
@@ -29,7 +27,7 @@ public class GeminiHelper {
 
     static final String requestFormat =
             "You are a professional financial analyst for GutApp. " +
-                    "Search the internet for the most recent news regarding the stock ticker: %s .\n\n" +
+                    "Search the internet for the most recent news regarding the ticker (it might be a stock, a crypto, a future or forex find any information you can): %s .\n\n" +
 
                     "TASK:\n" +
                     "1. Identify the current market sentiment.\n" +

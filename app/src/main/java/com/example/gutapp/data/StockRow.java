@@ -16,6 +16,7 @@ import android.widget.TextView;
 
 import androidx.annotation.Nullable;
 
+import com.example.gutapp.data.models.Candle;
 import com.example.gutapp.data.models.PriceChunk;
 import com.example.gutapp.data.models.TickerInfo;
 import com.example.gutapp.database.DB_Helper;
@@ -84,7 +85,6 @@ public class StockRow implements SessionCallback {
         nameView.setTextSize(16);
 
         //symbol
-        this.symbol = symbol;
         TextView symbolView = new TextView(callerActivity);
         symbolView.setText(symbol);
         symbolView.setTextColor(Color.GRAY);
@@ -97,12 +97,21 @@ public class StockRow implements SessionCallback {
         this.priceView = new TextView(callerActivity);
         //default price is 0.00 or what ever is on the machine until server responds with live prices
         StockDataHelper stockDataHelper = new StockDataHelper(DB_Helper.getInstance(null));
-        double cachedPrice = stockDataHelper.getLatestPrice(symbol);
-        boolean isUp = cachedPrice > 0;
-        priceView.setText(String.format("%.4f", Math.abs(cachedPrice)));
-        priceView.setTypeface(Typeface.MONOSPACE, Typeface.BOLD);
-        this.lastPrice = Math.abs(cachedPrice);
-        priceView.setTextColor(isUp ?  Color.parseColor("#00FF88") : Color.parseColor("#FF4444"));
+        Candle cachedPrice = stockDataHelper.getLatestPrice(symbol);
+        if(cachedPrice== null) {
+            priceView.setText("Price not available");
+            priceView.setTextColor(Color.parseColor("#FF4444"));
+            this.lastPrice = 0;
+        }
+        else {
+            String errMsg = Instant.now().getEpochSecond() - cachedPrice.timestamp > 3600 ? " (outdated)" : "";
+            priceView.setText(String.format("%.4f" + errMsg, cachedPrice.close));
+            priceView.setTypeface(Typeface.MONOSPACE, Typeface.BOLD);
+            this.lastPrice = cachedPrice.close;
+            Candle.Direction direction = cachedPrice.getDirection();
+            boolean isUp = direction == Candle.Direction.UP;
+            priceView.setTextColor(isUp ? Color.parseColor("#00FF88") : Color.parseColor("#FF4444"));
+        }
         priceView.setTextSize(17);
         stockRow.addView(textGroup);
         stockRow.addView(priceView);
