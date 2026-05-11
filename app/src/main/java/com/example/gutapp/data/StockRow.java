@@ -18,12 +18,14 @@ import androidx.annotation.Nullable;
 import com.example.gutapp.data.models.Candle;
 import com.example.gutapp.data.models.PriceChunk;
 import com.example.gutapp.data.models.TickerInfo;
+import com.example.gutapp.data.models.TickerInformation;
 import com.example.gutapp.database.DB_Helper;
 import com.example.gutapp.database.LastFetchCacheHelper;
 import com.example.gutapp.database.StockDataHelper;
 import com.example.gutapp.session.DataType;
 import com.example.gutapp.session.NetworkClient;
 import com.example.gutapp.session.Requests.RequestTickerData;
+import com.example.gutapp.session.Requests.TickerInfoRequest;
 import com.example.gutapp.session.SessionCallback;
 import com.example.gutapp.ui.ChartActivity;
 
@@ -55,6 +57,7 @@ public class StockRow implements SessionCallback {
     Handler mainHandler = new Handler(Looper.getMainLooper()); //to change prices live from the background
 
     TextView priceView;
+    TextView nameView;
 
     public StockRow(String symbol, String name, Activity callerActivity){
         this.symbol= symbol;
@@ -94,7 +97,11 @@ public class StockRow implements SessionCallback {
         textGroup.setLayoutParams(new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
 
         //name
-        TextView nameView = new TextView(callerActivity);
+        if(name.isBlank()){
+            TickerInfoRequest getName = new TickerInfoRequest(symbol, this);
+            NetworkClient.getInstance(null).getSessionManager().pushRequest(getName);
+        }
+        nameView = new TextView(callerActivity);
         nameView.setText(name);
         nameView.setTextColor(Color.WHITE);
         nameView.setTextSize(16);
@@ -293,6 +300,13 @@ public class StockRow implements SessionCallback {
                         }
                     });
                 }
+                break;
+            case TICKER_INFORMATION:
+                mainHandler.post( ()-> {
+                    TickerInformation info = (TickerInformation) parsedData;
+                    this.name = info.name;
+                    nameView.setText(name);
+                });
                 break;
 
             case TICKER_REQUEST_DONE:

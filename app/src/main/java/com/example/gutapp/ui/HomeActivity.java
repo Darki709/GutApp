@@ -87,6 +87,11 @@ public class HomeActivity extends SessionActivity implements OrdersList.Listener
             startActivity(intent);
         });
 
+        findViewById(R.id.navWatchlists).setOnClickListener(v -> {
+            drawerLayout.closeDrawers();
+            startActivity(new Intent(this, WatchlistActivity.class));
+        });
+
         // ── Drawer username ───────────────────────────────────────
         TextView drawerName = findViewById(R.id.drawerUserName);
         if (drawerName != null && UserGlobals.USER_NAME != null)

@@ -126,6 +126,11 @@ public class ExploreActivity extends SessionActivity implements StockLiveList.Lo
     }
 
     @Override
+    public void loadingEnd() {
+        //not needed here
+    }
+
+    @Override
     protected void refreshNetwork() {
         super.onResume();
     }
