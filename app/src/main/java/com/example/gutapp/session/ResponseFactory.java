@@ -8,6 +8,7 @@ import com.example.gutapp.session.Responses.SearchTickerResponse;
 import com.example.gutapp.session.Responses.SnapshotResponse;
 import com.example.gutapp.session.Responses.StreamResponse;
 import com.example.gutapp.session.Responses.TickerInfoResponse;
+import com.example.gutapp.session.Responses.WatchlistResponses;
 
 public class ResponseFactory {
     public static AsyncResponse createResponse(byte[] response) {
@@ -34,6 +35,9 @@ public class ResponseFactory {
                 return new EndOrderResponses.Success(response);
             case ORDERFAILEDEXIT:
                 return new EndOrderResponses.Failure(response);
+            case WATCHLIST_SUMMARY: return new WatchlistResponses.Summary(response);
+            case WATCHLIST_ACTION_STATUS: return new WatchlistResponses.ActionStatus(response);
+            case WATCHLIST_CONTENT: return new WatchlistResponses.Content(response);
             default:
                 throw new RuntimeException("Unknown response type: " + response[0]);
         }

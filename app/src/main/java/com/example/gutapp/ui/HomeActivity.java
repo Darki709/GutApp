@@ -24,6 +24,7 @@ import com.example.gutapp.data.models.Order;
 import com.example.gutapp.data.models.TickerInfo;
 import com.example.gutapp.database.DB_Helper;
 import com.example.gutapp.database.LastFetchCacheHelper;
+import com.example.gutapp.session.CryptoUtility;
 import com.example.gutapp.session.DataType;
 import com.example.gutapp.session.NetworkClient;
 import com.example.gutapp.session.Requests.FetchOrders;
@@ -75,8 +76,14 @@ public class HomeActivity extends SessionActivity implements OrdersList.Listener
                 drawerLayout.closeDrawers());
 
         findViewById(R.id.navLogout).setOnClickListener( v -> {
-            NetworkClient.getInstance(null).stop();
+            CryptoUtility.clearAuthCredentials(this.getApplicationContext());
             Intent intent = new Intent(this, LoginPage.class);
+            UserGlobals.USER_NAME = null;
+            UserGlobals.LOGGED_IN = false;
+            UserGlobals.setBalance(0);
+            // This prevents the user from going "back" into the app after logging out
+            intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+            NetworkClient.getInstance(null).stop();
             startActivity(intent);
         });
 

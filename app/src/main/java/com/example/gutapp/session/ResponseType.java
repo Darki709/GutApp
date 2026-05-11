@@ -16,7 +16,10 @@ public enum ResponseType{
     ORDERSLIPPED((byte)11),
     ORDERSBATCH((byte)12),
     ORDEREXITTED((byte)13),
-    ORDERFAILEDEXIT((byte)14);
+    ORDERFAILEDEXIT((byte)14),
+    WATCHLIST_SUMMARY((byte) 15),
+    WATCHLIST_ACTION_STATUS((byte) 16),
+    WATCHLIST_CONTENT((byte) 17);
 
     public final byte value;
 

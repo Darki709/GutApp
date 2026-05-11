@@ -96,6 +96,9 @@ public class SessionManager implements Runnable {
                     if (sendThread != null) sendThread.interrupt();
                     if (recvThread != null) recvThread.interrupt();
 
+                    //make sure app is set to not logout
+                    CryptoUtility.logOutFlag.set(false);
+
 
                     Log.i(NETWORK_LOG_TAG, "Connecting to server");
                     //create a tcp connection
@@ -316,7 +319,7 @@ public class SessionManager implements Runnable {
         }
         if(sendThread != null) sendThread.interrupt();
         if(recvThread != null) recvThread.interrupt();
-        if(currentCallback!=null){
+        if(currentCallback!=null && !CryptoUtility.logOutFlag.get()){
             currentCallback.onActionRequired(1,null);}
     }
 

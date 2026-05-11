@@ -30,6 +30,7 @@ import java.security.PublicKey;
 import java.security.SecureRandom;
 import java.security.spec.MGF1ParameterSpec;
 import java.security.spec.X509EncodedKeySpec;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public class CryptoUtility {
 
@@ -38,6 +39,8 @@ public class CryptoUtility {
     public static final String KEY_PASS = "saved_password";
 
     private static SharedPreferences cachedVault = null;
+
+    public static AtomicBoolean logOutFlag = new AtomicBoolean(false);
 
     public static class CryptoContext{
         //initialized throughout the handshake process,
@@ -164,6 +167,28 @@ public class CryptoUtility {
         } catch (Exception e) {
             Log.e(NETWORK_LOG_TAG, "failed to access the shared preference " + e.getMessage());
             return null; // Vault failed to open
+        }
+    }
+    public static void clearAuthCredentials(Context context) {
+        // 1. Access your encrypted vault
+        SharedPreferences vault = getVault(context);
+
+        if (vault != null) {
+            // 2. Open the editor
+            SharedPreferences.Editor editor = vault.edit();
+
+            // 3. Remove the specific keys you used for login
+            editor.remove(KEY_USER);
+            editor.remove(KEY_PASS);
+
+            // 4. Apply changes asynchronously
+            editor.apply();
+
+            logOutFlag.set(true);
+
+            Log.d(NETWORK_LOG_TAG, "Auth credentials cleared from EncryptedSharedPreferences");
+        } else {
+            Log.e(NETWORK_LOG_TAG, "Logout failed: Could not access EncryptedSharedPreferences");
         }
     }
 }

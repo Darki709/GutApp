@@ -15,6 +15,7 @@ import com.google.firebase.ai.type.GenerateContentResponse;
 import com.google.firebase.ai.type.GenerationConfig;
 import com.google.firebase.ai.type.GenerativeBackend;
 import com.google.firebase.ai.type.Schema;
+import com.google.firebase.ai.type.Tool;
 
 import java.util.Collections;
 import java.util.Map;
@@ -71,6 +72,8 @@ public class GeminiHelper {
                 .setResponseMimeType("application/json")
                 .setResponseSchema(jsonSchema)
                 .build();
+
+        Tool searchTool = Tool.googleSearch();
 
         // 3. System Instruction for a permanent "Persona"
         Content systemInstruction = new Content.Builder()

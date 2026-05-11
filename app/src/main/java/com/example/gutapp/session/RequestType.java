@@ -13,7 +13,11 @@ public enum RequestType {
     GETBALANCE((byte)8),
     SENDORDER((byte)9),
     FETCHORDERS((byte)10),
-    ENDORDER((byte)11);
+    ENDORDER((byte)11),
+    FETCH_WATCHLISTS((byte) 12),
+    MANAGE_WATCHLIST((byte) 13),
+    MODIFY_WATCHLIST_ITEMS((byte) 14),
+    GET_WATCHLIST_CONTENT((byte) 15);
 
     public final byte value;
 
