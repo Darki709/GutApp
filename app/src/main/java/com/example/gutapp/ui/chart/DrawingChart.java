@@ -22,61 +22,73 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * DrawingChart — extends CombinedChart with a professional TradingView-style drawing layer.
+ * DrawingChart — CombinedChart + full TradingView-style drawing / editing layer.
  *
- * Features:
- *  - All 15 drawing types with full touch handling
- *  - 3-point tool support (Pitchfork)
- *  - Live preview while dragging
- *  - Hit-test + tap-to-select any USER drawing
- *  - Long-press on selected drawing → delete it
- *  - Snap-to-candle-OHLC (optional, toggle with setSnapEnabled)
- *  - Snap crosshair overlay while drawing
- *  - Selection highlighted with teal handle rings
- *  - Undo / Redo delegated to DrawingManager
- *  - DrawingEventListener for auto-save callbacks
+ * ── Interaction model ────────────────────────────────────────────────
+ *  PAN/ZOOM MODE  (no active tool)
+ *    · Single tap            → hit-test select nearest drawing
+ *    · Tap on empty space    → deselect
+ *    · Long-press selected   → delete
+ *    · Drag on selected body → move whole drawing
+ *    · Drag on a handle      → move that anchor only (resize/reshape)
+ *
+ *  DRAW MODE  (active tool set)
+ *    · 1-point tools: single tap places immediately
+ *    · 2-point tools: first tap sets anchor-1, drag or second tap sets anchor-2
+ *    · 3-point (Pitchfork): three sequential taps
+ *    · Live drag preview shown while finger is moving
+ *    · Snap-to-OHLC crosshair overlay
+ *
+ * ── Layer ordering ───────────────────────────────────────────────────
+ *  BEHIND_CANDLES → drawLayer() → super.onDraw() (candles+indicators) → ABOVE_CANDLES
+ *
+ * ── Timestamp coordinates ────────────────────────────────────────────
+ *  All anchors stored as Unix timestamps so drawings survive timeframe switches.
  */
 public class DrawingChart extends CombinedChart {
 
+    // ── State ────────────────────────────────────────────────────────
     private final DrawingManager  drawingManager  = new DrawingManager();
     private final DrawingRenderer drawingRenderer = new DrawingRenderer();
     private List<Candle> candles = new ArrayList<>();
 
-    // ── Touch state ──────────────────────────────────────────────────
-    // First anchor (all tools)
-    private float tapAnchorX = -1, tapAnchorY = -1;
-    private int    anchor1Index = -1;
-    private double anchor1Price = Double.NaN;
-
-    // Second anchor (three-point tools: Pitchfork)
-    private int    anchor2Index = -1;
-    private double anchor2Price = Double.NaN;
-    private int    pitchforkState = 0; // 0=none, 1=p0 set, 2=p0+p1 set
-
-    // Live preview drawing
+    // ── Drawing placement state ──────────────────────────────────────
+    private float  tapAnchorX = -1, tapAnchorY = -1;
+    private long   anchor1Ts = -1;  private double anchor1Price = Double.NaN;
+    private long   anchor2Ts = -1;  private double anchor2Price = Double.NaN;
+    private int    pitchforkState = 0;
     @Nullable private ChartDrawing previewDrawing = null;
 
-    // Snap
+    // ── Edit drag state ──────────────────────────────────────────────
+    /**
+     * Which handle on the selected drawing is being dragged.
+     * -1 = dragging the whole body, 0..N = specific handle index.
+     * Integer.MIN_VALUE = no drag in progress.
+     */
+    private int    dragHandleIdx = Integer.MIN_VALUE;
+    private float  dragLastX, dragLastY;
+    /** Cached selected drawing ref at drag-start so we don't re-lookup every MOVE */
+    @Nullable private ChartDrawing dragTarget = null;
+
+    // ── Settings ─────────────────────────────────────────────────────
     private boolean snapEnabled = true;
+    private static final float HIT_BODY_PX   = 28f;  // tap-to-select tolerance
+    private static final float HIT_HANDLE_PX = 32f;  // handle grab radius
 
-    // Hit-test tolerance in pixels
-    private static final float HIT_RADIUS_PX = 28f;
-
-    // Crosshair paint for snap overlay
+    // ── Visuals ──────────────────────────────────────────────────────
     private final Paint crosshairPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-
-    // Gesture detector for long-press
     private GestureDetector gestureDetector;
 
-    // ── Event listener ───────────────────────────────────────────────
+    // ── Callback ─────────────────────────────────────────────────────
     @Nullable private DrawingEventListener drawingEventListener;
 
     public interface DrawingEventListener {
         void onDrawingCreated(ChartDrawing drawing);
         void onDrawingRemoved(ChartDrawing drawing);
         void onDrawingSelected(@Nullable ChartDrawing drawing);
-        /** Called whenever drawings change so the host can trigger auto-save. */
         void onDrawingsChanged();
+        /** Called whenever active tool changes — used to show/hide the HUD. */
+        void onToolChanged(@Nullable DrawingManager.DrawingTool tool);
     }
 
     // ── Constructors ─────────────────────────────────────────────────
@@ -86,17 +98,14 @@ public class DrawingChart extends CombinedChart {
 
     private void initDrawingLayer() {
         crosshairPaint.setColor(Color.parseColor("#26A69A"));
-        crosshairPaint.setStrokeWidth(1f);
-        crosshairPaint.setAlpha(150);
+        crosshairPaint.setStrokeWidth(1f); crosshairPaint.setAlpha(150);
         crosshairPaint.setStyle(Paint.Style.STROKE);
         crosshairPaint.setPathEffect(new android.graphics.DashPathEffect(new float[]{4,4},0));
 
         gestureDetector = new GestureDetector(getContext(),
                 new GestureDetector.SimpleOnGestureListener() {
-                    @Override
-                    public void onLongPress(MotionEvent e) {
+                    @Override public void onLongPress(MotionEvent e) {
                         if (drawingManager.hasActiveTool()) return;
-                        // Long-press with nothing active → delete selected
                         String sel = drawingManager.getSelectedId();
                         if (sel != null) {
                             ChartDrawing d = drawingManager.get(sel);
@@ -112,16 +121,17 @@ public class DrawingChart extends CombinedChart {
     }
 
     // ── Public API ───────────────────────────────────────────────────
-
     public DrawingManager getDrawingManager() { return drawingManager; }
-
     public void setCandles(List<Candle> c) { this.candles = new ArrayList<>(c); }
-
     public void setDrawingEventListener(DrawingEventListener l) { this.drawingEventListener = l; }
-
     public void setSnapEnabled(boolean snap) { this.snapEnabled = snap; }
-
     public boolean isSnapEnabled() { return snapEnabled; }
+
+    public void setActiveTool(@Nullable DrawingManager.DrawingTool tool) {
+        drawingManager.setActiveTool(tool);
+        cancelCurrentDrawing();
+        if (drawingEventListener != null) drawingEventListener.onToolChanged(tool);
+    }
 
     public void replaceIndicatorDrawings(List<ChartDrawing> list) {
         drawingManager.clearIndicatorDrawings();
@@ -129,382 +139,561 @@ public class DrawingChart extends CombinedChart {
         postInvalidate();
     }
 
-    /** Programmatically cancel current in-progress drawing. */
     public void cancelCurrentDrawing() {
         previewDrawing = null;
-        anchor1Index = -1; anchor1Price = Double.NaN;
-        anchor2Index = -1; anchor2Price = Double.NaN;
-        pitchforkState = 0;
-        postInvalidate();
+        anchor1Ts = -1; anchor1Price = Double.NaN;
+        anchor2Ts = -1; anchor2Price = Double.NaN;
+        pitchforkState = 0; postInvalidate();
     }
 
     public boolean undo() {
-        boolean changed = drawingManager.undo();
-        if (changed) { postInvalidate(); if (drawingEventListener!=null) drawingEventListener.onDrawingsChanged(); }
-        return changed;
+        boolean ok = drawingManager.undo();
+        if (ok) { postInvalidate(); notifyChanged(); } return ok;
     }
-
     public boolean redo() {
-        boolean changed = drawingManager.redo();
-        if (changed) { postInvalidate(); if (drawingEventListener!=null) drawingEventListener.onDrawingsChanged(); }
-        return changed;
+        boolean ok = drawingManager.redo();
+        if (ok) { postInvalidate(); notifyChanged(); } return ok;
     }
 
-    // ── onDraw ───────────────────────────────────────────────────────
+    public void clearAllUserDrawings() {
+        drawingManager.clearUserDrawings();
+        postInvalidate(); notifyChanged();
+    }
 
+    private void notifyChanged() {
+        if (drawingEventListener != null) drawingEventListener.onDrawingsChanged();
+    }
+
+    // ── Two-pass onDraw ───────────────────────────────────────────────
     @Override
     protected void onDraw(Canvas canvas) {
-        super.onDraw(canvas);
+        drawLayerPass(canvas, ChartDrawing.Layer.BEHIND_CANDLES);
+        super.onDraw(canvas);                             // candles + indicators
+        drawLayerPass(canvas, ChartDrawing.Layer.ABOVE_CANDLES);
 
-        // Build temporary manager including preview
-        DrawingManager renderMgr = drawingManager;
-        if (previewDrawing != null) {
-            renderMgr = new DrawingManager();
-            for (ChartDrawing d : drawingManager.getAll()) renderMgr.add(d);
-            renderMgr.add(previewDrawing);
-        }
-
-        if (!renderMgr.isEmpty()) {
-            drawingRenderer.draw(canvas, this, renderMgr, candles);
-        }
-
-        // Snap crosshair while a tool is active and user is touching
+        // Snap crosshair while placing a drawing
         if (drawingManager.hasActiveTool() && tapAnchorX > 0) {
-            drawSnapCrosshair(canvas, tapAnchorX, tapAnchorY);
+            android.graphics.RectF r = getContentRect();
+            canvas.drawLine(tapAnchorX, r.top, tapAnchorX, r.bottom, crosshairPaint);
+            canvas.drawLine(r.left, tapAnchorY, r.right, tapAnchorY, crosshairPaint);
         }
     }
 
-    private void drawSnapCrosshair(Canvas canvas, float x, float y) {
-        android.graphics.RectF rect = getContentRect();
-        canvas.drawLine(x, rect.top, x, rect.bottom, crosshairPaint);
-        canvas.drawLine(rect.left, y, rect.right, y, crosshairPaint);
+    private void drawLayerPass(Canvas canvas, ChartDrawing.Layer layer) {
+        // Include the live preview drawing in the render
+        if (previewDrawing != null && previewDrawing.layer == layer) {
+            DrawingManager tmp = new DrawingManager();
+            for (ChartDrawing d : drawingManager.getAll()) tmp.add(d);
+            tmp.add(previewDrawing);
+            drawingRenderer.drawLayer(canvas, this, tmp, candles, layer);
+        } else {
+            drawingRenderer.drawLayer(canvas, this, drawingManager, candles, layer);
+        }
     }
 
-    // ── Touch handling ───────────────────────────────────────────────
-
+    // ═════════════════════════════════════════════════════════════════
+    // TOUCH HANDLING
+    // ═════════════════════════════════════════════════════════════════
     @Override
     public boolean onTouchEvent(MotionEvent event) {
         gestureDetector.onTouchEvent(event);
 
-        if (!drawingManager.hasActiveTool()) {
-            // Pan/zoom mode — check for tap-to-select
-            if (event.getActionMasked() == MotionEvent.ACTION_UP) {
-                float dx = Math.abs(event.getX() - tapAnchorX);
-                float dy = Math.abs(event.getY() - tapAnchorY);
-                if (dx < 8 && dy < 8) trySelect(event.getX(), event.getY());
-            }
-            if (event.getActionMasked() == MotionEvent.ACTION_DOWN) {
-                tapAnchorX = event.getX(); tapAnchorY = event.getY();
-            }
-            return super.onTouchEvent(event);
+        if (drawingManager.hasActiveTool()) {
+            return handlePlacementTouch(event);
+        } else {
+            return handleEditTouch(event);
         }
-
-        return handleDrawingTouch(event);
     }
 
-    private boolean handleDrawingTouch(MotionEvent event) {
+    // ── EDIT / SELECT mode ───────────────────────────────────────────
+    private boolean handleEditTouch(MotionEvent event) {
         float px = event.getX(), py = event.getY();
-        DrawingManager.DrawingTool tool = drawingManager.getActiveTool();
-
-        // Apply snap
-        int snapIndex  = pixelToIndex(px);
-        double snapPrice = snapEnabled ? snapPrice(py, snapIndex) : pixelToPrice(py);
-        float snapPx = (float) (snapEnabled ? indexToPixel(snapIndex) : px);
-        float snapPy = (float) (snapEnabled ? priceToPixel(snapPrice) : py);
 
         switch (event.getActionMasked()) {
+
             case MotionEvent.ACTION_DOWN: {
                 tapAnchorX = px; tapAnchorY = py;
-                // Clear selection when starting a new draw
-                drawingManager.clearSelection();
-                if (drawingEventListener!=null) drawingEventListener.onDrawingSelected(null);
-                return true;
+                dragHandleIdx = Integer.MIN_VALUE; dragTarget = null;
+
+                // 1. Try to grab a handle on the selected drawing
+                String selId = drawingManager.getSelectedId();
+                if (selId != null) {
+                    ChartDrawing sel = drawingManager.get(selId);
+                    if (sel != null) {
+                        int h = nearestHandle(sel, px, py);
+                        if (h != Integer.MIN_VALUE) {
+                            dragHandleIdx = h;
+                            dragTarget = sel;
+                            dragLastX = px; dragLastY = py;
+                            return true;          // consume — start handle drag
+                        }
+                        // 2. Try body drag (tap inside bounding area)
+                        if (hitBody(sel, px, py)) {
+                            dragHandleIdx = -1;   // -1 = move whole drawing
+                            dragTarget = sel;
+                            dragLastX = px; dragLastY = py;
+                            return true;
+                        }
+                    }
+                }
+                // 3. Pass to MPAndroidChart for pan/zoom (will also hit-test on UP)
+                return super.onTouchEvent(event);
             }
 
             case MotionEvent.ACTION_MOVE: {
-                if (DrawingManager.isTwoPointTool(tool) && anchor1Index >= 0) {
-                    previewDrawing = buildDrawing(tool,
-                            anchor1Index, anchor1Price, snapIndex, snapPrice);
+                if (dragTarget != null) {
+                    float dxPx = px - dragLastX, dyPx = py - dragLastY;
+                    if (dragHandleIdx == -1) {
+                        moveDrawing(dragTarget, dxPx, dyPx);
+                    } else {
+                        moveHandle(dragTarget, dragHandleIdx, px, py);
+                    }
+                    dragLastX = px; dragLastY = py;
                     postInvalidate();
+                    return true;
                 }
-                // Show snap crosshair position
-                tapAnchorX = snapPx; tapAnchorY = snapPy;
-                postInvalidate();
-                return true;
+                return super.onTouchEvent(event);
             }
 
             case MotionEvent.ACTION_UP: {
-                float dx = Math.abs(px - tapAnchorX);
-                float dy = Math.abs(py - tapAnchorY);
-                boolean isTap = (dx < 8 && dy < 8);
-                previewDrawing = null;
-                tapAnchorX = -1; tapAnchorY = -1;
+                if (dragTarget != null) {
+                    notifyChanged();      // persist after every edit
+                    dragTarget = null; dragHandleIdx = Integer.MIN_VALUE;
+                    postInvalidate();
+                    return true;
+                }
+                // Tap: hit-test select
+                float dx = Math.abs(px - tapAnchorX), dy = Math.abs(py - tapAnchorY);
+                if (dx < 10 && dy < 10) trySelect(px, py);
+                return super.onTouchEvent(event);
+            }
 
-                handleToolTap(tool, snapIndex, snapPrice, !isTap,
-                        pixelToIndex(px), pixelToPrice(py));
-                postInvalidate();
+            case MotionEvent.ACTION_CANCEL: {
+                if (dragTarget != null) {
+                    notifyChanged();
+                    dragTarget = null; dragHandleIdx = Integer.MIN_VALUE;
+                }
+                return super.onTouchEvent(event);
+            }
+        }
+        return super.onTouchEvent(event);
+    }
+
+    // ── PLACEMENT mode ───────────────────────────────────────────────
+    private boolean handlePlacementTouch(MotionEvent event) {
+        float px = event.getX(), py = event.getY();
+        DrawingManager.DrawingTool tool = drawingManager.getActiveTool();
+
+        long   snapTs    = pixelToTimestamp(px);
+        double snapPrice = snapEnabled ? snapToOHLC(py, snapTs) : pixelToPrice(py);
+        float  snapPx    = (float) timestampToPixelX(snapTs);
+        float  snapPy    = priceToPixelY(snapPrice);
+
+        switch (event.getActionMasked()) {
+            case MotionEvent.ACTION_DOWN:
+                tapAnchorX = px; tapAnchorY = py;
+                drawingManager.clearSelection();
+                if (drawingEventListener != null) drawingEventListener.onDrawingSelected(null);
                 return true;
+
+            case MotionEvent.ACTION_MOVE:
+                if (DrawingManager.isTwoPointTool(tool) && anchor1Ts >= 0) {
+                    previewDrawing = buildDrawing(tool, anchor1Ts, anchor1Price, snapTs, snapPrice);
+                    if (previewDrawing != null) previewDrawing.layer = ChartDrawing.Layer.ABOVE_CANDLES;
+                }
+                tapAnchorX = snapPx; tapAnchorY = snapPy;
+                postInvalidate(); return true;
+
+            case MotionEvent.ACTION_UP: {
+                float dx = Math.abs(px - tapAnchorX), dy = Math.abs(py - tapAnchorY);
+                boolean wasDrag = (dx > 8 || dy > 8);
+                previewDrawing = null; tapAnchorX = -1; tapAnchorY = -1;
+                handlePlacementTap(tool, snapTs, snapPrice, wasDrag,
+                        pixelToTimestamp(px), pixelToPrice(py));
+                postInvalidate(); return true;
             }
         }
         return true;
     }
 
-    private void handleToolTap(DrawingManager.DrawingTool tool,
-                               int tapIndex, double tapPrice,
-                               boolean wasDrag, int rawIndex, double rawPrice) {
-
-        // ── Three-point tools (Pitchfork) ────────────────────────────
+    private void handlePlacementTap(DrawingManager.DrawingTool tool,
+                                    long snapTs, double snapPrice, boolean wasDrag,
+                                    long rawTs, double rawPrice) {
+        // Three-point
         if (DrawingManager.isThreePointTool(tool)) {
-            if (pitchforkState == 0) {
-                anchor1Index = tapIndex; anchor1Price = tapPrice;
-                pitchforkState = 1;
-            } else if (pitchforkState == 1) {
-                anchor2Index = tapIndex; anchor2Price = tapPrice;
-                pitchforkState = 2;
-            } else {
-                // Third point → finalize
-                ChartDrawing d = drawingManager.addPitchfork(
-                        anchor1Index, anchor1Price,
-                        anchor2Index, anchor2Price,
-                        tapIndex, tapPrice);
-                finalize(d);
-                pitchforkState = 0;
-                anchor1Index = -1; anchor1Price = Double.NaN;
-                anchor2Index = -1; anchor2Price = Double.NaN;
+            if      (pitchforkState == 0) { anchor1Ts=snapTs; anchor1Price=snapPrice; pitchforkState=1; }
+            else if (pitchforkState == 1) { anchor2Ts=snapTs; anchor2Price=snapPrice; pitchforkState=2; }
+            else {
+                finalizeDrawing(drawingManager.addPitchfork(
+                        anchor1Ts,anchor1Price, anchor2Ts,anchor2Price, snapTs,snapPrice));
+                pitchforkState=0; anchor1Ts=-1; anchor1Price=Double.NaN;
+                anchor2Ts=-1; anchor2Price=Double.NaN;
             }
             return;
         }
-
-        // ── One-point tools ──────────────────────────────────────────
+        // One-point
         if (!DrawingManager.isTwoPointTool(tool)) {
-            ChartDrawing d = placeOnePointDrawing(tool, tapIndex, tapPrice);
-            if (d != null) finalize(d);
+            ChartDrawing d = placeOnePoint(tool, snapTs, snapPrice);
+            if (d != null) finalizeDrawing(d);
             return;
         }
-
-        // ── Two-point tools ──────────────────────────────────────────
+        // Two-point — drag workflow
         if (wasDrag) {
-            // Drag completed — use raw end position
-            if (anchor1Index >= 0) {
-                ChartDrawing d = buildDrawing(tool, anchor1Index, anchor1Price, rawIndex, rawPrice);
-                if (d != null) { drawingManager.add(d); finalize(d); }
-                anchor1Index = -1; anchor1Price = Double.NaN;
+            if (anchor1Ts >= 0) {
+                ChartDrawing d = buildDrawing(tool, anchor1Ts, anchor1Price, rawTs, rawPrice);
+                if (d != null) { drawingManager.add(d); finalizeDrawing(d); }
+                anchor1Ts=-1; anchor1Price=Double.NaN;
             }
             return;
         }
-
-        // Tap-tap workflow
-        if (anchor1Index < 0) {
-            anchor1Index = tapIndex; anchor1Price = tapPrice;
-        } else {
-            ChartDrawing d = buildDrawing(tool, anchor1Index, anchor1Price, tapIndex, tapPrice);
-            if (d != null) { drawingManager.add(d); finalize(d); }
-            anchor1Index = -1; anchor1Price = Double.NaN;
+        // Two-point — tap-tap workflow
+        if (anchor1Ts < 0) { anchor1Ts=snapTs; anchor1Price=snapPrice; }
+        else {
+            ChartDrawing d = buildDrawing(tool, anchor1Ts, anchor1Price, snapTs, snapPrice);
+            if (d != null) { drawingManager.add(d); finalizeDrawing(d); }
+            anchor1Ts=-1; anchor1Price=Double.NaN;
         }
     }
 
+    // ═════════════════════════════════════════════════════════════════
+    // EDIT HELPERS — move / resize each drawing type
+    // ═════════════════════════════════════════════════════════════════
+
+    /**
+     * Returns handle index (0-based) if px,py is within HIT_HANDLE_PX of any
+     * anchor handle, or Integer.MIN_VALUE if none.
+     */
+    private int nearestHandle(ChartDrawing d, float px, float py) {
+        float[][] handles = getHandles(d);
+        if (handles == null) return Integer.MIN_VALUE;
+        for (int i = 0; i < handles.length; i++) {
+            float dist = (float) Math.hypot(px - handles[i][0], py - handles[i][1]);
+            if (dist <= HIT_HANDLE_PX) return i;
+        }
+        return Integer.MIN_VALUE;
+    }
+
+    /** Returns pixel positions [x,y] for every draggable handle of a drawing. */
     @Nullable
-    private ChartDrawing placeOnePointDrawing(DrawingManager.DrawingTool tool,
-                                              int idx, double price) {
+    private float[][] getHandles(ChartDrawing d) {
+        switch (d.getType()) {
+            case HORIZONTAL_LINE:
+                return new float[][]{{getContentRect().left + 40,
+                        priceToPixelY(((ChartDrawing.HorizontalLine)d).price)}};
+            case VERTICAL_LINE:
+                return new float[][]{{(float)timestampToPixelX(((ChartDrawing.VerticalLine)d).candleTs),
+                        getContentRect().top + 40}};
+            case TREND_LINE: { ChartDrawing.TrendLine t=(ChartDrawing.TrendLine)d;
+                return new float[][]{
+                        {(float)timestampToPixelX(t.startTs), priceToPixelY(t.startPrice)},
+                        {(float)timestampToPixelX(t.endTs),   priceToPixelY(t.endPrice)}}; }
+            case RAY_LINE: { ChartDrawing.RayLine r=(ChartDrawing.RayLine)d;
+                return new float[][]{
+                        {(float)timestampToPixelX(r.startTs),  priceToPixelY(r.startPrice)},
+                        {(float)timestampToPixelX(r.anchorTs), priceToPixelY(r.anchorPrice)}}; }
+            case EXTENDED_LINE: { ChartDrawing.ExtendedLine el=(ChartDrawing.ExtendedLine)d;
+                return new float[][]{
+                        {(float)timestampToPixelX(el.startTs), priceToPixelY(el.startPrice)},
+                        {(float)timestampToPixelX(el.endTs),   priceToPixelY(el.endPrice)}}; }
+            case ARROW: { ChartDrawing.Arrow ar=(ChartDrawing.Arrow)d;
+                return new float[][]{
+                        {(float)timestampToPixelX(ar.startTs), priceToPixelY(ar.startPrice)},
+                        {(float)timestampToPixelX(ar.endTs),   priceToPixelY(ar.endPrice)}}; }
+            case RECTANGLE: { ChartDrawing.Rectangle r=(ChartDrawing.Rectangle)d;
+                return new float[][]{
+                        {(float)timestampToPixelX(r.startTs), priceToPixelY(r.startPrice)},
+                        {(float)timestampToPixelX(r.endTs),   priceToPixelY(r.endPrice)}}; }
+            case ELLIPSE: { ChartDrawing.Ellipse el=(ChartDrawing.Ellipse)d;
+                return new float[][]{
+                        {(float)timestampToPixelX(el.startTs), priceToPixelY(el.startPrice)},
+                        {(float)timestampToPixelX(el.endTs),   priceToPixelY(el.endPrice)}}; }
+            case FIB_RETRACEMENT: { ChartDrawing.FibRetracement f=(ChartDrawing.FibRetracement)d;
+                return new float[][]{
+                        {(float)timestampToPixelX(f.startTs), priceToPixelY(f.highPrice)},
+                        {(float)timestampToPixelX(f.endTs),   priceToPixelY(f.lowPrice)}}; }
+            case PARALLEL_CHANNEL: { ChartDrawing.ParallelChannel pc=(ChartDrawing.ParallelChannel)d;
+                return new float[][]{
+                        {(float)timestampToPixelX(pc.startTs), priceToPixelY(pc.startPrice)},
+                        {(float)timestampToPixelX(pc.endTs),   priceToPixelY(pc.endPrice)},
+                        {(float)timestampToPixelX(pc.startTs), priceToPixelY(pc.midPrice)}}; }
+            case PITCHFORK: { ChartDrawing.Pitchfork pf=(ChartDrawing.Pitchfork)d;
+                return new float[][]{
+                        {(float)timestampToPixelX(pf.p0Ts), priceToPixelY(pf.p0Price)},
+                        {(float)timestampToPixelX(pf.p1Ts), priceToPixelY(pf.p1Price)},
+                        {(float)timestampToPixelX(pf.p2Ts), priceToPixelY(pf.p2Price)}}; }
+            case GANN_FAN: { ChartDrawing.GannFan gf=(ChartDrawing.GannFan)d;
+                return new float[][]{
+                        {(float)timestampToPixelX(gf.startTs), priceToPixelY(gf.startPrice)},
+                        {(float)timestampToPixelX(gf.endTs),   priceToPixelY(gf.endPrice)}}; }
+            case TEXT_ANNOTATION: { ChartDrawing.TextAnnotation ta=(ChartDrawing.TextAnnotation)d;
+                return new float[][]{{(float)timestampToPixelX(ta.candleTs), priceToPixelY(ta.price)}}; }
+            case LINEAR_REGRESSION: { ChartDrawing.LinearRegression lr=(ChartDrawing.LinearRegression)d;
+                return new float[][]{
+                        {(float)timestampToPixelX(lr.startTs), getContentRect().centerY()},
+                        {(float)timestampToPixelX(lr.endTs),   getContentRect().centerY()}}; }
+            default: return null;
+        }
+    }
+
+    /** Move a specific handle (anchor) of a drawing to a new pixel position. */
+    private void moveHandle(ChartDrawing d, int handleIdx, float px, float py) {
+        long   newTs    = pixelToTimestamp(px);
+        double newPrice = snapEnabled ? snapToOHLC(py, newTs) : pixelToPrice(py);
+
+        switch (d.getType()) {
+            case HORIZONTAL_LINE:
+                ((ChartDrawing.HorizontalLine)d).price = newPrice; break;
+            case VERTICAL_LINE:
+                ((ChartDrawing.VerticalLine)d).candleTs = newTs; break;
+            case TREND_LINE: { ChartDrawing.TrendLine t=(ChartDrawing.TrendLine)d;
+                if (handleIdx==0){t.startTs=newTs;t.startPrice=newPrice;}
+                else             {t.endTs  =newTs;t.endPrice  =newPrice;} break; }
+            case RAY_LINE: { ChartDrawing.RayLine r=(ChartDrawing.RayLine)d;
+                if (handleIdx==0){r.startTs=newTs;r.startPrice=newPrice;}
+                else             {r.anchorTs=newTs;r.anchorPrice=newPrice;} break; }
+            case EXTENDED_LINE: { ChartDrawing.ExtendedLine el=(ChartDrawing.ExtendedLine)d;
+                if (handleIdx==0){el.startTs=newTs;el.startPrice=newPrice;}
+                else             {el.endTs  =newTs;el.endPrice  =newPrice;} break; }
+            case ARROW: { ChartDrawing.Arrow ar=(ChartDrawing.Arrow)d;
+                if (handleIdx==0){ar.startTs=newTs;ar.startPrice=newPrice;}
+                else             {ar.endTs  =newTs;ar.endPrice  =newPrice;} break; }
+            case RECTANGLE: { ChartDrawing.Rectangle r=(ChartDrawing.Rectangle)d;
+                if (handleIdx==0){r.startTs=newTs;r.startPrice=newPrice;}
+                else             {r.endTs  =newTs;r.endPrice  =newPrice;} break; }
+            case ELLIPSE: { ChartDrawing.Ellipse el=(ChartDrawing.Ellipse)d;
+                if (handleIdx==0){el.startTs=newTs;el.startPrice=newPrice;}
+                else             {el.endTs  =newTs;el.endPrice  =newPrice;} break; }
+            case FIB_RETRACEMENT: { ChartDrawing.FibRetracement f=(ChartDrawing.FibRetracement)d;
+                if (handleIdx==0){f.startTs=newTs;f.highPrice=newPrice;}
+                else             {f.endTs  =newTs;f.lowPrice =newPrice;} break; }
+            case PARALLEL_CHANNEL: { ChartDrawing.ParallelChannel pc=(ChartDrawing.ParallelChannel)d;
+                if (handleIdx==0){pc.startTs=newTs;pc.startPrice=newPrice;}
+                else if(handleIdx==1){pc.endTs=newTs;pc.endPrice=newPrice;}
+                else             {pc.midPrice=newPrice;} break; }
+            case PITCHFORK: { ChartDrawing.Pitchfork pf=(ChartDrawing.Pitchfork)d;
+                if (handleIdx==0){pf.p0Ts=newTs;pf.p0Price=newPrice;}
+                else if(handleIdx==1){pf.p1Ts=newTs;pf.p1Price=newPrice;}
+                else             {pf.p2Ts=newTs;pf.p2Price=newPrice;} break; }
+            case GANN_FAN: { ChartDrawing.GannFan gf=(ChartDrawing.GannFan)d;
+                if (handleIdx==0){gf.startTs=newTs;gf.startPrice=newPrice;}
+                else             {gf.endTs  =newTs;gf.endPrice  =newPrice;} break; }
+            case TEXT_ANNOTATION: { ChartDrawing.TextAnnotation ta=(ChartDrawing.TextAnnotation)d;
+                ta.candleTs=newTs; ta.price=newPrice; break; }
+            case LINEAR_REGRESSION: { ChartDrawing.LinearRegression lr=(ChartDrawing.LinearRegression)d;
+                if (handleIdx==0) lr.startTs=newTs; else lr.endTs=newTs; break; }
+        }
+    }
+
+    /** Translate an entire drawing by the pixel delta. */
+    private void moveDrawing(ChartDrawing d, float dxPx, float dyPx) {
+        // Convert pixel deltas to timestamp + price deltas
+        long   tsCentre   = pixelToTimestamp(getContentRect().centerX());
+        long   tsMoved    = pixelToTimestamp(getContentRect().centerX() + dxPx);
+        long   dtTs       = tsMoved - tsCentre;
+        double priceCentre = pixelToPrice(getContentRect().centerY());
+        double priceMoved  = pixelToPrice(getContentRect().centerY() + dyPx);
+        double dprice      = priceMoved - priceCentre;
+
+        switch (d.getType()) {
+            case HORIZONTAL_LINE:
+                ((ChartDrawing.HorizontalLine)d).price += dprice; break;
+            case VERTICAL_LINE:
+                ((ChartDrawing.VerticalLine)d).candleTs += dtTs; break;
+            case PRICE_RANGE: { ChartDrawing.PriceRange pr=(ChartDrawing.PriceRange)d;
+                pr.priceHigh+=dprice; pr.priceLow+=dprice; break; }
+            case TREND_LINE: { ChartDrawing.TrendLine t=(ChartDrawing.TrendLine)d;
+                t.startTs+=dtTs;t.startPrice+=dprice;t.endTs+=dtTs;t.endPrice+=dprice; break; }
+            case RAY_LINE: { ChartDrawing.RayLine r=(ChartDrawing.RayLine)d;
+                r.startTs+=dtTs;r.startPrice+=dprice;r.anchorTs+=dtTs;r.anchorPrice+=dprice; break; }
+            case EXTENDED_LINE: { ChartDrawing.ExtendedLine el=(ChartDrawing.ExtendedLine)d;
+                el.startTs+=dtTs;el.startPrice+=dprice;el.endTs+=dtTs;el.endPrice+=dprice; break; }
+            case ARROW: { ChartDrawing.Arrow ar=(ChartDrawing.Arrow)d;
+                ar.startTs+=dtTs;ar.startPrice+=dprice;ar.endTs+=dtTs;ar.endPrice+=dprice; break; }
+            case RECTANGLE: { ChartDrawing.Rectangle r=(ChartDrawing.Rectangle)d;
+                r.startTs+=dtTs;r.startPrice+=dprice;r.endTs+=dtTs;r.endPrice+=dprice; break; }
+            case ELLIPSE: { ChartDrawing.Ellipse el=(ChartDrawing.Ellipse)d;
+                el.startTs+=dtTs;el.startPrice+=dprice;el.endTs+=dtTs;el.endPrice+=dprice; break; }
+            case FIB_RETRACEMENT: { ChartDrawing.FibRetracement f=(ChartDrawing.FibRetracement)d;
+                f.startTs+=dtTs;f.highPrice+=dprice;f.endTs+=dtTs;f.lowPrice+=dprice; break; }
+            case PARALLEL_CHANNEL: { ChartDrawing.ParallelChannel pc=(ChartDrawing.ParallelChannel)d;
+                pc.startTs+=dtTs;pc.startPrice+=dprice;pc.endTs+=dtTs;pc.endPrice+=dprice;pc.midPrice+=dprice; break; }
+            case PITCHFORK: { ChartDrawing.Pitchfork pf=(ChartDrawing.Pitchfork)d;
+                pf.p0Ts+=dtTs;pf.p0Price+=dprice;pf.p1Ts+=dtTs;pf.p1Price+=dprice;
+                pf.p2Ts+=dtTs;pf.p2Price+=dprice; break; }
+            case GANN_FAN: { ChartDrawing.GannFan gf=(ChartDrawing.GannFan)d;
+                gf.startTs+=dtTs;gf.startPrice+=dprice;gf.endTs+=dtTs;gf.endPrice+=dprice; break; }
+            case TEXT_ANNOTATION: { ChartDrawing.TextAnnotation ta=(ChartDrawing.TextAnnotation)d;
+                ta.candleTs+=dtTs; ta.price+=dprice; break; }
+            case LINEAR_REGRESSION: { ChartDrawing.LinearRegression lr=(ChartDrawing.LinearRegression)d;
+                lr.startTs+=dtTs; lr.endTs+=dtTs; break; }
+        }
+    }
+
+    /** Returns true if px,py is within the bounding box / body hit area of d. */
+    private boolean hitBody(ChartDrawing d, float px, float py) {
+        return hitDistance(d, px, py) < HIT_BODY_PX;
+    }
+
+    // ═════════════════════════════════════════════════════════════════
+    // HIT-TEST (tap-to-select)
+    // ═════════════════════════════════════════════════════════════════
+    private void trySelect(float px, float py) {
+        ChartDrawing best = null; float bestDist = HIT_BODY_PX;
+        for (ChartDrawing d : drawingManager.getAll()) {
+            if (d.source != ChartDrawing.Source.USER || d.locked) continue;
+            float dist = hitDistance(d, px, py);
+            if (dist < bestDist) { bestDist=dist; best=d; }
+        }
+        if (best != null) drawingManager.select(best.getInstanceId());
+        else drawingManager.clearSelection();
+        postInvalidate();
+        if (drawingEventListener != null) drawingEventListener.onDrawingSelected(best);
+    }
+
+    private float hitDistance(ChartDrawing d, float px, float py) {
+        switch (d.getType()) {
+            case HORIZONTAL_LINE:
+                return Math.abs(py - priceToPixelY(((ChartDrawing.HorizontalLine)d).price));
+            case VERTICAL_LINE:
+                return Math.abs(px - (float)timestampToPixelX(((ChartDrawing.VerticalLine)d).candleTs));
+            case PRICE_RANGE: { ChartDrawing.PriceRange pr=(ChartDrawing.PriceRange)d;
+                float yH=priceToPixelY(pr.priceHigh),yL=priceToPixelY(pr.priceLow);
+                android.graphics.RectF r=getContentRect();
+                return Math.min(ptSeg(px,py,r.left,yH,r.right,yH),ptSeg(px,py,r.left,yL,r.right,yL)); }
+            case TREND_LINE: { ChartDrawing.TrendLine t=(ChartDrawing.TrendLine)d;
+                return ptSeg(px,py,(float)timestampToPixelX(t.startTs),priceToPixelY(t.startPrice),
+                        (float)timestampToPixelX(t.endTs),priceToPixelY(t.endPrice)); }
+            case RAY_LINE: { ChartDrawing.RayLine r=(ChartDrawing.RayLine)d;
+                return ptSeg(px,py,(float)timestampToPixelX(r.startTs),priceToPixelY(r.startPrice),
+                        (float)timestampToPixelX(r.anchorTs),priceToPixelY(r.anchorPrice)); }
+            case EXTENDED_LINE: { ChartDrawing.ExtendedLine el=(ChartDrawing.ExtendedLine)d;
+                return ptSeg(px,py,(float)timestampToPixelX(el.startTs),priceToPixelY(el.startPrice),
+                        (float)timestampToPixelX(el.endTs),priceToPixelY(el.endPrice)); }
+            case ARROW: { ChartDrawing.Arrow ar=(ChartDrawing.Arrow)d;
+                return ptSeg(px,py,(float)timestampToPixelX(ar.startTs),priceToPixelY(ar.startPrice),
+                        (float)timestampToPixelX(ar.endTs),priceToPixelY(ar.endPrice)); }
+            case RECTANGLE: { ChartDrawing.Rectangle r=(ChartDrawing.Rectangle)d;
+                float x1=(float)timestampToPixelX(r.startTs),y1=priceToPixelY(r.startPrice);
+                float x2=(float)timestampToPixelX(r.endTs),  y2=priceToPixelY(r.endPrice);
+                float xL=Math.min(x1,x2),xR=Math.max(x1,x2),yT=Math.min(y1,y2),yB=Math.max(y1,y2);
+                return Math.min(ptSeg(px,py,xL,yT,xR,yT), ptSeg(px,py,xL,yB,xR,yB)); }
+            case ELLIPSE: { ChartDrawing.Ellipse el=(ChartDrawing.Ellipse)d;
+                float x1=(float)timestampToPixelX(el.startTs),y1=priceToPixelY(el.startPrice);
+                float x2=(float)timestampToPixelX(el.endTs),  y2=priceToPixelY(el.endPrice);
+                float cx=(x1+x2)/2,cy=(y1+y2)/2,rx=Math.abs(x2-x1)/2,ry=Math.abs(y2-y1)/2;
+                if (rx<1||ry<1) return Float.MAX_VALUE;
+                double nx=(px-cx)/rx, ny=(py-cy)/ry;
+                return (float)(Math.abs(Math.sqrt(nx*nx+ny*ny)-1.0)*Math.min(rx,ry)); }
+            case FIB_RETRACEMENT: { ChartDrawing.FibRetracement f=(ChartDrawing.FibRetracement)d;
+                return Math.min(
+                        (float)Math.hypot(px-timestampToPixelX(f.startTs),py-priceToPixelY(f.highPrice)),
+                        (float)Math.hypot(px-timestampToPixelX(f.endTs),  py-priceToPixelY(f.lowPrice))); }
+            case TEXT_ANNOTATION: { ChartDrawing.TextAnnotation ta=(ChartDrawing.TextAnnotation)d;
+                return (float)Math.hypot(px-timestampToPixelX(ta.candleTs),py-priceToPixelY(ta.price)); }
+            default: return Float.MAX_VALUE;
+        }
+    }
+
+    private float ptSeg(float px,float py,float x1,float y1,float x2,float y2) {
+        float dx=x2-x1,dy=y2-y1,lenSq=dx*dx+dy*dy;
+        if (lenSq<1) return (float)Math.hypot(px-x1,py-y1);
+        float t=Math.max(0,Math.min(1,((px-x1)*dx+(py-y1)*dy)/lenSq));
+        return (float)Math.hypot(px-(x1+t*dx),py-(y1+t*dy));
+    }
+
+    // ═════════════════════════════════════════════════════════════════
+    // SNAP + COORD HELPERS
+    // ═════════════════════════════════════════════════════════════════
+    private double snapToOHLC(float py, long ts) {
+        double raw = pixelToPrice(py);
+        if (candles.isEmpty()) return raw;
+        int idx = ChartDrawing.resolveIndex(ts, candles);
+        if (idx<0||idx>=candles.size()) return raw;
+        Candle c = candles.get(idx);
+        double best=raw, bestDist=Double.MAX_VALUE;
+        for (double v : new double[]{c.open,c.high,c.low,c.close}) {
+            double dist=Math.abs(v-raw); if(dist<bestDist){bestDist=dist;best=v;}
+        }
+        double range=Math.abs(pixelToPrice(getContentRect().top)-pixelToPrice(getContentRect().bottom));
+        return bestDist<range*0.03?best:raw;
+    }
+
+    private long pixelToTimestamp(float px) {
+        Transformer tf=getTransformer(YAxis.AxisDependency.LEFT);
+        float[] p={px,0}; tf.pixelsToValue(p);
+        float fi=p[0];
+        if (candles.isEmpty()) return System.currentTimeMillis()/1000L;
+        if (candles.size()==1) return candles.get(0).timestamp;
+        if (fi>=0 && fi<=candles.size()-1) {
+            int lo=(int)fi, hi=Math.min(lo+1,candles.size()-1);
+            return candles.get(lo).timestamp + Math.round((fi-lo)*(candles.get(hi).timestamp-candles.get(lo).timestamp));
+        }
+        long t0=candles.get(0).timestamp, tN=candles.get(candles.size()-1).timestamp;
+        long avg=(tN-t0)/Math.max(1,candles.size()-1);
+        return t0+Math.round(fi*avg);
+    }
+
+    private double timestampToPixelX(long ts) {
+        if (candles.isEmpty()) return 0;
+        int idx=ChartDrawing.resolveIndex(ts,candles);
+        Transformer tf=getTransformer(YAxis.AxisDependency.LEFT);
+        float[] p={(float)idx,0}; tf.pointValuesToPixel(p); return p[0];
+    }
+
+    private double pixelToPrice(float py) {
+        Transformer tf=getTransformer(YAxis.AxisDependency.LEFT);
+        float[] p={0,py}; tf.pixelsToValue(p); return p[1];
+    }
+
+    private float priceToPixelY(double price) {
+        Transformer tf=getTransformer(YAxis.AxisDependency.LEFT);
+        float[] p={0,(float)price}; tf.pointValuesToPixel(p); return p[1];
+    }
+
+    // ═════════════════════════════════════════════════════════════════
+    // DRAWING FACTORY
+    // ═════════════════════════════════════════════════════════════════
+    @Nullable
+    private ChartDrawing placeOnePoint(DrawingManager.DrawingTool tool, long ts, double price) {
         switch (tool) {
             case HORIZONTAL_LINE:  return drawingManager.addHorizontalLine(price);
-            case VERTICAL_LINE:    return drawingManager.addVerticalLine(idx);
-            case TEXT_ANNOTATION:  return drawingManager.addTextAnnotation(idx, price, "Note");
+            case VERTICAL_LINE:    return drawingManager.addVerticalLine(ts);
+            case TEXT_ANNOTATION:  return drawingManager.addTextAnnotation(ts,price,"Note");
             default:               return null;
         }
     }
 
     @Nullable
     private ChartDrawing buildDrawing(DrawingManager.DrawingTool tool,
-                                      int si, double sp, int ei, double ep) {
-        ChartDrawing.DrawingStyle style = drawingManager.buildActiveStyle();
-        ChartDrawing.Source src = ChartDrawing.Source.USER;
-        double hi = Math.max(sp, ep), lo = Math.min(sp, ep);
-
+                                      long sTs,double sp,long eTs,double ep) {
+        ChartDrawing.DrawingStyle s=drawingManager.buildActiveStyle();
+        ChartDrawing.Source src=ChartDrawing.Source.USER;
+        double hi=Math.max(sp,ep),lo=Math.min(sp,ep);
         switch (tool) {
-            case TREND_LINE:         return new ChartDrawing.TrendLine(si, sp, ei, ep, style, src);
-            case RAY_LINE:           return new ChartDrawing.RayLine(si, sp, ei, ep, style, src);
-            case EXTENDED_LINE:      return new ChartDrawing.ExtendedLine(si, sp, ei, ep, style, src);
-            case LINEAR_REGRESSION:  return new ChartDrawing.LinearRegression(si, ei, style, src);
-            case FIB_RETRACEMENT: {
-                ChartDrawing.DrawingStyle ds = style.copy(); ds.dashed = true;
-                return new ChartDrawing.FibRetracement(si, hi, ei, lo, ds, src);
-            }
-            case PRICE_RANGE: {
-                ChartDrawing.DrawingStyle ds = style.copy(); ds.filled = true;
-                return new ChartDrawing.PriceRange(hi, lo, ds, src);
-            }
-            case RECTANGLE: {
-                ChartDrawing.DrawingStyle ds = style.copy(); ds.filled = true;
-                return new ChartDrawing.Rectangle(si, sp, ei, ep, ds, src);
-            }
-            case ELLIPSE: {
-                ChartDrawing.DrawingStyle ds = style.copy(); ds.filled = true;
-                return new ChartDrawing.Ellipse(si, sp, ei, ep, ds, src);
-            }
-            case ARROW:              return new ChartDrawing.Arrow(si, sp, ei, ep, style, src);
-            case PARALLEL_CHANNEL: {
-                double mid = (sp + ep) / 2;
-                return new ChartDrawing.ParallelChannel(si, sp, ei, ep, mid, style, src);
-            }
-            case GANN_FAN:           return new ChartDrawing.GannFan(si, sp, ei, ep, style, src);
-            default:                 return null;
+            case TREND_LINE:        return new ChartDrawing.TrendLine(sTs,sp,eTs,ep,s,src);
+            case RAY_LINE:          return new ChartDrawing.RayLine(sTs,sp,eTs,ep,s,src);
+            case EXTENDED_LINE:     return new ChartDrawing.ExtendedLine(sTs,sp,eTs,ep,s,src);
+            case LINEAR_REGRESSION: return new ChartDrawing.LinearRegression(sTs,eTs,s,src);
+            case FIB_RETRACEMENT: { ChartDrawing.DrawingStyle ds=s.copy();ds.dashed=true;
+                return new ChartDrawing.FibRetracement(sTs,hi,eTs,lo,ds,src); }
+            case PRICE_RANGE: { ChartDrawing.DrawingStyle ds=s.copy();ds.filled=true;
+                return new ChartDrawing.PriceRange(hi,lo,ds,src); }
+            case RECTANGLE: { ChartDrawing.DrawingStyle ds=s.copy();ds.filled=true;
+                return new ChartDrawing.Rectangle(sTs,sp,eTs,ep,ds,src); }
+            case ELLIPSE: { ChartDrawing.DrawingStyle ds=s.copy();ds.filled=true;
+                return new ChartDrawing.Ellipse(sTs,sp,eTs,ep,ds,src); }
+            case ARROW:             return new ChartDrawing.Arrow(sTs,sp,eTs,ep,s,src);
+            case PARALLEL_CHANNEL:  return new ChartDrawing.ParallelChannel(sTs,sp,eTs,ep,(sp+ep)/2,s,src);
+            case GANN_FAN:          return new ChartDrawing.GannFan(sTs,sp,eTs,ep,s,src);
+            default:                return null;
         }
     }
 
-    private void finalize(ChartDrawing d) {
+    private void finalizeDrawing(ChartDrawing d) {
         postInvalidate();
-        if (drawingEventListener != null) {
+        if (drawingEventListener!=null) {
             drawingEventListener.onDrawingCreated(d);
             drawingEventListener.onDrawingsChanged();
         }
-    }
-
-    // ── Hit-test (tap-to-select) ─────────────────────────────────────
-
-    private void trySelect(float px, float py) {
-        ChartDrawing best = null;
-        float bestDist = HIT_RADIUS_PX;
-
-        Transformer tf = getTransformer(YAxis.AxisDependency.LEFT);
-
-        for (ChartDrawing d : drawingManager.getAll()) {
-            if (d.source != ChartDrawing.Source.USER || d.locked) continue;
-            float dist = hitDistance(d, px, py, tf);
-            if (dist < bestDist) { bestDist = dist; best = d; }
-        }
-
-        if (best != null) {
-            drawingManager.select(best.getInstanceId());
-        } else {
-            drawingManager.clearSelection();
-            best = null;
-        }
-        postInvalidate();
-        if (drawingEventListener != null) drawingEventListener.onDrawingSelected(best);
-    }
-
-    private float hitDistance(ChartDrawing d, float px, float py, Transformer tf) {
-        switch (d.getType()) {
-            case HORIZONTAL_LINE: {
-                float y = priceToPixel(((ChartDrawing.HorizontalLine) d).price);
-                return Math.abs(py - y);
-            }
-            case VERTICAL_LINE: {
-                float x = (float) indexToPixel(((ChartDrawing.VerticalLine) d).candleIndex);
-                return Math.abs(px - x);
-            }
-            case TREND_LINE: case RAY_LINE: case EXTENDED_LINE: case ARROW: {
-                float x1, y1, x2, y2;
-                if (d instanceof ChartDrawing.TrendLine) {
-                    ChartDrawing.TrendLine t = (ChartDrawing.TrendLine) d;
-                    x1 = (float)indexToPixel(t.startIndex); y1 = priceToPixel(t.startPrice);
-                    x2 = (float)indexToPixel(t.endIndex);   y2 = priceToPixel(t.endPrice);
-                } else if (d instanceof ChartDrawing.RayLine) {
-                    ChartDrawing.RayLine r = (ChartDrawing.RayLine) d;
-                    x1 = (float)indexToPixel(r.startIndex);  y1 = priceToPixel(r.startPrice);
-                    x2 = (float)indexToPixel(r.anchorIndex); y2 = priceToPixel(r.anchorPrice);
-                } else if (d instanceof ChartDrawing.Arrow) {
-                    ChartDrawing.Arrow ar = (ChartDrawing.Arrow) d;
-                    x1 = (float)indexToPixel(ar.startIndex); y1 = priceToPixel(ar.startPrice);
-                    x2 = (float)indexToPixel(ar.endIndex);   y2 = priceToPixel(ar.endPrice);
-                } else {
-                    ChartDrawing.ExtendedLine el = (ChartDrawing.ExtendedLine) d;
-                    x1 = (float)indexToPixel(el.startIndex); y1 = priceToPixel(el.startPrice);
-                    x2 = (float)indexToPixel(el.endIndex);   y2 = priceToPixel(el.endPrice);
-                }
-                return pointToSegmentDist(px, py, x1, y1, x2, y2);
-            }
-            case RECTANGLE: case PRICE_RANGE: {
-                float yH, yL;
-                float xL = getContentRect().left, xR = getContentRect().right;
-                float x1, x2;
-                if (d instanceof ChartDrawing.Rectangle) {
-                    ChartDrawing.Rectangle r = (ChartDrawing.Rectangle) d;
-                    x1 = (float)indexToPixel(r.startIndex); yH = priceToPixel(Math.max(r.startPrice,r.endPrice));
-                    x2 = (float)indexToPixel(r.endIndex);   yL = priceToPixel(Math.min(r.startPrice,r.endPrice));
-                    xL = Math.min(x1,x2); xR = Math.max(x1,x2);
-                } else {
-                    ChartDrawing.PriceRange pr = (ChartDrawing.PriceRange) d;
-                    yH = priceToPixel(pr.priceHigh); yL = priceToPixel(pr.priceLow);
-                }
-                // Hit border edges
-                float d1 = pointToSegmentDist(px,py, xL,yH, xR,yH);
-                float d2 = pointToSegmentDist(px,py, xL,yL, xR,yL);
-                return Math.min(d1,d2);
-            }
-            case TEXT_ANNOTATION: {
-                ChartDrawing.TextAnnotation ta = (ChartDrawing.TextAnnotation) d;
-                float x = (float)indexToPixel(ta.candleIndex), y = priceToPixel(ta.price);
-                return (float) Math.hypot(px-x, py-y);
-            }
-            default:
-                return Float.MAX_VALUE;
-        }
-    }
-
-    private float pointToSegmentDist(float px, float py,
-                                     float x1, float y1, float x2, float y2) {
-        float dx = x2-x1, dy = y2-y1;
-        float lenSq = dx*dx + dy*dy;
-        if (lenSq < 1) return (float) Math.hypot(px-x1, py-y1);
-        float t = Math.max(0, Math.min(1, ((px-x1)*dx + (py-y1)*dy) / lenSq));
-        float cx = x1 + t*dx, cy = y1 + t*dy;
-        return (float) Math.hypot(px-cx, py-cy);
-    }
-
-    // ── Snap helpers ─────────────────────────────────────────────────
-
-    /** Snap Y pixel to nearest OHLC value of the nearest candle (if within range). */
-    private double snapPrice(float py, int candleIndex) {
-        double raw = pixelToPrice(py);
-        if (candles.isEmpty() || candleIndex < 0 || candleIndex >= candles.size()) {
-            // Out of candle range — no snap, just return raw price
-            return raw;
-        }
-        Candle c = candles.get(candleIndex);
-        double[] ohlc = {c.open, c.high, c.low, c.close};
-        double best = raw, bestDist = Double.MAX_VALUE;
-        for (double v : ohlc) {
-            double dist = Math.abs(v - raw);
-            if (dist < bestDist) { bestDist = dist; best = v; }
-        }
-        double range = Math.abs(pixelToPrice(getContentRect().top) - pixelToPrice(getContentRect().bottom));
-        return bestDist < range * 0.03 ? best : raw;
-    }
-
-    // ── Coordinate helpers ───────────────────────────────────────────
-
-    private int pixelToIndex(float px) {
-        Transformer tf = getTransformer(YAxis.AxisDependency.LEFT);
-        float[] pts = {px, 0};
-        tf.pixelsToValue(pts);
-        // Allow negative indices (left of first candle) and indices beyond last candle
-        // so users can draw trendlines and rectangles into future/past empty space.
-        // Only enforce a generous outer bound to prevent Integer overflow.
-        int idx = Math.round(pts[0]);
-        int maxFuture = candles.isEmpty() ? 500 : candles.size() + 500;
-        return Math.max(-500, Math.min(maxFuture, idx));
-    }
-
-    private double pixelToPrice(float py) {
-        Transformer tf = getTransformer(YAxis.AxisDependency.LEFT);
-        float[] pts = {0, py};
-        tf.pixelsToValue(pts);
-        return pts[1];
-    }
-
-    private double indexToPixel(int index) {
-        Transformer tf = getTransformer(YAxis.AxisDependency.LEFT);
-        float[] pts = {index, 0};
-        tf.pointValuesToPixel(pts);
-        return pts[0];
-    }
-
-    private float priceToPixel(double price) {
-        Transformer tf = getTransformer(YAxis.AxisDependency.LEFT);
-        float[] pts = {0, (float) price};
-        tf.pointValuesToPixel(pts);
-        return pts[1];
     }
 }

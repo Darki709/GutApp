@@ -347,13 +347,10 @@ public class DrawingToolbarFragment extends BottomSheetDialogFragment {
             card.setOnClickListener(v -> {
                 DrawingManager.DrawingTool cur = drawingChart.getDrawingManager().getActiveTool();
                 if (cur == tool) {
-                    // Toggle off
-                    drawingChart.getDrawingManager().setActiveTool(null);
-                    drawingChart.cancelCurrentDrawing();
+                    drawingChart.setActiveTool(null);
                     Toast.makeText(requireContext(), "Pan/Zoom mode", Toast.LENGTH_SHORT).show();
                 } else {
-                    drawingChart.getDrawingManager().setActiveTool(tool);
-                    drawingChart.cancelCurrentDrawing();
+                    drawingChart.setActiveTool(tool);
                     Toast.makeText(requireContext(), label + ": " + desc, Toast.LENGTH_SHORT).show();
                 }
                 dismiss();
@@ -390,8 +387,7 @@ public class DrawingToolbarFragment extends BottomSheetDialogFragment {
         TextView doneBtn = chipBtn("✓ Pan/Zoom Mode", "#26A69A");
         doneBtn.setLayoutParams(new LinearLayout.LayoutParams(0, wc(), 1f));
         doneBtn.setOnClickListener(v -> {
-            drawingChart.getDrawingManager().setActiveTool(null);
-            drawingChart.cancelCurrentDrawing();
+            drawingChart.setActiveTool(null);
             dismiss();
         });
         actionRow.addView(doneBtn);
@@ -417,8 +413,8 @@ public class DrawingToolbarFragment extends BottomSheetDialogFragment {
                 .setTitle("Clear All Drawings")
                 .setMessage("Remove all user drawings from this chart?")
                 .setPositiveButton("Clear", (d, w) -> {
-                    drawingChart.getDrawingManager().clearUserDrawings();
-                    drawingChart.postInvalidate();
+                    // clearAllUserDrawings() fires onDrawingsChanged → auto-saves empty state
+                    drawingChart.clearAllUserDrawings();
                     refreshDrawingsList();
                 })
                 .setNegativeButton("Cancel", null).show());
@@ -478,210 +474,231 @@ public class DrawingToolbarFragment extends BottomSheetDialogFragment {
         });
         row.addView(name);
 
-        // Dashed toggle
-        if (d.style != null) {
-            TextView dash = chipBtn(d.style.dashed ? "- -" : "───", d.style.dashed ? "#26A69A" : "#546E7A");
-            dash.setOnClickListener(v -> {
-                d.style.dashed = !d.style.dashed;
-                drawingChart.postInvalidate();
-                refreshDrawingsList();
-            });
-            row.addView(dash);
-            row.addView(spacer(4));
-
-            // Width +/-
-            TextView wp = chipBtn("+", "#78909C");
-            wp.setOnClickListener(v -> {
-                d.style.strokeWidth = Math.min(8f, d.style.strokeWidth + 0.5f);
-                drawingChart.postInvalidate();
-            });
-            row.addView(wp);
-            row.addView(spacer(2));
-
-            TextView wm = chipBtn("−", "#78909C");
-            wm.setOnClickListener(v -> {
-                d.style.strokeWidth = Math.max(0.5f, d.style.strokeWidth - 0.5f);
-                drawingChart.postInvalidate();
-            });
-            row.addView(wm);
-            row.addView(spacer(8));
-        }
-
-        // Label edit (for HLine, VLine, Text)
-        if (d instanceof ChartDrawing.HorizontalLine ||
-                d instanceof ChartDrawing.VerticalLine   ||
-                d instanceof ChartDrawing.TextAnnotation) {
-            TextView editBtn = chipBtn("✎", "#78909C");
-            editBtn.setOnClickListener(v -> openLabelEditor(d));
-            row.addView(editBtn);
-            row.addView(spacer(4));
-        }
-
-        // Delete
-        TextView del = tv("✕", "#EF5350", 14f, true);
-        del.setPadding(dp(8), dp(4), dp(4), dp(4));
-        del.setOnClickListener(v -> {
-            drawingChart.getDrawingManager().remove(d.getInstanceId());
+        // Layer toggle (above/behind candles)
+        boolean isAbove = d.layer == ChartDrawing.Layer.ABOVE_CANDLES;
+        TextView layerBtn = chipBtn(isAbove ? "▲ Front" : "▼ Back", isAbove ? "#26A69A" : "#546E7A");
+        layerBtn.setOnClickListener(v -> {
+            ChartDrawing.Layer newLayer = drawingChart.getDrawingManager().toggleSelectedLayer();
+            // re-select so toggle works even if not already selected
+            drawingChart.getDrawingManager().select(d.getInstanceId());
+            drawingChart.getDrawingManager().toggleSelectedLayer();
+            // apply directly
+            d.layer = d.layer == ChartDrawing.Layer.BEHIND_CANDLES
+                    ? ChartDrawing.Layer.ABOVE_CANDLES : ChartDrawing.Layer.BEHIND_CANDLES;
+            layerBtn.setText(d.layer == ChartDrawing.Layer.ABOVE_CANDLES ? "▲ Front" : "▼ Back");
+            layerBtn.setTextColor(android.graphics.Color.parseColor(
+                    d.layer == ChartDrawing.Layer.ABOVE_CANDLES ? "#26A69A" : "#546E7A"));
+            drawingChart.postInvalidate();
+            notifyChanged();
+        });
+        row.addView(layerBtn);
+        row.addView(spacer(4));
+        TextView dash = chipBtn(d.style.dashed ? "- -" : "───", d.style.dashed ? "#26A69A" : "#546E7A");
+        dash.setOnClickListener(v -> {
+            d.style.dashed = !d.style.dashed;
             drawingChart.postInvalidate();
             refreshDrawingsList();
         });
+        row.addView(dash);
+        row.addView(spacer(4));
+
+        // Width +/-
+        TextView wp = chipBtn("+", "#78909C");
+        wp.setOnClickListener(v -> {
+            d.style.strokeWidth = Math.min(8f, d.style.strokeWidth + 0.5f);
+            drawingChart.postInvalidate();
+        });
+        row.addView(wp);
+        row.addView(spacer(2));
+
+        TextView wm = chipBtn("−", "#78909C");
+        wm.setOnClickListener(v -> {
+            d.style.strokeWidth = Math.max(0.5f, d.style.strokeWidth - 0.5f);
+            drawingChart.postInvalidate();
+        });
+        row.addView(wm);
+        row.addView(spacer(8));
+
+    // Label edit (for HLine, VLine, Text)
+        if (d instanceof ChartDrawing.HorizontalLine ||
+    d instanceof ChartDrawing.VerticalLine   ||
+    d instanceof ChartDrawing.TextAnnotation) {
+        TextView editBtn = chipBtn("✎", "#78909C");
+        editBtn.setOnClickListener(v -> openLabelEditor(d));
+        row.addView(editBtn);
+        row.addView(spacer(4));
+    }
+
+    // Delete
+    TextView del = tv("✕", "#EF5350", 14f, true);
+        del.setPadding(dp(8), dp(4), dp(4), dp(4));
+        del.setOnClickListener(v -> {
+        drawingChart.getDrawingManager().remove(d.getInstanceId());
+        drawingChart.postInvalidate();
+        refreshDrawingsList();
+    });
         row.addView(del);
 
-        // Bottom divider
-        LinearLayout wrapper = new LinearLayout(requireContext());
+    // Bottom divider
+    LinearLayout wrapper = new LinearLayout(requireContext());
         wrapper.setOrientation(LinearLayout.VERTICAL);
         wrapper.addView(row);
         wrapper.addView(divider());
         return wrapper;
-    }
+}
 
-    private String describeDrawing(ChartDrawing d) {
-        switch (d.getType()) {
-            case HORIZONTAL_LINE: {
-                ChartDrawing.HorizontalLine h = (ChartDrawing.HorizontalLine) d;
-                String lbl = h.label != null && !h.label.isEmpty() ? " \""+h.label+"\"" : "";
-                return String.format(Locale.US, "H Line  %.5f%s", h.price, lbl);
-            }
-            case TREND_LINE:      return "Trend Line";
-            case RAY_LINE:        return "Ray Line ↗";
-            case EXTENDED_LINE:   return "Extended Line ↔";
-            case VERTICAL_LINE: {
-                ChartDrawing.VerticalLine v = (ChartDrawing.VerticalLine) d;
-                return "V Line  idx " + v.candleIndex;
-            }
-            case LINEAR_REGRESSION: return "Lin Regression";
-            case FIB_RETRACEMENT: {
-                ChartDrawing.FibRetracement f = (ChartDrawing.FibRetracement) d;
-                return String.format(Locale.US, "Fibonacci  %.4f–%.4f", f.highPrice, f.lowPrice);
-            }
-            case PRICE_RANGE: {
-                ChartDrawing.PriceRange pr = (ChartDrawing.PriceRange) d;
-                return String.format(Locale.US, "Zone  %.4f–%.4f", pr.priceLow, pr.priceHigh);
-            }
-            case RECTANGLE:       return "Rectangle";
-            case ELLIPSE:         return "Ellipse";
-            case TEXT_ANNOTATION: return "\"" + ((ChartDrawing.TextAnnotation)d).text + "\"";
-            case ARROW:           return "Arrow →";
-            case PARALLEL_CHANNEL:return "Channel";
-            case PITCHFORK:       return "Pitchfork";
-            case GANN_FAN:        return "Gann Fan";
-            default:              return d.getType().name();
+private String describeDrawing(ChartDrawing d) {
+    switch (d.getType()) {
+        case HORIZONTAL_LINE: {
+            ChartDrawing.HorizontalLine h = (ChartDrawing.HorizontalLine) d;
+            String lbl = h.label != null && !h.label.isEmpty() ? " \""+h.label+"\"" : "";
+            return String.format(Locale.US, "H Line  %.5f%s", h.price, lbl);
         }
+        case TREND_LINE:      return "Trend Line";
+        case RAY_LINE:        return "Ray Line ↗";
+        case EXTENDED_LINE:   return "Extended Line ↔";
+        case VERTICAL_LINE: {
+            ChartDrawing.VerticalLine v = (ChartDrawing.VerticalLine) d;
+            return "V Line  idx " + v.candleTs;
+        }
+        case LINEAR_REGRESSION: return "Lin Regression";
+        case FIB_RETRACEMENT: {
+            ChartDrawing.FibRetracement f = (ChartDrawing.FibRetracement) d;
+            return String.format(Locale.US, "Fibonacci  %.4f–%.4f", f.highPrice, f.lowPrice);
+        }
+        case PRICE_RANGE: {
+            ChartDrawing.PriceRange pr = (ChartDrawing.PriceRange) d;
+            return String.format(Locale.US, "Zone  %.4f–%.4f", pr.priceLow, pr.priceHigh);
+        }
+        case RECTANGLE:       return "Rectangle";
+        case ELLIPSE:         return "Ellipse";
+        case TEXT_ANNOTATION: return "\"" + ((ChartDrawing.TextAnnotation)d).text + "\"";
+        case ARROW:           return "Arrow →";
+        case PARALLEL_CHANNEL:return "Channel";
+        case PITCHFORK:       return "Pitchfork";
+        case GANN_FAN:        return "Gann Fan";
+        default:              return d.getType().name();
+    }
+}
+
+private void openColorPicker(ChartDrawing d) {
+    LinearLayout grid = new LinearLayout(requireContext());
+    grid.setOrientation(LinearLayout.HORIZONTAL);
+    grid.setPadding(dp(16),dp(16),dp(16),dp(8));
+
+    AlertDialog[] holder = {null};
+    for (int i = 0; i < PRESET_COLORS.length; i++) {
+        final int color = PRESET_COLORS[i];
+        View sw = new View(requireContext());
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(dp(30), dp(30));
+        lp.setMarginEnd(dp(8));
+        sw.setLayoutParams(lp);
+        sw.setBackgroundColor(color);
+        sw.setOnClickListener(v -> {
+            if (d.style != null) {
+                d.style.color = color;
+                d.style.fillColor = Color.argb(50,
+                        Color.red(color), Color.green(color), Color.blue(color));
+            }
+            drawingChart.postInvalidate();
+            refreshDrawingsList();
+            if (holder[0] != null) holder[0].dismiss();
+        });
+        grid.addView(sw);
     }
 
-    private void openColorPicker(ChartDrawing d) {
-        LinearLayout grid = new LinearLayout(requireContext());
-        grid.setOrientation(LinearLayout.HORIZONTAL);
-        grid.setPadding(dp(16),dp(16),dp(16),dp(8));
+    holder[0] = new AlertDialog.Builder(requireContext())
+            .setTitle("Pick Color")
+            .setView(grid)
+            .setNegativeButton("Cancel", null)
+            .show();
+}
 
-        AlertDialog[] holder = {null};
-        for (int i = 0; i < PRESET_COLORS.length; i++) {
-            final int color = PRESET_COLORS[i];
-            View sw = new View(requireContext());
-            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(dp(30), dp(30));
-            lp.setMarginEnd(dp(8));
-            sw.setLayoutParams(lp);
-            sw.setBackgroundColor(color);
-            sw.setOnClickListener(v -> {
-                if (d.style != null) {
-                    d.style.color = color;
-                    d.style.fillColor = Color.argb(50,
-                            Color.red(color), Color.green(color), Color.blue(color));
-                }
+private void openLabelEditor(ChartDrawing d) {
+    EditText input = new EditText(requireContext());
+    input.setInputType(InputType.TYPE_CLASS_TEXT);
+    input.setTextColor(Color.parseColor("#ECEFF1"));
+    input.setHintTextColor(Color.parseColor("#546E7A"));
+    input.setBackgroundColor(Color.parseColor("#252323"));
+    input.setPadding(dp(14),dp(10),dp(14),dp(10));
+
+    String cur = "";
+    if (d instanceof ChartDrawing.HorizontalLine) cur = ((ChartDrawing.HorizontalLine)d).label;
+    else if (d instanceof ChartDrawing.VerticalLine) cur = ((ChartDrawing.VerticalLine)d).label;
+    else if (d instanceof ChartDrawing.TextAnnotation) cur = ((ChartDrawing.TextAnnotation)d).text;
+    input.setText(cur);
+    input.setSelection(input.getText().length());
+
+    new AlertDialog.Builder(requireContext())
+            .setTitle("Edit Label")
+            .setView(input)
+            .setPositiveButton("OK", (dial, w) -> {
+                String txt = input.getText().toString().trim();
+                if (d instanceof ChartDrawing.HorizontalLine)
+                    ((ChartDrawing.HorizontalLine)d).label = txt;
+                else if (d instanceof ChartDrawing.VerticalLine)
+                    ((ChartDrawing.VerticalLine)d).label = txt;
+                else if (d instanceof ChartDrawing.TextAnnotation)
+                    ((ChartDrawing.TextAnnotation)d).text = txt;
                 drawingChart.postInvalidate();
                 refreshDrawingsList();
-                if (holder[0] != null) holder[0].dismiss();
-            });
-            grid.addView(sw);
-        }
+            })
+            .setNegativeButton("Cancel", null)
+            .show();
+}
 
-        holder[0] = new AlertDialog.Builder(requireContext())
-                .setTitle("Pick Color")
-                .setView(grid)
-                .setNegativeButton("Cancel", null)
-                .show();
-    }
+private void notifyChanged() {
+    // Trigger auto-save via the chart's DrawingEventListener
+    if (drawingChart != null) drawingChart.postInvalidate();
+}
 
-    private void openLabelEditor(ChartDrawing d) {
-        EditText input = new EditText(requireContext());
-        input.setInputType(InputType.TYPE_CLASS_TEXT);
-        input.setTextColor(Color.parseColor("#ECEFF1"));
-        input.setHintTextColor(Color.parseColor("#546E7A"));
-        input.setBackgroundColor(Color.parseColor("#252323"));
-        input.setPadding(dp(14),dp(10),dp(14),dp(10));
+private void refreshAll() {
+    drawingChart.postInvalidate();
+    refreshDrawingsList();
+}
 
-        String cur = "";
-        if (d instanceof ChartDrawing.HorizontalLine) cur = ((ChartDrawing.HorizontalLine)d).label;
-        else if (d instanceof ChartDrawing.VerticalLine) cur = ((ChartDrawing.VerticalLine)d).label;
-        else if (d instanceof ChartDrawing.TextAnnotation) cur = ((ChartDrawing.TextAnnotation)d).text;
-        input.setText(cur);
-        input.setSelection(input.getText().length());
+// ── View helpers ─────────────────────────────────────────────────
 
-        new AlertDialog.Builder(requireContext())
-                .setTitle("Edit Label")
-                .setView(input)
-                .setPositiveButton("OK", (dial, w) -> {
-                    String txt = input.getText().toString().trim();
-                    if (d instanceof ChartDrawing.HorizontalLine)
-                        ((ChartDrawing.HorizontalLine)d).label = txt;
-                    else if (d instanceof ChartDrawing.VerticalLine)
-                        ((ChartDrawing.VerticalLine)d).label = txt;
-                    else if (d instanceof ChartDrawing.TextAnnotation)
-                        ((ChartDrawing.TextAnnotation)d).text = txt;
-                    drawingChart.postInvalidate();
-                    refreshDrawingsList();
-                })
-                .setNegativeButton("Cancel", null)
-                .show();
-    }
+private TextView tv(String text, String color, float size, boolean bold) {
+    TextView t = new TextView(requireContext());
+    t.setText(text); t.setTextColor(Color.parseColor(color)); t.setTextSize(size);
+    if (bold) t.setTypeface(null, Typeface.BOLD);
+    return t;
+}
 
-    private void refreshAll() {
-        drawingChart.postInvalidate();
-        refreshDrawingsList();
-    }
+private TextView chipBtn(String text, String color) {
+    TextView t = new TextView(requireContext());
+    t.setText(text); t.setTextColor(Color.parseColor(color));
+    t.setTextSize(10f); t.setGravity(android.view.Gravity.CENTER);
+    t.setPadding(dp(8), dp(5), dp(8), dp(5));
+    try { t.setBackgroundResource(com.example.gutapp.R.drawable.chart_btn_inactive); }
+    catch (Exception ignored) {}
+    return t;
+}
 
-    // ── View helpers ─────────────────────────────────────────────────
+private View divider() {
+    View v = new View(requireContext());
+    v.setBackgroundColor(Color.parseColor("#252323"));
+    v.setLayoutParams(new LinearLayout.LayoutParams(mp(), 1));
+    return v;
+}
 
-    private TextView tv(String text, String color, float size, boolean bold) {
-        TextView t = new TextView(requireContext());
-        t.setText(text); t.setTextColor(Color.parseColor(color)); t.setTextSize(size);
-        if (bold) t.setTypeface(null, Typeface.BOLD);
-        return t;
-    }
+private View spacer(int dp) {
+    View v = new View(requireContext());
+    v.setLayoutParams(new LinearLayout.LayoutParams(dp(dp), 1));
+    return v;
+}
 
-    private TextView chipBtn(String text, String color) {
-        TextView t = new TextView(requireContext());
-        t.setText(text); t.setTextColor(Color.parseColor(color));
-        t.setTextSize(10f); t.setGravity(android.view.Gravity.CENTER);
-        t.setPadding(dp(8), dp(5), dp(8), dp(5));
-        try { t.setBackgroundResource(com.example.gutapp.R.drawable.chart_btn_inactive); }
-        catch (Exception ignored) {}
-        return t;
-    }
+private TextView sectionLabel(String text) {
+    TextView t = tv(text, "#546E7A", 10f, true);
+    t.setLetterSpacing(0.12f);
+    t.setPadding(dp(16), dp(10), dp(16), dp(4));
+    return t;
+}
 
-    private View divider() {
-        View v = new View(requireContext());
-        v.setBackgroundColor(Color.parseColor("#252323"));
-        v.setLayoutParams(new LinearLayout.LayoutParams(mp(), 1));
-        return v;
-    }
-
-    private View spacer(int dp) {
-        View v = new View(requireContext());
-        v.setLayoutParams(new LinearLayout.LayoutParams(dp(dp), 1));
-        return v;
-    }
-
-    private TextView sectionLabel(String text) {
-        TextView t = tv(text, "#546E7A", 10f, true);
-        t.setLetterSpacing(0.12f);
-        t.setPadding(dp(16), dp(10), dp(16), dp(4));
-        return t;
-    }
-
-    private int dp(int val) {
-        return Math.round(val * requireContext().getResources().getDisplayMetrics().density);
-    }
-    private int mp() { return ViewGroup.LayoutParams.MATCH_PARENT; }
-    private int wc() { return ViewGroup.LayoutParams.WRAP_CONTENT; }
+private int dp(int val) {
+    return Math.round(val * requireContext().getResources().getDisplayMetrics().density);
+}
+private int mp() { return ViewGroup.LayoutParams.MATCH_PARENT; }
+private int wc() { return ViewGroup.LayoutParams.WRAP_CONTENT; }
 }

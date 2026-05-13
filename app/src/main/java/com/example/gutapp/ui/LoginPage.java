@@ -1,6 +1,8 @@
 package com.example.gutapp.ui;
 
+import android.Manifest;
 import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.View;
@@ -10,7 +12,10 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.activity.EdgeToEdge;
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.content.ContextCompat;
 import androidx.core.graphics.Insets;
 import androidx.core.splashscreen.SplashScreen;
 import androidx.core.view.ViewCompat;
@@ -23,9 +28,20 @@ import com.example.gutapp.session.DataType;
 import com.example.gutapp.session.NetworkClient;
 import com.example.gutapp.session.SessionCallback;
 import com.example.gutapp.session.SessionManager;
+import com.example.gutapp.session.background.NetworkService;
 import com.google.firebase.FirebaseApp;
 
 public class LoginPage extends AppCompatActivity implements View.OnClickListener, SessionCallback {
+
+
+    //ask for permissions
+    private final ActivityResultLauncher<String> requestPermissionLauncher =
+            registerForActivityResult(new ActivityResultContracts.RequestPermission(), isGranted -> {
+                if (!isGranted) {
+                    // Explain to the user that they won't see alert notifications
+                    Toast.makeText(this, "Notification permission is required for alerts", Toast.LENGTH_LONG).show();
+                }
+            });
     
     //declaring global pointer to core elements of the page
     TextView textTitle, textDescription;
@@ -50,6 +66,21 @@ public class LoginPage extends AppCompatActivity implements View.OnClickListener
         FirebaseApp.initializeApp(this);
         DB_Helper.getInstance(this);//make sure db is ready
 
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) !=
+                PackageManager.PERMISSION_GRANTED) {
+
+            // Trigger the system popup
+            requestPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS);
+        }
+
+        NetworkClient.getInstance(this).getSessionManager().setUiCallback(this);
+        //start background alert listener
+        Intent serviceIntent = new Intent(this, NetworkService.class);
+        startForegroundService(serviceIntent);
+        //check if the background service has an active logged in connection
+        NetworkClient.getInstance(this).start();
+        if(UserGlobals.LOGGED_IN) startActivity(new Intent(this, HomeActivity.class));
+
         //bind pointers to elements
         textTitle = findViewById(R.id.textTitle);
         editTextUsername = findViewById(R.id.editTextUsername);
@@ -63,8 +94,8 @@ public class LoginPage extends AppCompatActivity implements View.OnClickListener
         buttonRegister.setOnClickListener(this);
         Log.i(APP_LOG_TAG, "Login page loaded");
         setLoading(true);
-        NetworkClient.getInstance(this).start(this); //tell session manager to work with this activity
 
+        //if it's the first time running the app the background process has no active connection so start the network thread
     }
 
     @Override

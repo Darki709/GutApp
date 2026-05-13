@@ -12,7 +12,7 @@ public abstract class SessionActivity extends AppCompatActivity implements Sessi
     @Override
     protected void onResume() {
         super.onResume();
-        NetworkClient.getInstance(this).getSessionManager().setCallback(this);
+        NetworkClient.getInstance(this).getSessionManager().setUiCallback(this);
     }
 
     //in case pf a reconnect to the server this will be called

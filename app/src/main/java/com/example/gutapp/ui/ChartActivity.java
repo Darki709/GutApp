@@ -59,7 +59,6 @@ import com.example.gutapp.ui.chart.DrawingChart;
 import com.example.gutapp.data.drawing.DrawingManager;
 import com.example.gutapp.data.drawing.DrawingPersistence;
 import com.example.gutapp.data.drawing.ChartDrawing;
-
 import org.json.JSONException;
 import org.json.JSONObject;
 
@@ -101,6 +100,10 @@ public class ChartActivity extends SessionActivity implements
     // Drawing persistence (auto-save / auto-load per ticker)
     private DrawingPersistence drawingPersistence;
 
+    // Drawing mode HUD
+    private android.widget.LinearLayout drawingModeHud;
+    private android.widget.TextView     hudToolName;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -135,13 +138,23 @@ public class ChartActivity extends SessionActivity implements
         // ── Drawing persistence (auto-save / auto-load) ────────────
         drawingPersistence = new DrawingPersistence(this);
         chart.setDrawingEventListener(new DrawingChart.DrawingEventListener() {
-            @Override public void onDrawingCreated(ChartDrawing drawing) { /* no-op; handled by onDrawingsChanged */ }
-            @Override public void onDrawingRemoved(ChartDrawing drawing) { /* no-op; handled by onDrawingsChanged */ }
-            @Override public void onDrawingSelected(@androidx.annotation.Nullable ChartDrawing drawing) { /* no-op */ }
+            @Override public void onDrawingCreated(ChartDrawing drawing) {}
+            @Override public void onDrawingRemoved(ChartDrawing drawing) {}
+            @Override public void onDrawingSelected(@androidx.annotation.Nullable ChartDrawing drawing) {}
             @Override public void onDrawingsChanged() {
-                // Save every change immediately so nothing is lost on force-quit
                 drawingPersistence.save(symbol, chart.getDrawingManager());
             }
+            @Override public void onToolChanged(@androidx.annotation.Nullable DrawingManager.DrawingTool tool) {
+                updateDrawingHud(tool);
+            }
+        });
+
+        // ── Drawing Mode HUD ───────────────────────────────────────
+        drawingModeHud = findViewById(R.id.drawingModeHud);
+        hudToolName    = findViewById(R.id.hudToolName);
+        findViewById(R.id.hudExitBtn).setOnClickListener(v -> {
+            chart.setActiveTool(null);        // clears tool + fires onToolChanged → hides HUD
+            chart.cancelCurrentDrawing();
         });
 
         // Reload saved drawings every time a fresh candle batch arrives (covers timeframe switches).
@@ -797,7 +810,39 @@ public class ChartActivity extends SessionActivity implements
     }
 
     private void clearAllUserDrawings() {
-        chartContainer.getDrawingChart().getDrawingManager().clearUserDrawings();
-        chartContainer.getDrawingChart().postInvalidate();
+        DrawingChart dc = chartContainer.getDrawingChart();
+        if (dc != null) dc.clearAllUserDrawings();
+    }
+
+    /** Show/hide the drawing mode HUD and update the tool name label. */
+    private void updateDrawingHud(@androidx.annotation.Nullable DrawingManager.DrawingTool tool) {
+        if (drawingModeHud == null || hudToolName == null) return;
+        if (tool == null) {
+            drawingModeHud.setVisibility(android.view.View.GONE);
+        } else {
+            hudToolName.setText(toolDisplayName(tool));
+            drawingModeHud.setVisibility(android.view.View.VISIBLE);
+        }
+    }
+
+    private String toolDisplayName(DrawingManager.DrawingTool tool) {
+        switch (tool) {
+            case HORIZONTAL_LINE:    return "Horizontal Line";
+            case TREND_LINE:         return "Trend Line";
+            case RAY_LINE:           return "Ray Line";
+            case EXTENDED_LINE:      return "Extended Line";
+            case VERTICAL_LINE:      return "Vertical Line";
+            case LINEAR_REGRESSION:  return "Lin Regression";
+            case FIB_RETRACEMENT:    return "Fibonacci";
+            case PRICE_RANGE:        return "Price Range";
+            case RECTANGLE:          return "Rectangle";
+            case ELLIPSE:            return "Ellipse";
+            case TEXT_ANNOTATION:    return "Text";
+            case ARROW:              return "Arrow";
+            case PARALLEL_CHANNEL:   return "Channel";
+            case PITCHFORK:          return "Pitchfork";
+            case GANN_FAN:           return "Gann Fan";
+            default:                 return tool.name();
+        }
     }
 }
