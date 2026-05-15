@@ -3,6 +3,7 @@ package com.example.gutapp.ui;
 import android.Manifest;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.media.MediaPlayer;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.View;
@@ -33,6 +34,7 @@ import com.google.firebase.FirebaseApp;
 
 public class LoginPage extends AppCompatActivity implements View.OnClickListener, SessionCallback {
 
+    private MediaPlayer startupPlayer;
 
     //ask for permissions
     private final ActivityResultLauncher<String> requestPermissionLauncher =
@@ -63,6 +65,8 @@ public class LoginPage extends AppCompatActivity implements View.OnClickListener
             v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom);
             return insets;
         });
+        playStartupSound();
+
         FirebaseApp.initializeApp(this);
         DB_Helper.getInstance(this);//make sure db is ready
 
@@ -106,6 +110,20 @@ public class LoginPage extends AppCompatActivity implements View.OnClickListener
         }
         else if(id == R.id.buttonRegister){
             UserRegister(editTextUsername.getText().toString(), editTextPassword.getText().toString());
+        }
+    }
+
+    private void playStartupSound() {
+        try {
+            startupPlayer = MediaPlayer.create(this, R.raw.app_startup);
+            if (startupPlayer != null) {
+                // Set volume if you want it to be a subtle background jingle
+                startupPlayer.setVolume(0.6f, 0.6f);
+                startupPlayer.setLooping(true);
+                startupPlayer.start();
+            }
+        } catch (Exception e) {
+            Log.e("Startup", "Failed to play startup sound", e);
         }
     }
 
@@ -160,5 +178,15 @@ public class LoginPage extends AppCompatActivity implements View.OnClickListener
     private void setLoading(boolean loading) {
         if (loading) loadingOverlay.setVisibility(View.VISIBLE);
         else loadingOverlay.setVisibility(View.GONE);
+    }
+
+    @Override
+    protected void onStop(){
+        super.onStop();
+        if (startupPlayer != null && startupPlayer.isPlaying()) {
+            startupPlayer.stop();
+            startupPlayer.release();
+            startupPlayer = null;
+        }
     }
 }

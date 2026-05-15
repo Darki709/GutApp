@@ -38,6 +38,8 @@ public class RequestTickerData extends AsyncRequest {
 
     private final boolean isStream;
 
+    private final int limit;
+
     public RequestTickerData(String symbol, StockDataHelper.Timeframe interval, long startTs , long endTs , boolean isSnapshot, boolean isStream , SessionCallback caller) {
         super(caller);
         this.symbol = symbol;
@@ -51,6 +53,21 @@ public class RequestTickerData extends AsyncRequest {
         if (isSnapshot) f |= 0x01;
         if (isStream) f |= 0x02;
         this.flags = f;
+        this.limit = 0;
+    }
+
+    public RequestTickerData(String symbol, StockDataHelper.Timeframe interval, int limit , boolean isSnapshot, boolean isStream , SessionCallback caller){
+        super(caller);
+        this.symbol = symbol;
+        this.interval = interval;
+        this.startTs = 0;
+        this.endTs = 0;
+        this.isStream = isStream;
+        byte f = 0;
+        if (isSnapshot) f |= 0x01;
+        if (isStream) f |= 0x02;
+        this.flags = f;
+        this.limit = limit;
     }
 
     @Override
@@ -67,8 +84,13 @@ public class RequestTickerData extends AsyncRequest {
         buf.put((byte) symbolBytes.length); // symbolLen (0)
         buf.put(symbolBytes);               // symbol (1)
         buf.putInt(interval.interval);               // interval (?)
-        buf.putLong(startTs);               // start_ts (?)
-        buf.putLong(endTs);                 // end_ts (?)
+        if(limit > 0){
+            buf.putInt(limit);                  // limit
+        }
+        else{
+            buf.putLong(startTs);               // start_ts (?)
+            buf.putLong(endTs);                 // end_ts (?)
+        }
         buf.put(flags);                     // flags (?)
         
         Log.i(NETWORK_LOG_TAG, "RequestTickerData: " + symbol + interval + startTs + endTs + flags);
