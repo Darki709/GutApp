@@ -56,6 +56,7 @@ import com.example.gutapp.ui.fragments.OrdersList;
 import com.google.android.material.bottomsheet.BottomSheetDialog;
 import com.google.android.material.snackbar.Snackbar;
 import com.example.gutapp.ui.chart.DrawingChart;
+import com.example.gutapp.ui.chart.DrawingEditPanel;
 import com.example.gutapp.data.drawing.DrawingManager;
 import com.example.gutapp.data.drawing.DrawingPersistence;
 import com.example.gutapp.data.drawing.ChartDrawing;
@@ -104,6 +105,9 @@ public class ChartActivity extends SessionActivity implements
     private android.widget.LinearLayout drawingModeHud;
     private android.widget.TextView     hudToolName;
 
+    // Drawing edit panel (slides up when a drawing is selected)
+    private DrawingEditPanel drawingEditPanel;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -140,12 +144,25 @@ public class ChartActivity extends SessionActivity implements
         chart.setDrawingEventListener(new DrawingChart.DrawingEventListener() {
             @Override public void onDrawingCreated(ChartDrawing drawing) {}
             @Override public void onDrawingRemoved(ChartDrawing drawing) {}
-            @Override public void onDrawingSelected(@androidx.annotation.Nullable ChartDrawing drawing) {}
+            @Override public void onDrawingSelected(@androidx.annotation.Nullable ChartDrawing drawing) {
+                if (drawing != null && drawingEditPanel != null) {
+                    drawingEditPanel.show(
+                            drawing,
+                            () -> { chart.removeDrawing(drawing.getInstanceId()); drawingEditPanel.hide(); },
+                            () -> { chart.getDrawingManager().clearSelection(); chart.postInvalidate(); drawingEditPanel.hide(); },
+                            () -> { chart.postInvalidate(); drawingPersistence.save(symbol, chart.getDrawingManager()); }
+                    );
+                } else if (drawing == null && drawingEditPanel != null) {
+                    drawingEditPanel.hide();
+                }
+            }
             @Override public void onDrawingsChanged() {
                 drawingPersistence.save(symbol, chart.getDrawingManager());
             }
             @Override public void onToolChanged(@androidx.annotation.Nullable DrawingManager.DrawingTool tool) {
                 updateDrawingHud(tool);
+                // Hide the edit panel whenever we enter drawing mode
+                if (tool != null && drawingEditPanel != null) drawingEditPanel.hide();
             }
         });
 
@@ -153,9 +170,33 @@ public class ChartActivity extends SessionActivity implements
         drawingModeHud = findViewById(R.id.drawingModeHud);
         hudToolName    = findViewById(R.id.hudToolName);
         findViewById(R.id.hudExitBtn).setOnClickListener(v -> {
-            chart.setActiveTool(null);        // clears tool + fires onToolChanged → hides HUD
+            chart.setActiveTool(null);
             chart.cancelCurrentDrawing();
         });
+
+        // ── Drawing Edit Panel ─────────────────────────────────────
+        // Add programmatically so it sits at the bottom of the root layout
+        drawingEditPanel = new DrawingEditPanel(this);
+        android.widget.FrameLayout root = findViewById(android.R.id.content);
+        // Find the root ConstraintLayout
+        android.view.ViewGroup rootView = (android.view.ViewGroup) getWindow().getDecorView()
+                .findViewById(android.R.id.content);
+        if (rootView instanceof android.widget.FrameLayout && rootView.getChildCount() > 0) {
+            android.view.View rootChild = rootView.getChildAt(0);
+            if (rootChild instanceof android.view.ViewGroup) {
+                android.view.ViewGroup vg = (android.view.ViewGroup) rootChild;
+                androidx.constraintlayout.widget.ConstraintLayout.LayoutParams clp =
+                        new androidx.constraintlayout.widget.ConstraintLayout.LayoutParams(
+                                android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+                                android.view.ViewGroup.LayoutParams.WRAP_CONTENT);
+                clp.bottomToBottom = androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.PARENT_ID;
+                clp.startToStart  = androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.PARENT_ID;
+                clp.endToEnd      = androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.PARENT_ID;
+                drawingEditPanel.setLayoutParams(clp);
+                drawingEditPanel.setTranslationZ(20f);
+                vg.addView(drawingEditPanel);
+            }
+        }
 
         // Reload saved drawings every time a fresh candle batch arrives (covers timeframe switches).
         // We clear user drawings first so switching 1D→5m doesn't duplicate them.

@@ -152,7 +152,7 @@ public abstract class Indicator {
         LineDataSet set = new LineDataSet(entries, label);
         set.setColor(c); set.setLineWidth(width);
         set.setDrawCircles(false); set.setDrawValues(false);
-        set.setAxisDependency(com.github.mikephil.charting.components.YAxis.AxisDependency.LEFT);
+        set.setAxisDependency(com.github.mikephil.charting.components.YAxis.AxisDependency.RIGHT);
         return set;
     }
     protected LineDataSet makeDashedLineSet(List<com.github.mikephil.charting.data.Entry> entries,

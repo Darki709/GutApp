@@ -53,7 +53,7 @@ public class DrawingRenderer {
                           DrawingManager manager, List<Candle> candles,
                           ChartDrawing.Layer layer) {
         if (manager.isEmpty() || candles == null) return;
-        Transformer tf  = chart.getTransformer(YAxis.AxisDependency.LEFT);
+        Transformer tf  = chart.getTransformer(YAxis.AxisDependency.RIGHT);
         RectF       rect = chart.getContentRect();
         float textSz = chart.getResources().getDisplayMetrics().density * 9f;
         textPaint.setTextSize(textSz);

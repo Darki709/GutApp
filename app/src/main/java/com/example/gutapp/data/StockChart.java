@@ -159,14 +159,20 @@ public class StockChart implements SessionCallback {
     public DrawingChart getDrawingChart() { return chart; }
 
     public void zoomIn() {
-        chart.zoom(1.5f, 1f, chart.getWidth() / 2f, chart.getHeight() / 2f);
-        chart.invalidate();
+        float lo = chart.getLowestVisibleX(), hi = chart.getHighestVisibleX();
+        float cx = (lo + hi) / 2f;
+        float newRange = Math.max(10f, (hi - lo) / 1.5f);
+        // Use zoom() which doesn't disturb the range lock state
+        chart.zoom(1.5f, 1f, cx, 0f);
         syncSubChartsToMain();
     }
 
     public void zoomOut() {
-        chart.zoom(1f / 1.5f, 1f, chart.getWidth() / 2f, chart.getHeight() / 2f);
-        chart.invalidate();
+        float lo = chart.getLowestVisibleX(), hi = chart.getHighestVisibleX();
+        float cx = (lo + hi) / 2f;
+        float maxRange = allCandles.size() + 80f;
+        float newRange = Math.min(maxRange, (hi - lo) * 1.5f);
+        chart.zoom(1f / 1.5f, 1f, cx, 0f);
         syncSubChartsToMain();
     }
 
@@ -203,21 +209,29 @@ public class StockChart implements SessionCallback {
                 com.github.mikephil.charting.charts.CombinedChart.DrawOrder.CANDLE
         });
 
+        // LEFT axis = volume bars only. No labels shown, just provides scale for volume.
+        // Its axisMaximum is set to maxVol*8 on first load so volume bars take ~12% of height.
         YAxis left = chart.getAxisLeft();
+        left.setEnabled(true);
         left.setDrawGridLines(true);   left.setGridColor(COLOR_GRID);
-        left.setGridLineWidth(0.5f);   left.setLabelCount(6, false);
-        left.setTextColor(COLOR_AXIS_TEXT); left.setTextSize(10f);
-        left.setSpaceTop(15f);         left.setSpaceBottom(15f);
-        left.setDrawAxisLine(false);   left.setPosition(YAxis.YAxisLabelPosition.OUTSIDE_CHART);
+        left.setGridLineWidth(0.5f);
+        left.setDrawLabels(false);
+        left.setDrawAxisLine(false);
+        left.setAxisMinimum(0f);       // volume is always ≥ 0
 
+        // RIGHT axis = price labels.
+        // No axisMinimum/Maximum set here — MPAndroidChart auto-scales from the price data.
         YAxis right = chart.getAxisRight();
         right.setEnabled(true);        right.setDrawGridLines(false);
-        right.setDrawLabels(false);    right.setDrawAxisLine(false);
-        right.setAxisMinimum(0f);
+        right.setDrawLabels(true);     right.setDrawAxisLine(false);
+        right.setLabelCount(6, false);
+        right.setTextColor(COLOR_AXIS_TEXT); right.setTextSize(10f);
+        right.setSpaceTop(35f);        right.setSpaceBottom(35f);
+        right.setPosition(YAxis.YAxisLabelPosition.OUTSIDE_CHART);
 
         XAxis x = chart.getXAxis();
         x.setDrawGridLines(false);     x.setPosition(XAxis.XAxisPosition.BOTTOM);
-        x.setSpaceMin(15f);            x.setSpaceMax(15f);
+        x.setSpaceMin(0.5f);           x.setSpaceMax(80f);   // 80 candle-widths of empty space to the right
         x.setTextColor(COLOR_AXIS_TEXT); x.setTextSize(10f);
         x.setDrawAxisLine(false);      x.setAvoidFirstLastClipping(true);
 
@@ -228,7 +242,6 @@ public class StockChart implements SessionCallback {
         chart.setHighlightPerTapEnabled(true);
         chart.setMaxHighlightDistance(20);
 
-        // Candle selection → OHLCV overlay
         chart.setOnChartValueSelectedListener(new OnChartValueSelectedListener() {
             @Override
             public void onValueSelected(Entry e, Highlight h) {
@@ -252,30 +265,17 @@ public class StockChart implements SessionCallback {
             }
         });
 
-        // Gesture listener: detects pan/zoom so we know the user left the right edge
         chart.setOnChartGestureListener(new OnChartGestureListener() {
-            @Override
-            public void onChartGestureStart(MotionEvent me, ChartTouchListener.ChartGesture lg) {}
-            @Override
-            public void onChartGestureEnd(MotionEvent me, ChartTouchListener.ChartGesture lg) {
-                // After any gesture, re-evaluate pin state and sync sub-charts
-                updatePinState();
-                syncSubChartsToMain();
+            @Override public void onChartGestureStart(MotionEvent me, ChartTouchListener.ChartGesture lg) {}
+            @Override public void onChartGestureEnd(MotionEvent me, ChartTouchListener.ChartGesture lg) {
+                updatePinState(); syncSubChartsToMain();
             }
             @Override public void onChartLongPressed(MotionEvent me) {}
             @Override public void onChartDoubleTapped(MotionEvent me) { updatePinState(); syncSubChartsToMain(); }
             @Override public void onChartSingleTapped(MotionEvent me) {}
             @Override public void onChartFling(MotionEvent me1, MotionEvent me2, float vX, float vY) { updatePinState(); syncSubChartsToMain(); }
-            @Override
-            public void onChartScale(MotionEvent me, float scaleX, float scaleY) {
-                updatePinState();
-                syncSubChartsToMain();
-            }
-            @Override
-            public void onChartTranslate(MotionEvent me, float dX, float dY) {
-                updatePinState();
-                syncSubChartsToMain();
-            }
+            @Override public void onChartScale(MotionEvent me, float sX, float sY) { updatePinState(); syncSubChartsToMain(); }
+            @Override public void onChartTranslate(MotionEvent me, float dX, float dY) { updatePinState(); syncSubChartsToMain(); }
         });
     }
 
@@ -361,49 +361,30 @@ public class StockChart implements SessionCallback {
         chart.setCandles(snap);
         chart.replaceIndicatorDrawings(indicatorDrawings);
 
-        // ── Viewport ───────────────────────────────────────────────
+        // ── Viewport management ────────────────────────────────────
         int total = snap.size();
 
         if (!initialViewApplied) {
+            // First load
             float maxVol = 0;
             for (Candle c : snap) if (c.volume > maxVol) maxVol = c.volume;
-            chart.getAxisRight().setAxisMaximum(maxVol * 8f);
+            // Volume is on LEFT axis — scale it so bars take ~12% of chart height
+            chart.getAxisLeft().setAxisMaximum(maxVol * 8f);
             applyInitialView(total);
             initialViewApplied = true;
             isPinnedToRight    = true;
-            // Notify that candles + coordinate system are ready — safe to load saved drawings.
-            // Fires on every timeframe switch so drawings are always reloaded from storage.
-            if (candlesReadyCallback != null) {
-                candlesReadyCallback.run();
-            }
+            if (candlesReadyCallback != null) candlesReadyCallback.run();
 
-        } else if (!isLiveUpdate) {
-            if (savedLowestX >= 0 && savedHighestX > savedLowestX) {
-                float range = savedHighestX - savedLowestX;
-                chart.setVisibleXRangeMaximum(range);
-                chart.setVisibleXRangeMinimum(range);
-                chart.moveViewToX(savedLowestX);
-                mainHandler.postDelayed(() -> {
-                    chart.setVisibleXRangeMinimum(10f);
-                    chart.setVisibleXRangeMaximum(total);
-                }, 50);
-            }
+        } else if (isLiveUpdate) {
+            // Live stream tick — do NOT touch the viewport at all.
+            // The chart will repaint in place; user's zoom/scroll is preserved completely.
+            // Only expand the X-range ceiling so the new candle is reachable if pinned.
+           chart.setVisibleXRangeMaximum(total + 80f);
+
         } else {
-            if (isPinnedToRight) {
-                chart.moveViewToX(total - 1);
-            } else if (savedLowestX >= 0 && savedHighestX > savedLowestX) {
-                float range = savedHighestX - savedLowestX;
-                chart.setVisibleXRangeMaximum(range);
-                chart.setVisibleXRangeMinimum(range);
-                chart.moveViewToX(savedLowestX);
-                mainHandler.postDelayed(() -> {
-                    chart.setVisibleXRangeMinimum(10f);
-                    chart.setVisibleXRangeMaximum(total);
-                }, 50);
-            }
+            applyInitialView(total);
         }
 
-        chart.notifyDataSetChanged();
         chart.calculateOffsets();
         chart.postInvalidate();
 
@@ -411,15 +392,16 @@ public class StockChart implements SessionCallback {
     }
 
     private void applyInitialView(int total) {
-        chart.fitScreen();
-        if (total > 60) {
-            chart.setVisibleXRangeMaximum(60f);
+        int visible = Math.min(total, 80);
+        chart.setVisibleXRangeMaximum(visible);
+        chart.setVisibleXRangeMinimum(10f);
+        chart.moveViewToX(total-20f);
+        // Unlock range after positioning so the user can freely zoom/pan
+        mainHandler.postDelayed(() -> {
             chart.setVisibleXRangeMinimum(10f);
-            chart.moveViewToX(total - 1);
-            mainHandler.postDelayed(() -> chart.setVisibleXRangeMaximum(total), 100);
-        } else {
-            chart.moveViewToX(total - 1);
-        }
+            chart.setVisibleXRangeMaximum(total + 80f);
+            chart.postInvalidate();
+        }, 80);
     }
 
     // ── Sub-chart management ───────────────────────────────────────────
@@ -651,8 +633,8 @@ public class StockChart implements SessionCallback {
 
     // ── Price line ─────────────────────────────────────────────────────
     private void updateCurrentPriceLine(Candle latest) {
-        YAxis left = chart.getAxisLeft();
-        if (currentPriceLine != null) left.removeLimitLine(currentPriceLine);
+        YAxis right = chart.getAxisRight();
+        if (currentPriceLine != null) right.removeLimitLine(currentPriceLine);
         boolean isUp = latest.close >= latest.open;
         int c = isUp ? COLOR_UP : COLOR_DOWN;
         currentPriceLine = new LimitLine((float)latest.close,
@@ -661,8 +643,8 @@ public class StockChart implements SessionCallback {
         currentPriceLine.enableDashedLine(8f, 4f, 0f);
         currentPriceLine.setTextColor(c);   currentPriceLine.setTextSize(9f);
         currentPriceLine.setLabelPosition(LimitLine.LimitLabelPosition.RIGHT_TOP);
-        left.addLimitLine(currentPriceLine);
-        left.setDrawLimitLinesBehindData(false);
+        right.addLimitLine(currentPriceLine);
+        right.setDrawLimitLinesBehindData(false);
     }
 
     // ── X formatter ────────────────────────────────────────────────────
@@ -691,7 +673,7 @@ public class StockChart implements SessionCallback {
         s.setNeutralColor(Color.GRAY); s.setShadowColorSameAsCandle(true); s.setShadowWidth(1.5f);
         s.setBarSpace(0.1f); s.setDrawValues(false); s.setHighlightEnabled(true);
         s.setHighLightColor(COLOR_HIGHLIGHT); s.setHighlightLineWidth(1f);
-        s.enableDashedHighlightLine(8f,4f,0f); s.setAxisDependency(YAxis.AxisDependency.LEFT);
+        s.enableDashedHighlightLine(8f,4f,0f); s.setAxisDependency(YAxis.AxisDependency.RIGHT);
         return new CandleData(s);
     }
 
@@ -704,7 +686,7 @@ public class StockChart implements SessionCallback {
         s.setNeutralColor(Color.GRAY); s.setShadowColorSameAsCandle(true); s.setShadowWidth(1.5f);
         s.setBarSpace(0.3f); s.setDrawValues(false); s.setHighlightEnabled(true);
         s.setHighLightColor(COLOR_HIGHLIGHT); s.setHighlightLineWidth(1f);
-        s.enableDashedHighlightLine(8f,4f,0f); s.setAxisDependency(YAxis.AxisDependency.LEFT);
+        s.enableDashedHighlightLine(8f,4f,0f); s.setAxisDependency(YAxis.AxisDependency.RIGHT);
         return new CandleData(s);
     }
 
@@ -715,7 +697,7 @@ public class StockChart implements SessionCallback {
         s.setColor(COLOR_LINE); s.setLineWidth(1.8f); s.setDrawCircles(false); s.setDrawValues(false);
         s.setMode(LineDataSet.Mode.LINEAR); s.setDrawFilled(true); s.setFillColor(COLOR_LINE); s.setFillAlpha(25);
         s.setHighlightEnabled(true); s.setHighLightColor(COLOR_HIGHLIGHT); s.setHighlightLineWidth(1f);
-        s.enableDashedHighlightLine(8f,4f,0f); s.setAxisDependency(YAxis.AxisDependency.LEFT);
+        s.enableDashedHighlightLine(8f,4f,0f); s.setAxisDependency(YAxis.AxisDependency.RIGHT);
         return s;
     }
 
@@ -729,7 +711,7 @@ public class StockChart implements SessionCallback {
             else                        colors[i]=COLOR_VOL_NEUTRAL;
         }
         BarDataSet s = new BarDataSet(e,"Volume");
-        s.setColors(colors); s.setAxisDependency(YAxis.AxisDependency.RIGHT);
+        s.setColors(colors); s.setAxisDependency(YAxis.AxisDependency.LEFT);
         s.setDrawValues(false); s.setHighlightEnabled(false);
         BarData bd = new BarData(s); bd.setBarWidth(0.8f);
         return bd;
@@ -802,7 +784,7 @@ public class StockChart implements SessionCallback {
         allCandles.clear(); done=false; streamBuffer.clear();
         isPinnedToRight=true; initialViewApplied=false;
         savedLowestX=-1f; savedHighestX=-1f;
-        if (currentPriceLine!=null) { chart.getAxisLeft().removeLimitLine(currentPriceLine); currentPriceLine=null; }
+        if (currentPriceLine!=null) { chart.getAxisRight().removeLimitLine(currentPriceLine); currentPriceLine=null; }
     }
     public void addToCurrentRequest(int reqId) { this.reqIds.add(reqId); }
     public void flushRequests() {

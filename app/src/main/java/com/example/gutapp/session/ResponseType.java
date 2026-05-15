@@ -19,7 +19,8 @@ public enum ResponseType{
     ORDERFAILEDEXIT((byte)14),
     WATCHLIST_SUMMARY((byte) 15),
     WATCHLIST_ACTION_STATUS((byte) 16),
-    WATCHLIST_CONTENT((byte) 17);
+    WATCHLIST_CONTENT((byte) 17),
+    ALERT((byte)255); //alert response may come even if the client didn't directly pushed a request for them they are all handled by the network service, they are mostly used for notifications
 
     public final byte value;
 

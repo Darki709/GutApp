@@ -322,24 +322,87 @@
             android:layout_weight="0"
             android:background="#0D0C0C"
             android:visibility="gone"
-            android:fillViewport="false"
-            android:scrollbars="vertical">
+            android:fillViewport="false">
 
-        <!--
-            StockChart programmatically adds one LineChart child per
-            active sub-chart indicator. A 1dp divider is prepended
-            above each chart. Everything scrolls vertically inside the
-            NestedScrollView.
-        -->
+            <!--
+                StockChart programmatically adds one LineChart child per
+                active sub-chart indicator. A 1dp divider is prepended
+                above each chart. Everything scrolls vertically inside the
+                NestedScrollView.
+            -->
             <LinearLayout
                 android:id="@+id/subChartsContainer"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
-                android:paddingEnd="12dp"
                 android:clipToPadding="false"/>
 
         </androidx.core.widget.NestedScrollView>
+
+    </LinearLayout>
+
+    <!-- ══ DRAWING MODE HUD ══════════════════════════════════════════
+         Visible only when a drawing tool is active.
+         Anchored to top of chart area.
+         Left pill  = active tool name
+         Right chip = tap to exit back to pan/zoom
+    -->
+    <LinearLayout
+        android:id="@+id/drawingModeHud"
+        android:layout_width="wrap_content"
+        android:layout_height="32dp"
+        android:orientation="horizontal"
+        android:background="@drawable/drawing_hud_bg"
+        android:gravity="center_vertical"
+        android:paddingStart="10dp"
+        android:paddingEnd="4dp"
+        android:elevation="10dp"
+        android:visibility="gone"
+        app:layout_constraintStart_toStartOf="@+id/chartAreaContainer"
+        app:layout_constraintEnd_toEndOf="@+id/chartAreaContainer"
+        app:layout_constraintTop_toTopOf="@+id/chartAreaContainer"
+        app:layout_constraintHorizontal_bias="0.5"
+        android:layout_marginTop="6dp">
+
+        <!-- Pencil icon -->
+        <TextView
+            android:id="@+id/hudIcon"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="✏"
+            android:textSize="13sp"
+            android:textColor="#26A69A"
+            android:layout_marginEnd="6dp"/>
+
+        <!-- Active tool name -->
+        <TextView
+            android:id="@+id/hudToolName"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Trend Line"
+            android:textSize="12sp"
+            android:textColor="#ECEFF1"
+            android:layout_marginEnd="10dp"/>
+
+        <!-- Divider -->
+        <View
+            android:layout_width="1dp"
+            android:layout_height="18dp"
+            android:background="#3A3838"
+            android:layout_marginEnd="8dp"/>
+
+        <!-- Exit to pan/zoom button -->
+        <TextView
+            android:id="@+id/hudExitBtn"
+            android:layout_width="wrap_content"
+            android:layout_height="26dp"
+            android:text="✕ Exit Drawing"
+            android:textSize="11sp"
+            android:textColor="#EF5350"
+            android:gravity="center"
+            android:paddingStart="8dp"
+            android:paddingEnd="8dp"
+            android:background="@drawable/chart_btn_inactive"/>
 
     </LinearLayout>
 

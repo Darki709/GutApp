@@ -17,7 +17,7 @@ public class DB_Helper extends SQLiteOpenHelper {
     public static final String DB_LOG_TAG = "GutDB";
 
     private final String[] table_initialize_query = {
-        StockDataHelper.createTable(), LastFetchCacheHelper.createTable()
+        StockDataHelper.createTable(), LastFetchCacheHelper.createTable(), AlertDBHelper.createTable()
     };
 
     public static synchronized DB_Helper getInstance(@Nullable Context context) {

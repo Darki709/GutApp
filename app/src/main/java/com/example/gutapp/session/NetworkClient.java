@@ -12,8 +12,10 @@ public class NetworkClient {
     private Thread networkThread;
     private Context appContext;
 
+
     private NetworkClient(Context context) {
         this.appContext = context.getApplicationContext();
+        sessionManager = new SessionManager(appContext);
     }
 
     public static synchronized NetworkClient getInstance(Context context) {
@@ -23,13 +25,12 @@ public class NetworkClient {
         return instance;
     }
 
-    public synchronized void start(SessionCallback cb) {
+    public synchronized void start() {
         // SAFETY CHECK: If the thread is already alive, don't start another!
         if (networkThread != null && networkThread.isAlive()) {
             return;
         }
 
-        sessionManager = new SessionManager(appContext, cb);
         networkThread = new Thread(sessionManager);
         networkThread.setName("PrimaryNetworkThread");
         networkThread.start();
@@ -38,6 +39,7 @@ public class NetworkClient {
     public synchronized void stop() {
         if (sessionManager != null) {
             sessionManager.stop(); // Sets volatile running = false
+            instance = null;
         }
         if (networkThread != null) {
             networkThread.interrupt();

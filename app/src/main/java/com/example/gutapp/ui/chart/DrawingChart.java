@@ -160,6 +160,16 @@ public class DrawingChart extends CombinedChart {
         postInvalidate(); notifyChanged();
     }
 
+    /** Remove a single drawing by id and immediately persist the change. */
+    public void removeDrawing(String instanceId) {
+        ChartDrawing d = drawingManager.get(instanceId);
+        drawingManager.remove(instanceId);
+        postInvalidate();
+        if (drawingEventListener != null && d != null)
+            drawingEventListener.onDrawingRemoved(d);
+        notifyChanged();
+    }
+
     private void notifyChanged() {
         if (drawingEventListener != null) drawingEventListener.onDrawingsChanged();
     }
@@ -619,34 +629,51 @@ public class DrawingChart extends CombinedChart {
     }
 
     private long pixelToTimestamp(float px) {
-        Transformer tf=getTransformer(YAxis.AxisDependency.LEFT);
-        float[] p={px,0}; tf.pixelsToValue(p);
-        float fi=p[0];
-        if (candles.isEmpty()) return System.currentTimeMillis()/1000L;
-        if (candles.size()==1) return candles.get(0).timestamp;
-        if (fi>=0 && fi<=candles.size()-1) {
-            int lo=(int)fi, hi=Math.min(lo+1,candles.size()-1);
-            return candles.get(lo).timestamp + Math.round((fi-lo)*(candles.get(hi).timestamp-candles.get(lo).timestamp));
+        Transformer tf = getTransformer(YAxis.AxisDependency.RIGHT);
+        float[] p = {px, 0}; tf.pixelsToValue(p);
+        float fi = p[0];  // fractional candle index
+
+        if (candles.isEmpty()) return System.currentTimeMillis() / 1000L;
+        if (candles.size() == 1) return candles.get(0).timestamp;
+
+        long t0 = candles.get(0).timestamp;
+        long tN = candles.get(candles.size() - 1).timestamp;
+        long avgInterval = (tN - t0) / Math.max(1, candles.size() - 1);
+
+        // Within data range: interpolate between adjacent candles
+        if (fi >= 0 && fi <= candles.size() - 1) {
+            int lo = (int) fi;
+            int hi = Math.min(lo + 1, candles.size() - 1);
+            float frac = fi - lo;
+            long tLo = candles.get(lo).timestamp;
+            long tHi = candles.get(hi).timestamp;
+            return tLo + Math.round(frac * (tHi - tLo));
         }
-        long t0=candles.get(0).timestamp, tN=candles.get(candles.size()-1).timestamp;
-        long avg=(tN-t0)/Math.max(1,candles.size()-1);
-        return t0+Math.round(fi*avg);
+
+        // Before first candle
+        if (fi < 0) {
+            return t0 + Math.round((double) fi * avgInterval);
+        }
+
+        // After last candle — extrapolate forward from tN
+        float overflow = fi - (candles.size() - 1);
+        return tN + Math.round((double) overflow * avgInterval);
     }
 
     private double timestampToPixelX(long ts) {
         if (candles.isEmpty()) return 0;
         int idx=ChartDrawing.resolveIndex(ts,candles);
-        Transformer tf=getTransformer(YAxis.AxisDependency.LEFT);
+        Transformer tf=getTransformer(YAxis.AxisDependency.RIGHT);
         float[] p={(float)idx,0}; tf.pointValuesToPixel(p); return p[0];
     }
 
     private double pixelToPrice(float py) {
-        Transformer tf=getTransformer(YAxis.AxisDependency.LEFT);
+        Transformer tf=getTransformer(YAxis.AxisDependency.RIGHT);
         float[] p={0,py}; tf.pixelsToValue(p); return p[1];
     }
 
     private float priceToPixelY(double price) {
-        Transformer tf=getTransformer(YAxis.AxisDependency.LEFT);
+        Transformer tf=getTransformer(YAxis.AxisDependency.RIGHT);
         float[] p={0,(float)price}; tf.pointValuesToPixel(p); return p[1];
     }
 

@@ -12,9 +12,7 @@ import android.os.Handler;
 import android.os.Looper;
 import android.util.Log;
 
-import androidx.security.crypto.EncryptedSharedPreferences;
-import androidx.security.crypto.MasterKey;
-
+import com.example.gutapp.data.UserGlobals;
 import com.example.gutapp.session.Requests.GetBalance;
 import com.example.gutapp.session.Requests.HandShakeHello;
 import com.example.gutapp.session.Requests.HandShakeVerify;
@@ -37,6 +35,10 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.function.Consumer;
 
+import javax.annotation.Nullable;
+
+import lombok.Setter;
+
 public class SessionManager implements Runnable {
     Connection connection; //connection to server, holding the socket
     Queue<Request> outgoinQueue; //this is where the other threads put requests for the server
@@ -47,6 +49,8 @@ public class SessionManager implements Runnable {
     private Context appContext; //needed for shared preference
 
     private final Object callbackLock = new Object(); // Prevents race conditions
+
+    @Nullable
     private SessionCallback currentCallback;        // The currently active Activity
     private final Handler uiHandler = new Handler(Looper.getMainLooper()); // The UI bridge
 
@@ -54,6 +58,10 @@ public class SessionManager implements Runnable {
 
     private LinkedBlockingQueue<AsyncRequest> requestQueue;
     private ConcurrentHashMap<Integer, AsyncRequest> pendingRequests;
+
+    @Nullable
+    @Setter
+    private SessionCallback pushResponseCallback;
 
     private Thread sendThread = null;
     private Thread recvThread = null;
@@ -79,11 +87,10 @@ public class SessionManager implements Runnable {
     public static final int ACTION_SHOW_LOGIN_UI = 1;
 
 
-    public SessionManager(Context context, SessionCallback cb) {
+    public SessionManager(Context context) {
         this.outgoinQueue = new ArrayDeque<Request>();
         this.ctx = new CryptoUtility.CryptoContext();
         this.appContext = context;
-        this.setCallback(cb);
     }
 
     @Override
@@ -149,12 +156,15 @@ public class SessionManager implements Runnable {
                             notifyUI(cb -> cb.onDataReceived(DataType.LOGIN_ERROR, loginResponse.getState() == LoginResponse.LoginState.INVALIDUSER ? "no such user" : "wrong password"));
                         } else {
                             result = 0;
+                            UserGlobals.LOGGED_IN = true;
+                            UserGlobals.USER_NAME = authStruct.username;
                             saveCredentials(authStruct.username, authStruct.password);
                         }
                     }
                     if(currentCallback instanceof LoginPage){
-                    //notify login page that login is successful
-                    notifyUI(cb -> cb.onDataReceived(DataType.AUTH_SUCCESS, null));}
+                        //notify login page that login is successful
+                        notifyUI(cb -> cb.onDataReceived(DataType.AUTH_SUCCESS, null));
+                    }
 
                     //start sending and receiving messages
                     work();
@@ -402,14 +412,14 @@ public class SessionManager implements Runnable {
 
     //callback methods
     // Called when an Activity comes to the foreground
-    public void setCallback(SessionCallback callback) {
+    public void setUiCallback(SessionCallback callback) {
         synchronized (callbackLock) {
             this.currentCallback = callback;
         }
     }
 
     // Called when an Activity goes to the background
-    public void removeCallback() {
+    public void removeUiCallback() {
         synchronized (callbackLock) {
             this.currentCallback = null;
         }

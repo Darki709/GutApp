@@ -397,8 +397,7 @@ public class DrawingToolbarFragment extends BottomSheetDialogFragment {
         clearSelBtn.setOnClickListener(v -> {
             String sel = drawingChart.getDrawingManager().getSelectedId();
             if (sel != null) {
-                drawingChart.getDrawingManager().remove(sel);
-                drawingChart.postInvalidate();
+                drawingChart.removeDrawing(sel);
                 refreshDrawingsList();
                 Toast.makeText(requireContext(), "Drawing deleted", Toast.LENGTH_SHORT).show();
             } else {
@@ -519,6 +518,7 @@ public class DrawingToolbarFragment extends BottomSheetDialogFragment {
         row.addView(wm);
         row.addView(spacer(8));
 
+
     // Label edit (for HLine, VLine, Text)
         if (d instanceof ChartDrawing.HorizontalLine ||
     d instanceof ChartDrawing.VerticalLine   ||
@@ -533,8 +533,7 @@ public class DrawingToolbarFragment extends BottomSheetDialogFragment {
     TextView del = tv("✕", "#EF5350", 14f, true);
         del.setPadding(dp(8), dp(4), dp(4), dp(4));
         del.setOnClickListener(v -> {
-        drawingChart.getDrawingManager().remove(d.getInstanceId());
-        drawingChart.postInvalidate();
+        drawingChart.removeDrawing(d.getInstanceId());
         refreshDrawingsList();
     });
         row.addView(del);
