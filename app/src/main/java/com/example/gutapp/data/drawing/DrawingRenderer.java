@@ -108,9 +108,9 @@ public class DrawingRenderer {
     // ── Trend line ────────────────────────────────────────────────────
     private void drawTrendLine(Canvas canvas, ChartDrawing.TrendLine d,
                                Transformer tf, RectF rect, List<Candle> candles) {
-        float x1 = indexToX(ChartDrawing.resolveIndex(d.startTs, candles), tf);
+        float x1 = tsToX(d.startTs, candles, tf);
         float y1 = priceToY(d.startPrice, tf);
-        float x2 = indexToX(ChartDrawing.resolveIndex(d.endTs, candles), tf);
+        float x2 = tsToX(d.endTs, candles, tf);
         float y2 = priceToY(d.endPrice, tf);
         if (d.extendLeft || d.extendRight) {
             float[] ext = extendLine(x1,y1,x2,y2,rect,d.extendLeft,d.extendRight);
@@ -125,9 +125,9 @@ public class DrawingRenderer {
     // ── Ray line ──────────────────────────────────────────────────────
     private void drawRayLine(Canvas canvas, ChartDrawing.RayLine d,
                              Transformer tf, RectF rect, List<Candle> candles) {
-        float x1 = indexToX(ChartDrawing.resolveIndex(d.startTs,  candles), tf);
+        float x1 = tsToX(d.startTs, candles, tf);
         float y1 = priceToY(d.startPrice, tf);
-        float x2 = indexToX(ChartDrawing.resolveIndex(d.anchorTs, candles), tf);
+        float x2 = tsToX(d.anchorTs, candles, tf);
         float y2 = priceToY(d.anchorPrice, tf);
         float dx = x2-x1, dy = y2-y1;
         float xEnd = rect.right + 200;
@@ -140,9 +140,9 @@ public class DrawingRenderer {
     // ── Extended line ─────────────────────────────────────────────────
     private void drawExtendedLine(Canvas canvas, ChartDrawing.ExtendedLine d,
                                   Transformer tf, RectF rect, List<Candle> candles) {
-        float x1 = indexToX(ChartDrawing.resolveIndex(d.startTs, candles), tf);
+        float x1 = tsToX(d.startTs, candles, tf);
         float y1 = priceToY(d.startPrice, tf);
-        float x2 = indexToX(ChartDrawing.resolveIndex(d.endTs,   candles), tf);
+        float x2 = tsToX(d.endTs, candles, tf);
         float y2 = priceToY(d.endPrice, tf);
         float[] ext = extendLine(x1,y1,x2,y2,rect,true,true);
         applyLine(d.style);
@@ -154,7 +154,7 @@ public class DrawingRenderer {
     // ── Vertical line ─────────────────────────────────────────────────
     private void drawVerticalLine(Canvas canvas, ChartDrawing.VerticalLine d,
                                   Transformer tf, RectF rect, List<Candle> candles) {
-        float x = indexToX(ChartDrawing.resolveIndex(d.candleTs, candles), tf);
+        float x = tsToX(d.candleTs, candles, tf);
         if (x < rect.left - 10 || x > rect.right + 10) return;
         applyLine(d.style);
         canvas.drawLine(x, rect.top, x, rect.bottom, linePaint);
@@ -204,8 +204,8 @@ public class DrawingRenderer {
     private void drawFibRetracement(Canvas canvas, ChartDrawing.FibRetracement d,
                                     Transformer tf, RectF rect, List<Candle> candles) {
         if (d.levels==null||d.levels.length==0) return;
-        float x1=indexToX(ChartDrawing.resolveIndex(d.startTs,candles),tf);
-        float x2=indexToX(ChartDrawing.resolveIndex(d.endTs,  candles),tf);
+        float x1=tsToX(d.startTs, candles, tf);
+        float x2=tsToX(d.endTs, candles, tf);
         float xL=Math.min(x1,x2), xR=Math.max(x1,x2);
         if (xR < rect.left-10 || xL > rect.right+10) return;
         float drawL=Math.max(xL,rect.left), drawR=Math.min(xR,rect.right);
@@ -263,8 +263,8 @@ public class DrawingRenderer {
     // ── Rectangle ─────────────────────────────────────────────────────
     private void drawRectangle(Canvas canvas, ChartDrawing.Rectangle d,
                                Transformer tf, RectF rect, List<Candle> candles) {
-        float x1=indexToX(ChartDrawing.resolveIndex(d.startTs,candles),tf), y1=priceToY(d.startPrice,tf);
-        float x2=indexToX(ChartDrawing.resolveIndex(d.endTs,  candles),tf), y2=priceToY(d.endPrice,  tf);
+        float x1=tsToX(d.startTs, candles, tf), y1=priceToY(d.startPrice,tf);
+        float x2=tsToX(d.endTs, candles, tf), y2=priceToY(d.endPrice,  tf);
         RectF r=new RectF(Math.min(x1,x2),Math.min(y1,y2),Math.max(x1,x2),Math.max(y1,y2));
         if (d.style.filled) { fillPaint.setColor(d.style.fillColor); canvas.drawRect(r,fillPaint); }
         applyLine(d.style); canvas.drawRect(r,linePaint);
@@ -274,8 +274,8 @@ public class DrawingRenderer {
     // ── Ellipse ───────────────────────────────────────────────────────
     private void drawEllipse(Canvas canvas, ChartDrawing.Ellipse d,
                              Transformer tf, RectF rect, List<Candle> candles) {
-        float x1=indexToX(ChartDrawing.resolveIndex(d.startTs,candles),tf), y1=priceToY(d.startPrice,tf);
-        float x2=indexToX(ChartDrawing.resolveIndex(d.endTs,  candles),tf), y2=priceToY(d.endPrice,  tf);
+        float x1=tsToX(d.startTs, candles, tf), y1=priceToY(d.startPrice,tf);
+        float x2=tsToX(d.endTs, candles, tf), y2=priceToY(d.endPrice,  tf);
         RectF r=new RectF(Math.min(x1,x2),Math.min(y1,y2),Math.max(x1,x2),Math.max(y1,y2));
         if (d.style.filled) { fillPaint.setColor(d.style.fillColor); canvas.drawOval(r,fillPaint); }
         applyLine(d.style); canvas.drawOval(r,linePaint);
@@ -285,7 +285,7 @@ public class DrawingRenderer {
     // ── Text annotation ───────────────────────────────────────────────
     private void drawTextAnnotation(Canvas canvas, ChartDrawing.TextAnnotation d,
                                     Transformer tf, RectF rect, List<Candle> candles) {
-        float x=indexToX(ChartDrawing.resolveIndex(d.candleTs,candles),tf);
+        float x=tsToX(d.candleTs, candles, tf);
         float y=priceToY(d.price,tf);
         if (x<rect.left-200||x>rect.right+200) return;
         textPaint.setTextSize(d.textSizeSp * 3f); // approx sp→px
@@ -305,8 +305,8 @@ public class DrawingRenderer {
     // ── Arrow ─────────────────────────────────────────────────────────
     private void drawArrow(Canvas canvas, ChartDrawing.Arrow d,
                            Transformer tf, RectF rect, List<Candle> candles) {
-        float x1=indexToX(ChartDrawing.resolveIndex(d.startTs,candles),tf), y1=priceToY(d.startPrice,tf);
-        float x2=indexToX(ChartDrawing.resolveIndex(d.endTs,  candles),tf), y2=priceToY(d.endPrice,  tf);
+        float x1=tsToX(d.startTs, candles, tf), y1=priceToY(d.startPrice,tf);
+        float x2=tsToX(d.endTs, candles, tf), y2=priceToY(d.endPrice,  tf);
         applyLine(d.style); canvas.drawLine(x1,y1,x2,y2,linePaint);
         float dx=x2-x1, dy=y2-y1, len=(float)Math.sqrt(dx*dx+dy*dy);
         if (len<1) return;
@@ -322,8 +322,8 @@ public class DrawingRenderer {
     // ── Parallel channel ──────────────────────────────────────────────
     private void drawParallelChannel(Canvas canvas, ChartDrawing.ParallelChannel d,
                                      Transformer tf, RectF rect, List<Candle> candles) {
-        float x1=indexToX(ChartDrawing.resolveIndex(d.startTs,candles),tf), y1=priceToY(d.startPrice,tf);
-        float x2=indexToX(ChartDrawing.resolveIndex(d.endTs,  candles),tf), y2=priceToY(d.endPrice,  tf);
+        float x1=tsToX(d.startTs, candles, tf), y1=priceToY(d.startPrice,tf);
+        float x2=tsToX(d.endTs, candles, tf), y2=priceToY(d.endPrice,  tf);
         float ym=priceToY(d.midPrice,tf);
         float offset=ym-y1;
         applyLine(d.style);
@@ -343,9 +343,9 @@ public class DrawingRenderer {
     // ── Pitchfork ─────────────────────────────────────────────────────
     private void drawPitchfork(Canvas canvas, ChartDrawing.Pitchfork d,
                                Transformer tf, RectF rect, List<Candle> candles) {
-        float x0=indexToX(ChartDrawing.resolveIndex(d.p0Ts,candles),tf), y0=priceToY(d.p0Price,tf);
-        float x1=indexToX(ChartDrawing.resolveIndex(d.p1Ts,candles),tf), y1=priceToY(d.p1Price,tf);
-        float x2=indexToX(ChartDrawing.resolveIndex(d.p2Ts,candles),tf), y2=priceToY(d.p2Price,tf);
+        float x0=tsToX(d.p0Ts, candles, tf), y0=priceToY(d.p0Price,tf);
+        float x1=tsToX(d.p1Ts, candles, tf), y1=priceToY(d.p1Price,tf);
+        float x2=tsToX(d.p2Ts, candles, tf), y2=priceToY(d.p2Price,tf);
         float mx=(x1+x2)/2, my=(y1+y2)/2;
         applyLine(d.style);
         float[] med=extendLineRight(x0,y0,mx,my,rect);
@@ -366,8 +366,8 @@ public class DrawingRenderer {
     // ── Gann Fan ──────────────────────────────────────────────────────
     private void drawGannFan(Canvas canvas, ChartDrawing.GannFan d,
                              Transformer tf, RectF rect, List<Candle> candles) {
-        float x0=indexToX(ChartDrawing.resolveIndex(d.startTs,candles),tf), y0=priceToY(d.startPrice,tf);
-        float x1=indexToX(ChartDrawing.resolveIndex(d.endTs,  candles),tf), y1=priceToY(d.endPrice,  tf);
+        float x0=tsToX(d.startTs, candles, tf), y0=priceToY(d.startPrice,tf);
+        float x1=tsToX(d.endTs, candles, tf), y1=priceToY(d.endPrice,  tf);
         float dx=x1-x0; if (Math.abs(dx)<1) return;
         float unit=(y1-y0)/dx;
         for (int i=0;i<GANN_SLOPES.length;i++) {
@@ -411,11 +411,43 @@ public class DrawingRenderer {
     }
 
     // ── Coordinate helpers ────────────────────────────────────────────
-    private float indexToX(int index, Transformer tf) {
+    private float indexToX(float index, Transformer tf) {
         pts2[0]=index; pts2[1]=0; tf.pointValuesToPixel(pts2); return pts2[0];
     }
     private float priceToY(double price, Transformer tf) {
         pts2[0]=0; pts2[1]=(float)price; tf.pointValuesToPixel(pts2); return pts2[1];
+    }
+
+    /**
+     * Convert a timestamp to pixel X — extrapolates past the last candle so
+     * drawings never snap/jump when they extend into future empty space.
+     * Uses fractional candle indices, bypassing resolveIndex() which clamps.
+     */
+    private float tsToX(long ts, List<Candle> candles, Transformer tf) {
+        if (candles == null || candles.isEmpty()) return 0;
+        int n = candles.size();
+        if (n == 1) return indexToX(0, tf);
+
+        long t0  = candles.get(0).timestamp;
+        long tN  = candles.get(n - 1).timestamp;
+        long avg = (tN - t0) / Math.max(1, n - 1);
+
+        float fi;
+        if (ts <= t0) {
+            fi = avg > 0 ? (float)(ts - t0) / avg : 0;
+        } else if (ts >= tN) {
+            fi = (n - 1) + (avg > 0 ? (float)(ts - tN) / avg : 0);
+        } else {
+            // Binary search for surrounding candles
+            int lo = 0, hi = n - 1;
+            while (lo + 1 < hi) {
+                int mid = (lo + hi) / 2;
+                if (candles.get(mid).timestamp <= ts) lo = mid; else hi = mid;
+            }
+            long tLo = candles.get(lo).timestamp, tHi = candles.get(hi).timestamp;
+            fi = tHi == tLo ? lo : lo + (float)(ts - tLo) / (tHi - tLo);
+        }
+        return indexToX(fi, tf);
     }
     private void applyLine(ChartDrawing.DrawingStyle style) {
         linePaint.setColor(style.color); linePaint.setStrokeWidth(style.strokeWidth);

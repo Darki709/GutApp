@@ -588,6 +588,7 @@ public class DrawingChart extends CombinedChart {
                 lr.endTs  =shift.applyAsLong(lr.endTs); break; }
         }
 
+
         switch (d.getType()) {
         case HORIZONTAL_LINE:  ((ChartDrawing.HorizontalLine)d).price += dprice; break;
         case VERTICAL_LINE:    { ChartDrawing.VerticalLine v=(ChartDrawing.VerticalLine)d;

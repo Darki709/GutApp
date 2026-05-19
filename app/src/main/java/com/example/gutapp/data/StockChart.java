@@ -524,6 +524,19 @@ public class StockChart implements SessionCallback {
             @Override public void onChartTranslate(MotionEvent me, float dX, float dY) { syncMainChartFromSub(sub); }
         });
 
+        // --- TOUCH LISTENER (The "Passive" State) ---
+        sub.setOnTouchListener((v, event) -> {
+            // We do NOT call requestDisallowIntercept here.
+            // We let the event pass to the GestureListener above.
+            v.onTouchEvent(event);
+
+            // When the touch is finished, ensure we release the parent scroll lock
+            if (event.getAction() == MotionEvent.ACTION_UP || event.getAction() == MotionEvent.ACTION_CANCEL) {
+                v.getParent().requestDisallowInterceptTouchEvent(false);
+            }
+            return true;
+        });
+
         return sub;
     }
 
