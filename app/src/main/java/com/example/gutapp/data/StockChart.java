@@ -159,31 +159,27 @@ public class StockChart implements SessionCallback {
     public DrawingChart getDrawingChart() { return chart; }
 
     public void zoomIn() {
-        float lo = chart.getLowestVisibleX(), hi = chart.getHighestVisibleX();
-        float cx = (lo + hi) / 2f;
-        float newRange = Math.max(10f, (hi - lo) / 1.5f);
-        // Use zoom() which doesn't disturb the range lock state
-        chart.zoom(1.5f, 1f, cx, 0f);
+        chart.zoom(1.5f, 1f, chart.getWidth() / 2f, chart.getHeight() / 2f);
         syncSubChartsToMain();
     }
 
     public void zoomOut() {
-        float lo = chart.getLowestVisibleX(), hi = chart.getHighestVisibleX();
-        float cx = (lo + hi) / 2f;
-        float maxRange = allCandles.size() + 80f;
-        float newRange = Math.min(maxRange, (hi - lo) * 1.5f);
-        chart.zoom(1f / 1.5f, 1f, cx, 0f);
+        chart.zoom(1f / 1.5f, 1f, chart.getWidth() / 2f, chart.getHeight() / 2f);
         syncSubChartsToMain();
     }
 
     public void zoomReset() {
-        ArrayList<Candle> snap = new ArrayList<>(allCandles);
-        if (snap.isEmpty()) return;
-        applyInitialView(snap.size());
-        isPinnedToRight    = true;
-        initialViewApplied = true;
-        chart.postInvalidate();
-        syncSubChartsToMain();
+        if (allCandles.isEmpty()) return;
+        int total = allCandles.size();
+        // Temporarily pin range to position, then release
+        chart.setVisibleXRangeMaximum(Math.min(total, 80));
+        chart.moveViewToX(total - 1f);
+        mainHandler.post(() -> {
+            chart.setVisibleXRangeMaximum(total + 200f);
+            syncSubChartsToMain();
+            chart.postInvalidate();
+        });
+        isPinnedToRight = true;
     }
 
     public ArrayList<Candle> getAllCandles() {
@@ -195,9 +191,10 @@ public class StockChart implements SessionCallback {
         chart.setBackgroundColor(COLOR_BACKGROUND);
         chart.setAutoScaleMinMaxEnabled(true);
         chart.setDragEnabled(true);
-        chart.setScaleEnabled(true);
+        chart.setScaleXEnabled(true);
+        chart.setScaleYEnabled(false);   // Y scale only via auto-fit, not pinch
         chart.setDrawGridBackground(false);
-        chart.setPinchZoom(true);
+        chart.setPinchZoom(false);       // false = X zoom only, feels like TradingView
         chart.setDoubleTapToZoomEnabled(true);
         chart.setKeepPositionOnRotation(true);
 
@@ -209,35 +206,30 @@ public class StockChart implements SessionCallback {
                 com.github.mikephil.charting.charts.CombinedChart.DrawOrder.CANDLE
         });
 
-        // LEFT axis = volume bars only. No labels shown, just provides scale for volume.
-        // Its axisMaximum is set to maxVol*8 on first load so volume bars take ~12% of height.
         YAxis left = chart.getAxisLeft();
         left.setEnabled(true);
-        left.setDrawGridLines(true);   left.setGridColor(COLOR_GRID);
+        left.setDrawGridLines(true);  left.setGridColor(COLOR_GRID);
         left.setGridLineWidth(0.5f);
         left.setDrawLabels(false);
         left.setDrawAxisLine(false);
-        left.setAxisMinimum(0f);       // volume is always ≥ 0
+        left.setAxisMinimum(0f);
 
-        // RIGHT axis = price labels.
-        // No axisMinimum/Maximum set here — MPAndroidChart auto-scales from the price data.
         YAxis right = chart.getAxisRight();
-        right.setEnabled(true);        right.setDrawGridLines(false);
-        right.setDrawLabels(true);     right.setDrawAxisLine(false);
+        right.setEnabled(true);       right.setDrawGridLines(false);
+        right.setDrawLabels(true);    right.setDrawAxisLine(false);
         right.setLabelCount(6, false);
         right.setTextColor(COLOR_AXIS_TEXT); right.setTextSize(10f);
-        right.setSpaceTop(35f);        right.setSpaceBottom(35f);
+        right.setSpaceTop(15f);       right.setSpaceBottom(15f);
         right.setPosition(YAxis.YAxisLabelPosition.OUTSIDE_CHART);
 
         XAxis x = chart.getXAxis();
-        x.setDrawGridLines(false);     x.setPosition(XAxis.XAxisPosition.BOTTOM);
-        x.setSpaceMin(0.5f);           x.setSpaceMax(80f);   // 80 candle-widths of empty space to the right
+        x.setDrawGridLines(false);    x.setPosition(XAxis.XAxisPosition.BOTTOM);
+        x.setSpaceMin(0.5f);          x.setSpaceMax(10f);   // small right margin only
         x.setTextColor(COLOR_AXIS_TEXT); x.setTextSize(10f);
-        x.setDrawAxisLine(false);      x.setAvoidFirstLastClipping(true);
+        x.setDrawAxisLine(false);     x.setAvoidFirstLastClipping(true);
 
         chart.getLegend().setEnabled(false);
         chart.getDescription().setEnabled(false);
-        chart.setVisibleXRangeMinimum(10f);
         chart.setHighlightPerDragEnabled(true);
         chart.setHighlightPerTapEnabled(true);
         chart.setMaxHighlightDistance(20);
@@ -273,7 +265,10 @@ public class StockChart implements SessionCallback {
             @Override public void onChartLongPressed(MotionEvent me) {}
             @Override public void onChartDoubleTapped(MotionEvent me) { updatePinState(); syncSubChartsToMain(); }
             @Override public void onChartSingleTapped(MotionEvent me) {}
-            @Override public void onChartFling(MotionEvent me1, MotionEvent me2, float vX, float vY) { updatePinState(); syncSubChartsToMain(); }
+            @Override public void onChartFling(MotionEvent me1, MotionEvent me2, float vX, float vY) {
+                updatePinState();
+                mainHandler.postDelayed(() -> { updatePinState(); syncSubChartsToMain(); }, 400);
+            }
             @Override public void onChartScale(MotionEvent me, float sX, float sY) { updatePinState(); syncSubChartsToMain(); }
             @Override public void onChartTranslate(MotionEvent me, float dX, float dY) { updatePinState(); syncSubChartsToMain(); }
         });
@@ -353,55 +348,66 @@ public class StockChart implements SessionCallback {
         chart.getXAxis().setValueFormatter(xFormatter);
         chart.setData(data);
 
-        updateCurrentPriceLine(snap.get(snap.size() - 1));
-        chart.getData().notifyDataChanged();
+        // ── Single notify — avoid double layout pass ───────────────
         chart.notifyDataSetChanged();
 
         // ── Pass candle list + indicator drawings to DrawingChart ──
         chart.setCandles(snap);
         chart.replaceIndicatorDrawings(indicatorDrawings);
 
-        // ── Viewport management ────────────────────────────────────
         int total = snap.size();
 
         if (!initialViewApplied) {
-            // First load
+            // First load: scale volume axis, then position view
             float maxVol = 0;
             for (Candle c : snap) if (c.volume > maxVol) maxVol = c.volume;
-            // Volume is on LEFT axis — scale it so bars take ~12% of chart height
-            chart.getAxisLeft().setAxisMaximum(maxVol * 8f);
-            applyInitialView(total);
+            chart.getAxisLeft().setAxisMaximum(maxVol > 0 ? maxVol * 8f : 1f);
+
+            // Post so chart has completed its first layout before we set the viewport
+            int finalTotal = total;
+            mainHandler.post(() -> applyInitialView(finalTotal));
+
             initialViewApplied = true;
             isPinnedToRight    = true;
             if (candlesReadyCallback != null) candlesReadyCallback.run();
 
         } else if (isLiveUpdate) {
-            // Live stream tick — do NOT touch the viewport at all.
-            // The chart will repaint in place; user's zoom/scroll is preserved completely.
-            // Only expand the X-range ceiling so the new candle is reachable if pinned.
-           chart.setVisibleXRangeMaximum(total + 80f);
+            // Live tick — never touch viewport at all. autoScale handles Y automatically.
+            // Only expand the right-side space so the newest candle is reachable.
+            chart.getXAxis().setSpaceMax(10f);
 
         } else {
-            applyInitialView(total);
+            // Timeframe / indicator reload — restore to approximately same X position
+            int finalTotal = total;
+            mainHandler.post(() -> {
+                if (savedLowestX >= 0 && savedHighestX > savedLowestX) {
+                    float range = savedHighestX - savedLowestX;
+                    chart.setVisibleXRangeMaximum(range);
+                    chart.moveViewToX(savedLowestX);
+                    mainHandler.post(() -> {
+                        chart.setVisibleXRangeMaximum(finalTotal + 200f);
+                        chart.postInvalidate();
+                    });
+                } else {
+                    applyInitialView(finalTotal);
+                }
+            });
         }
 
         chart.calculateOffsets();
+        updateCurrentPriceLine(snap.get(snap.size() - 1));
         chart.postInvalidate();
 
         updateSubCharts(snap, xFormatter);
     }
 
+
     private void applyInitialView(int total) {
         int visible = Math.min(total, 80);
         chart.setVisibleXRangeMaximum(visible);
-        chart.setVisibleXRangeMinimum(10f);
-        chart.moveViewToX(total-20f);
-        // Unlock range after positioning so the user can freely zoom/pan
-        mainHandler.postDelayed(() -> {
-            chart.setVisibleXRangeMinimum(10f);
-            chart.setVisibleXRangeMaximum(total + 80f);
-            chart.postInvalidate();
-        }, 80);
+        chart.moveViewToX(total - 1f);
+        // Release the range ceiling on the next frame so the user can zoom freely
+        mainHandler.post(() -> chart.setVisibleXRangeMaximum(total + 200f));
     }
 
     // ── Sub-chart management ───────────────────────────────────────────
@@ -516,19 +522,6 @@ public class StockChart implements SessionCallback {
             @Override public void onChartFling(MotionEvent me1, MotionEvent me2, float vX, float vY) {syncMainChartFromSub(sub);}
             @Override public void onChartScale(MotionEvent me, float sX, float sY) { syncMainChartFromSub(sub); }
             @Override public void onChartTranslate(MotionEvent me, float dX, float dY) { syncMainChartFromSub(sub); }
-        });
-
-        // --- TOUCH LISTENER (The "Passive" State) ---
-        sub.setOnTouchListener((v, event) -> {
-            // We do NOT call requestDisallowIntercept here.
-            // We let the event pass to the GestureListener above.
-            v.onTouchEvent(event);
-
-            // When the touch is finished, ensure we release the parent scroll lock
-            if (event.getAction() == MotionEvent.ACTION_UP || event.getAction() == MotionEvent.ACTION_CANCEL) {
-                v.getParent().requestDisallowInterceptTouchEvent(false);
-            }
-            return true;
         });
 
         return sub;

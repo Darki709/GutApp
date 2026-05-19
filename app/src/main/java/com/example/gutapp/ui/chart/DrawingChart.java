@@ -445,16 +445,50 @@ public class DrawingChart extends CombinedChart {
         }
     }
 
-    /** Move a specific handle (anchor) of a drawing to a new pixel position. */
-    private void moveHandle(ChartDrawing d, int handleIdx, float px, float py) {
-        long   newTs    = pixelToTimestamp(px);
-        double newPrice = snapEnabled ? snapToOHLC(py, newTs) : pixelToPrice(py);
+    // ── Helper: fractional-index ↔ timestamp (no rounding loss) ────────
 
+    /** Pixel X → fractional candle index (accurate past last candle). */
+    private float pixelToFractionalIndex(float px) {
+        Transformer tf = getTransformer(YAxis.AxisDependency.RIGHT);
+        float[] p = {px, 0}; tf.pixelsToValue(p); return p[0];
+    }
+
+    /** Fractional candle index → timestamp (extrapolates beyond data range). */
+    private long fractionalIndexToTimestamp(float fi) {
+        if (candles.isEmpty()) return System.currentTimeMillis() / 1000L;
+        if (candles.size() == 1) return candles.get(0).timestamp;
+        long t0 = candles.get(0).timestamp;
+        long tN = candles.get(candles.size() - 1).timestamp;
+        long avg = (tN - t0) / Math.max(1, candles.size() - 1);
+        if (fi <= 0)               return t0 + Math.round(fi * avg);
+        if (fi >= candles.size()-1) return tN + Math.round((fi-(candles.size()-1)) * avg);
+        int lo = (int) fi, hi = Math.min(lo+1, candles.size()-1);
+        return candles.get(lo).timestamp
+                + Math.round((fi-lo)*(candles.get(hi).timestamp - candles.get(lo).timestamp));
+    }
+
+    /** Timestamp → fractional candle index (inverse of above). */
+    private float timestampToFractionalIndex(long ts) {
+        if (candles.isEmpty()) return 0;
+        if (candles.size() == 1) return 0;
+        long t0 = candles.get(0).timestamp;
+        long tN = candles.get(candles.size()-1).timestamp;
+        long avg = (tN - t0) / Math.max(1, candles.size()-1);
+        if (ts <= t0) return avg > 0 ? (float)(ts-t0)/avg : 0;
+        if (ts >= tN) return (candles.size()-1) + (avg > 0 ? (float)(ts-tN)/avg : 0);
+        int lo = 0, hi = candles.size()-1;
+        while (lo+1 < hi) { int m=(lo+hi)/2; if (candles.get(m).timestamp<=ts) lo=m; else hi=m; }
+        long tLo=candles.get(lo).timestamp, tHi=candles.get(hi).timestamp;
+        return tHi==tLo ? lo : lo + (float)(ts-tLo)/(tHi-tLo);
+    }
+
+    /** Move a specific handle to a new pixel position — lossless past last candle. */
+    private void moveHandle(ChartDrawing d, int handleIdx, float px, float py) {
+        long   newTs    = fractionalIndexToTimestamp(pixelToFractionalIndex(px));
+        double newPrice = snapEnabled ? snapToOHLC(py, newTs) : pixelToPrice(py);
         switch (d.getType()) {
-            case HORIZONTAL_LINE:
-                ((ChartDrawing.HorizontalLine)d).price = newPrice; break;
-            case VERTICAL_LINE:
-                ((ChartDrawing.VerticalLine)d).candleTs = newTs; break;
+            case HORIZONTAL_LINE:  ((ChartDrawing.HorizontalLine)d).price = newPrice; break;
+            case VERTICAL_LINE:    ((ChartDrawing.VerticalLine)d).candleTs = newTs; break;
             case TREND_LINE: { ChartDrawing.TrendLine t=(ChartDrawing.TrendLine)d;
                 if (handleIdx==0){t.startTs=newTs;t.startPrice=newPrice;}
                 else             {t.endTs  =newTs;t.endPrice  =newPrice;} break; }
@@ -477,13 +511,13 @@ public class DrawingChart extends CombinedChart {
                 if (handleIdx==0){f.startTs=newTs;f.highPrice=newPrice;}
                 else             {f.endTs  =newTs;f.lowPrice =newPrice;} break; }
             case PARALLEL_CHANNEL: { ChartDrawing.ParallelChannel pc=(ChartDrawing.ParallelChannel)d;
-                if (handleIdx==0){pc.startTs=newTs;pc.startPrice=newPrice;}
-                else if(handleIdx==1){pc.endTs=newTs;pc.endPrice=newPrice;}
-                else             {pc.midPrice=newPrice;} break; }
+                if (handleIdx==0)     {pc.startTs=newTs;pc.startPrice=newPrice;}
+                else if(handleIdx==1) {pc.endTs=newTs;pc.endPrice=newPrice;}
+                else                  {pc.midPrice=newPrice;} break; }
             case PITCHFORK: { ChartDrawing.Pitchfork pf=(ChartDrawing.Pitchfork)d;
-                if (handleIdx==0){pf.p0Ts=newTs;pf.p0Price=newPrice;}
-                else if(handleIdx==1){pf.p1Ts=newTs;pf.p1Price=newPrice;}
-                else             {pf.p2Ts=newTs;pf.p2Price=newPrice;} break; }
+                if (handleIdx==0)     {pf.p0Ts=newTs;pf.p0Price=newPrice;}
+                else if(handleIdx==1) {pf.p1Ts=newTs;pf.p1Price=newPrice;}
+                else                  {pf.p2Ts=newTs;pf.p2Price=newPrice;} break; }
             case GANN_FAN: { ChartDrawing.GannFan gf=(ChartDrawing.GannFan)d;
                 if (handleIdx==0){gf.startTs=newTs;gf.startPrice=newPrice;}
                 else             {gf.endTs  =newTs;gf.endPrice  =newPrice;} break; }
@@ -494,233 +528,291 @@ public class DrawingChart extends CombinedChart {
         }
     }
 
-    /** Translate an entire drawing by the pixel delta. */
     private void moveDrawing(ChartDrawing d, float dxPx, float dyPx) {
-        // Convert pixel deltas to timestamp + price deltas
-        long   tsCentre   = pixelToTimestamp(getContentRect().centerX());
-        long   tsMoved    = pixelToTimestamp(getContentRect().centerX() + dxPx);
-        long   dtTs       = tsMoved - tsCentre;
-        double priceCentre = pixelToPrice(getContentRect().centerY());
-        double priceMoved  = pixelToPrice(getContentRect().centerY() + dyPx);
-        double dprice      = priceMoved - priceCentre;
+        // Convert pixel delta to fractional-index delta using the transformer directly.
+        // We must transform two ABSOLUTE pixel positions and subtract — NOT transform
+        // a relative delta from 0, because pixelsToValue({0,0}) is the LEFT EDGE of
+        // the current viewport, not index 0, and changes as the chart scrolls.
+        Transformer tf = getTransformer(YAxis.AxisDependency.RIGHT);
+        float[] pRef   = {dragLastX,        0f}; tf.pixelsToValue(pRef);
+        float[] pMoved = {dragLastX + dxPx, 0f}; tf.pixelsToValue(pMoved);
+        float dfi = pMoved[0] - pRef[0];
+
+        double dprice = pixelToPrice(dragLastY + dyPx) - pixelToPrice(dragLastY);
+
+        java.util.function.LongUnaryOperator shift =
+                ts -> fractionalIndexToTimestamp(timestampToFractionalIndex(ts) + dfi);
 
         switch (d.getType()) {
-            case HORIZONTAL_LINE:
-                ((ChartDrawing.HorizontalLine)d).price += dprice; break;
-            case VERTICAL_LINE:
-                ((ChartDrawing.VerticalLine)d).candleTs += dtTs; break;
+            case HORIZONTAL_LINE:  ((ChartDrawing.HorizontalLine)d).price += dprice; break;
+            case VERTICAL_LINE:    { ChartDrawing.VerticalLine v=(ChartDrawing.VerticalLine)d;
+                v.candleTs=shift.applyAsLong(v.candleTs); break; }
             case PRICE_RANGE: { ChartDrawing.PriceRange pr=(ChartDrawing.PriceRange)d;
                 pr.priceHigh+=dprice; pr.priceLow+=dprice; break; }
             case TREND_LINE: { ChartDrawing.TrendLine t=(ChartDrawing.TrendLine)d;
-                t.startTs+=dtTs;t.startPrice+=dprice;t.endTs+=dtTs;t.endPrice+=dprice; break; }
+                t.startTs=shift.applyAsLong(t.startTs); t.startPrice+=dprice;
+                t.endTs  =shift.applyAsLong(t.endTs);   t.endPrice  +=dprice; break; }
             case RAY_LINE: { ChartDrawing.RayLine r=(ChartDrawing.RayLine)d;
-                r.startTs+=dtTs;r.startPrice+=dprice;r.anchorTs+=dtTs;r.anchorPrice+=dprice; break; }
+                r.startTs =shift.applyAsLong(r.startTs);  r.startPrice +=dprice;
+                r.anchorTs=shift.applyAsLong(r.anchorTs); r.anchorPrice+=dprice; break; }
             case EXTENDED_LINE: { ChartDrawing.ExtendedLine el=(ChartDrawing.ExtendedLine)d;
-                el.startTs+=dtTs;el.startPrice+=dprice;el.endTs+=dtTs;el.endPrice+=dprice; break; }
+                el.startTs=shift.applyAsLong(el.startTs); el.startPrice+=dprice;
+                el.endTs  =shift.applyAsLong(el.endTs);   el.endPrice  +=dprice; break; }
             case ARROW: { ChartDrawing.Arrow ar=(ChartDrawing.Arrow)d;
-                ar.startTs+=dtTs;ar.startPrice+=dprice;ar.endTs+=dtTs;ar.endPrice+=dprice; break; }
+                ar.startTs=shift.applyAsLong(ar.startTs); ar.startPrice+=dprice;
+                ar.endTs  =shift.applyAsLong(ar.endTs);   ar.endPrice  +=dprice; break; }
             case RECTANGLE: { ChartDrawing.Rectangle r=(ChartDrawing.Rectangle)d;
-                r.startTs+=dtTs;r.startPrice+=dprice;r.endTs+=dtTs;r.endPrice+=dprice; break; }
+                r.startTs=shift.applyAsLong(r.startTs); r.startPrice+=dprice;
+                r.endTs  =shift.applyAsLong(r.endTs);   r.endPrice  +=dprice; break; }
             case ELLIPSE: { ChartDrawing.Ellipse el=(ChartDrawing.Ellipse)d;
-                el.startTs+=dtTs;el.startPrice+=dprice;el.endTs+=dtTs;el.endPrice+=dprice; break; }
+                el.startTs=shift.applyAsLong(el.startTs); el.startPrice+=dprice;
+                el.endTs  =shift.applyAsLong(el.endTs);   el.endPrice  +=dprice; break; }
             case FIB_RETRACEMENT: { ChartDrawing.FibRetracement f=(ChartDrawing.FibRetracement)d;
-                f.startTs+=dtTs;f.highPrice+=dprice;f.endTs+=dtTs;f.lowPrice+=dprice; break; }
+                f.startTs=shift.applyAsLong(f.startTs); f.highPrice+=dprice;
+                f.endTs  =shift.applyAsLong(f.endTs);   f.lowPrice +=dprice; break; }
             case PARALLEL_CHANNEL: { ChartDrawing.ParallelChannel pc=(ChartDrawing.ParallelChannel)d;
-                pc.startTs+=dtTs;pc.startPrice+=dprice;pc.endTs+=dtTs;pc.endPrice+=dprice;pc.midPrice+=dprice; break; }
+                pc.startTs=shift.applyAsLong(pc.startTs); pc.startPrice+=dprice;
+                pc.endTs  =shift.applyAsLong(pc.endTs);   pc.endPrice  +=dprice;
+                pc.midPrice+=dprice; break; }
             case PITCHFORK: { ChartDrawing.Pitchfork pf=(ChartDrawing.Pitchfork)d;
-                pf.p0Ts+=dtTs;pf.p0Price+=dprice;pf.p1Ts+=dtTs;pf.p1Price+=dprice;
-                pf.p2Ts+=dtTs;pf.p2Price+=dprice; break; }
+                pf.p0Ts=shift.applyAsLong(pf.p0Ts); pf.p0Price+=dprice;
+                pf.p1Ts=shift.applyAsLong(pf.p1Ts); pf.p1Price+=dprice;
+                pf.p2Ts=shift.applyAsLong(pf.p2Ts); pf.p2Price+=dprice; break; }
             case GANN_FAN: { ChartDrawing.GannFan gf=(ChartDrawing.GannFan)d;
-                gf.startTs+=dtTs;gf.startPrice+=dprice;gf.endTs+=dtTs;gf.endPrice+=dprice; break; }
+                gf.startTs=shift.applyAsLong(gf.startTs); gf.startPrice+=dprice;
+                gf.endTs  =shift.applyAsLong(gf.endTs);   gf.endPrice  +=dprice; break; }
             case TEXT_ANNOTATION: { ChartDrawing.TextAnnotation ta=(ChartDrawing.TextAnnotation)d;
-                ta.candleTs+=dtTs; ta.price+=dprice; break; }
+                ta.candleTs=shift.applyAsLong(ta.candleTs); ta.price+=dprice; break; }
             case LINEAR_REGRESSION: { ChartDrawing.LinearRegression lr=(ChartDrawing.LinearRegression)d;
-                lr.startTs+=dtTs; lr.endTs+=dtTs; break; }
+                lr.startTs=shift.applyAsLong(lr.startTs);
+                lr.endTs  =shift.applyAsLong(lr.endTs); break; }
         }
-    }
 
-    /** Returns true if px,py is within the bounding box / body hit area of d. */
-    private boolean hitBody(ChartDrawing d, float px, float py) {
-        return hitDistance(d, px, py) < HIT_BODY_PX;
-    }
-
-    // ═════════════════════════════════════════════════════════════════
-    // HIT-TEST (tap-to-select)
-    // ═════════════════════════════════════════════════════════════════
-    private void trySelect(float px, float py) {
-        ChartDrawing best = null; float bestDist = HIT_BODY_PX;
-        for (ChartDrawing d : drawingManager.getAll()) {
-            if (d.source != ChartDrawing.Source.USER || d.locked) continue;
-            float dist = hitDistance(d, px, py);
-            if (dist < bestDist) { bestDist=dist; best=d; }
-        }
-        if (best != null) drawingManager.select(best.getInstanceId());
-        else drawingManager.clearSelection();
-        postInvalidate();
-        if (drawingEventListener != null) drawingEventListener.onDrawingSelected(best);
-    }
-
-    private float hitDistance(ChartDrawing d, float px, float py) {
         switch (d.getType()) {
-            case HORIZONTAL_LINE:
-                return Math.abs(py - priceToPixelY(((ChartDrawing.HorizontalLine)d).price));
-            case VERTICAL_LINE:
-                return Math.abs(px - (float)timestampToPixelX(((ChartDrawing.VerticalLine)d).candleTs));
-            case PRICE_RANGE: { ChartDrawing.PriceRange pr=(ChartDrawing.PriceRange)d;
-                float yH=priceToPixelY(pr.priceHigh),yL=priceToPixelY(pr.priceLow);
-                android.graphics.RectF r=getContentRect();
-                return Math.min(ptSeg(px,py,r.left,yH,r.right,yH),ptSeg(px,py,r.left,yL,r.right,yL)); }
-            case TREND_LINE: { ChartDrawing.TrendLine t=(ChartDrawing.TrendLine)d;
-                return ptSeg(px,py,(float)timestampToPixelX(t.startTs),priceToPixelY(t.startPrice),
-                        (float)timestampToPixelX(t.endTs),priceToPixelY(t.endPrice)); }
-            case RAY_LINE: { ChartDrawing.RayLine r=(ChartDrawing.RayLine)d;
-                return ptSeg(px,py,(float)timestampToPixelX(r.startTs),priceToPixelY(r.startPrice),
-                        (float)timestampToPixelX(r.anchorTs),priceToPixelY(r.anchorPrice)); }
-            case EXTENDED_LINE: { ChartDrawing.ExtendedLine el=(ChartDrawing.ExtendedLine)d;
-                return ptSeg(px,py,(float)timestampToPixelX(el.startTs),priceToPixelY(el.startPrice),
-                        (float)timestampToPixelX(el.endTs),priceToPixelY(el.endPrice)); }
-            case ARROW: { ChartDrawing.Arrow ar=(ChartDrawing.Arrow)d;
-                return ptSeg(px,py,(float)timestampToPixelX(ar.startTs),priceToPixelY(ar.startPrice),
-                        (float)timestampToPixelX(ar.endTs),priceToPixelY(ar.endPrice)); }
-            case RECTANGLE: { ChartDrawing.Rectangle r=(ChartDrawing.Rectangle)d;
-                float x1=(float)timestampToPixelX(r.startTs),y1=priceToPixelY(r.startPrice);
-                float x2=(float)timestampToPixelX(r.endTs),  y2=priceToPixelY(r.endPrice);
-                float xL=Math.min(x1,x2),xR=Math.max(x1,x2),yT=Math.min(y1,y2),yB=Math.max(y1,y2);
-                return Math.min(ptSeg(px,py,xL,yT,xR,yT), ptSeg(px,py,xL,yB,xR,yB)); }
-            case ELLIPSE: { ChartDrawing.Ellipse el=(ChartDrawing.Ellipse)d;
-                float x1=(float)timestampToPixelX(el.startTs),y1=priceToPixelY(el.startPrice);
-                float x2=(float)timestampToPixelX(el.endTs),  y2=priceToPixelY(el.endPrice);
-                float cx=(x1+x2)/2,cy=(y1+y2)/2,rx=Math.abs(x2-x1)/2,ry=Math.abs(y2-y1)/2;
-                if (rx<1||ry<1) return Float.MAX_VALUE;
-                double nx=(px-cx)/rx, ny=(py-cy)/ry;
-                return (float)(Math.abs(Math.sqrt(nx*nx+ny*ny)-1.0)*Math.min(rx,ry)); }
-            case FIB_RETRACEMENT: { ChartDrawing.FibRetracement f=(ChartDrawing.FibRetracement)d;
-                return Math.min(
-                        (float)Math.hypot(px-timestampToPixelX(f.startTs),py-priceToPixelY(f.highPrice)),
-                        (float)Math.hypot(px-timestampToPixelX(f.endTs),  py-priceToPixelY(f.lowPrice))); }
-            case TEXT_ANNOTATION: { ChartDrawing.TextAnnotation ta=(ChartDrawing.TextAnnotation)d;
-                return (float)Math.hypot(px-timestampToPixelX(ta.candleTs),py-priceToPixelY(ta.price)); }
-            default: return Float.MAX_VALUE;
-        }
+        case HORIZONTAL_LINE:  ((ChartDrawing.HorizontalLine)d).price += dprice; break;
+        case VERTICAL_LINE:    { ChartDrawing.VerticalLine v=(ChartDrawing.VerticalLine)d;
+            v.candleTs=shift.applyAsLong(v.candleTs); break; }
+        case PRICE_RANGE: { ChartDrawing.PriceRange pr=(ChartDrawing.PriceRange)d;
+            pr.priceHigh+=dprice; pr.priceLow+=dprice; break; }
+        case TREND_LINE: { ChartDrawing.TrendLine t=(ChartDrawing.TrendLine)d;
+            t.startTs=shift.applyAsLong(t.startTs); t.startPrice+=dprice;
+            t.endTs  =shift.applyAsLong(t.endTs);   t.endPrice  +=dprice; break; }
+        case RAY_LINE: { ChartDrawing.RayLine r=(ChartDrawing.RayLine)d;
+            r.startTs =shift.applyAsLong(r.startTs);  r.startPrice +=dprice;
+            r.anchorTs=shift.applyAsLong(r.anchorTs); r.anchorPrice+=dprice; break; }
+        case EXTENDED_LINE: { ChartDrawing.ExtendedLine el=(ChartDrawing.ExtendedLine)d;
+            el.startTs=shift.applyAsLong(el.startTs); el.startPrice+=dprice;
+            el.endTs  =shift.applyAsLong(el.endTs);   el.endPrice  +=dprice; break; }
+        case ARROW: { ChartDrawing.Arrow ar=(ChartDrawing.Arrow)d;
+            ar.startTs=shift.applyAsLong(ar.startTs); ar.startPrice+=dprice;
+            ar.endTs  =shift.applyAsLong(ar.endTs);   ar.endPrice  +=dprice; break; }
+        case RECTANGLE: { ChartDrawing.Rectangle r=(ChartDrawing.Rectangle)d;
+            r.startTs=shift.applyAsLong(r.startTs); r.startPrice+=dprice;
+            r.endTs  =shift.applyAsLong(r.endTs);   r.endPrice  +=dprice; break; }
+        case ELLIPSE: { ChartDrawing.Ellipse el=(ChartDrawing.Ellipse)d;
+            el.startTs=shift.applyAsLong(el.startTs); el.startPrice+=dprice;
+            el.endTs  =shift.applyAsLong(el.endTs);   el.endPrice  +=dprice; break; }
+        case FIB_RETRACEMENT: { ChartDrawing.FibRetracement f=(ChartDrawing.FibRetracement)d;
+            f.startTs=shift.applyAsLong(f.startTs); f.highPrice+=dprice;
+            f.endTs  =shift.applyAsLong(f.endTs);   f.lowPrice +=dprice; break; }
+        case PARALLEL_CHANNEL: { ChartDrawing.ParallelChannel pc=(ChartDrawing.ParallelChannel)d;
+            pc.startTs=shift.applyAsLong(pc.startTs); pc.startPrice+=dprice;
+            pc.endTs  =shift.applyAsLong(pc.endTs);   pc.endPrice  +=dprice;
+            pc.midPrice+=dprice; break; }
+        case PITCHFORK: { ChartDrawing.Pitchfork pf=(ChartDrawing.Pitchfork)d;
+            pf.p0Ts=shift.applyAsLong(pf.p0Ts); pf.p0Price+=dprice;
+            pf.p1Ts=shift.applyAsLong(pf.p1Ts); pf.p1Price+=dprice;
+            pf.p2Ts=shift.applyAsLong(pf.p2Ts); pf.p2Price+=dprice; break; }
+        case GANN_FAN: { ChartDrawing.GannFan gf=(ChartDrawing.GannFan)d;
+            gf.startTs=shift.applyAsLong(gf.startTs); gf.startPrice+=dprice;
+            gf.endTs  =shift.applyAsLong(gf.endTs);   gf.endPrice  +=dprice; break; }
+        case TEXT_ANNOTATION: { ChartDrawing.TextAnnotation ta=(ChartDrawing.TextAnnotation)d;
+            ta.candleTs=shift.applyAsLong(ta.candleTs); ta.price+=dprice; break; }
+        case LINEAR_REGRESSION: { ChartDrawing.LinearRegression lr=(ChartDrawing.LinearRegression)d;
+            lr.startTs=shift.applyAsLong(lr.startTs);
+            lr.endTs  =shift.applyAsLong(lr.endTs); break; }
     }
+}
 
-    private float ptSeg(float px,float py,float x1,float y1,float x2,float y2) {
-        float dx=x2-x1,dy=y2-y1,lenSq=dx*dx+dy*dy;
-        if (lenSq<1) return (float)Math.hypot(px-x1,py-y1);
-        float t=Math.max(0,Math.min(1,((px-x1)*dx+(py-y1)*dy)/lenSq));
-        return (float)Math.hypot(px-(x1+t*dx),py-(y1+t*dy));
+/** Returns true if px,py is within the bounding box / body hit area of d. */
+private boolean hitBody(ChartDrawing d, float px, float py) {
+    return hitDistance(d, px, py) < HIT_BODY_PX;
+}
+
+// ═════════════════════════════════════════════════════════════════
+// HIT-TEST (tap-to-select)
+// ═════════════════════════════════════════════════════════════════
+private void trySelect(float px, float py) {
+    ChartDrawing best = null; float bestDist = HIT_BODY_PX;
+    for (ChartDrawing d : drawingManager.getAll()) {
+        if (d.source != ChartDrawing.Source.USER || d.locked) continue;
+        float dist = hitDistance(d, px, py);
+        if (dist < bestDist) { bestDist=dist; best=d; }
     }
+    if (best != null) drawingManager.select(best.getInstanceId());
+    else drawingManager.clearSelection();
+    postInvalidate();
+    if (drawingEventListener != null) drawingEventListener.onDrawingSelected(best);
+}
 
-    // ═════════════════════════════════════════════════════════════════
-    // SNAP + COORD HELPERS
-    // ═════════════════════════════════════════════════════════════════
-    private double snapToOHLC(float py, long ts) {
-        double raw = pixelToPrice(py);
-        if (candles.isEmpty()) return raw;
-        int idx = ChartDrawing.resolveIndex(ts, candles);
-        if (idx<0||idx>=candles.size()) return raw;
-        Candle c = candles.get(idx);
-        double best=raw, bestDist=Double.MAX_VALUE;
-        for (double v : new double[]{c.open,c.high,c.low,c.close}) {
-            double dist=Math.abs(v-raw); if(dist<bestDist){bestDist=dist;best=v;}
-        }
-        double range=Math.abs(pixelToPrice(getContentRect().top)-pixelToPrice(getContentRect().bottom));
-        return bestDist<range*0.03?best:raw;
+private float hitDistance(ChartDrawing d, float px, float py) {
+    switch (d.getType()) {
+        case HORIZONTAL_LINE:
+            return Math.abs(py - priceToPixelY(((ChartDrawing.HorizontalLine)d).price));
+        case VERTICAL_LINE:
+            return Math.abs(px - (float)timestampToPixelX(((ChartDrawing.VerticalLine)d).candleTs));
+        case PRICE_RANGE: { ChartDrawing.PriceRange pr=(ChartDrawing.PriceRange)d;
+            float yH=priceToPixelY(pr.priceHigh),yL=priceToPixelY(pr.priceLow);
+            android.graphics.RectF r=getContentRect();
+            return Math.min(ptSeg(px,py,r.left,yH,r.right,yH),ptSeg(px,py,r.left,yL,r.right,yL)); }
+        case TREND_LINE: { ChartDrawing.TrendLine t=(ChartDrawing.TrendLine)d;
+            return ptSeg(px,py,(float)timestampToPixelX(t.startTs),priceToPixelY(t.startPrice),
+                    (float)timestampToPixelX(t.endTs),priceToPixelY(t.endPrice)); }
+        case RAY_LINE: { ChartDrawing.RayLine r=(ChartDrawing.RayLine)d;
+            return ptSeg(px,py,(float)timestampToPixelX(r.startTs),priceToPixelY(r.startPrice),
+                    (float)timestampToPixelX(r.anchorTs),priceToPixelY(r.anchorPrice)); }
+        case EXTENDED_LINE: { ChartDrawing.ExtendedLine el=(ChartDrawing.ExtendedLine)d;
+            return ptSeg(px,py,(float)timestampToPixelX(el.startTs),priceToPixelY(el.startPrice),
+                    (float)timestampToPixelX(el.endTs),priceToPixelY(el.endPrice)); }
+        case ARROW: { ChartDrawing.Arrow ar=(ChartDrawing.Arrow)d;
+            return ptSeg(px,py,(float)timestampToPixelX(ar.startTs),priceToPixelY(ar.startPrice),
+                    (float)timestampToPixelX(ar.endTs),priceToPixelY(ar.endPrice)); }
+        case RECTANGLE: { ChartDrawing.Rectangle r=(ChartDrawing.Rectangle)d;
+            float x1=(float)timestampToPixelX(r.startTs),y1=priceToPixelY(r.startPrice);
+            float x2=(float)timestampToPixelX(r.endTs),  y2=priceToPixelY(r.endPrice);
+            float xL=Math.min(x1,x2),xR=Math.max(x1,x2),yT=Math.min(y1,y2),yB=Math.max(y1,y2);
+            return Math.min(ptSeg(px,py,xL,yT,xR,yT), ptSeg(px,py,xL,yB,xR,yB)); }
+        case ELLIPSE: { ChartDrawing.Ellipse el=(ChartDrawing.Ellipse)d;
+            float x1=(float)timestampToPixelX(el.startTs),y1=priceToPixelY(el.startPrice);
+            float x2=(float)timestampToPixelX(el.endTs),  y2=priceToPixelY(el.endPrice);
+            float cx=(x1+x2)/2,cy=(y1+y2)/2,rx=Math.abs(x2-x1)/2,ry=Math.abs(y2-y1)/2;
+            if (rx<1||ry<1) return Float.MAX_VALUE;
+            double nx=(px-cx)/rx, ny=(py-cy)/ry;
+            return (float)(Math.abs(Math.sqrt(nx*nx+ny*ny)-1.0)*Math.min(rx,ry)); }
+        case FIB_RETRACEMENT: { ChartDrawing.FibRetracement f=(ChartDrawing.FibRetracement)d;
+            return Math.min(
+                    (float)Math.hypot(px-timestampToPixelX(f.startTs),py-priceToPixelY(f.highPrice)),
+                    (float)Math.hypot(px-timestampToPixelX(f.endTs),  py-priceToPixelY(f.lowPrice))); }
+        case TEXT_ANNOTATION: { ChartDrawing.TextAnnotation ta=(ChartDrawing.TextAnnotation)d;
+            return (float)Math.hypot(px-timestampToPixelX(ta.candleTs),py-priceToPixelY(ta.price)); }
+        default: return Float.MAX_VALUE;
     }
+}
 
-    private long pixelToTimestamp(float px) {
-        Transformer tf = getTransformer(YAxis.AxisDependency.RIGHT);
-        float[] p = {px, 0}; tf.pixelsToValue(p);
-        float fi = p[0];  // fractional candle index
+private float ptSeg(float px,float py,float x1,float y1,float x2,float y2) {
+    float dx=x2-x1,dy=y2-y1,lenSq=dx*dx+dy*dy;
+    if (lenSq<1) return (float)Math.hypot(px-x1,py-y1);
+    float t=Math.max(0,Math.min(1,((px-x1)*dx+(py-y1)*dy)/lenSq));
+    return (float)Math.hypot(px-(x1+t*dx),py-(y1+t*dy));
+}
 
-        if (candles.isEmpty()) return System.currentTimeMillis() / 1000L;
-        if (candles.size() == 1) return candles.get(0).timestamp;
+// ═════════════════════════════════════════════════════════════════
+// SNAP + COORD HELPERS
+// ═════════════════════════════════════════════════════════════════
+private double snapToOHLC(float py, long ts) {
+    double raw = pixelToPrice(py);
+    if (candles.isEmpty()) return raw;
+    int idx = ChartDrawing.resolveIndex(ts, candles);
+    if (idx<0||idx>=candles.size()) return raw;
+    Candle c = candles.get(idx);
+    double best=raw, bestDist=Double.MAX_VALUE;
+    for (double v : new double[]{c.open,c.high,c.low,c.close}) {
+        double dist=Math.abs(v-raw); if(dist<bestDist){bestDist=dist;best=v;}
+    }
+    double range=Math.abs(pixelToPrice(getContentRect().top)-pixelToPrice(getContentRect().bottom));
+    return bestDist<range*0.03?best:raw;
+}
 
-        long t0 = candles.get(0).timestamp;
-        long tN = candles.get(candles.size() - 1).timestamp;
+private long pixelToTimestamp(float px) {
+    return fractionalIndexToTimestamp(pixelToFractionalIndex(px));
+}
+
+private double timestampToPixelX(long ts) {
+    if (candles.isEmpty()) return 0;
+    Transformer tf = getTransformer(YAxis.AxisDependency.RIGHT);
+
+    long t0 = candles.get(0).timestamp;
+    long tN = candles.get(candles.size() - 1).timestamp;
+
+    float fi; // fractional candle index to pass to the transformer
+
+    if (ts <= t0) {
+        fi = 0f;
+    } else if (ts >= tN) {
+        // Extrapolate: how many intervals past the last candle?
         long avgInterval = (tN - t0) / Math.max(1, candles.size() - 1);
-
-        // Within data range: interpolate between adjacent candles
-        if (fi >= 0 && fi <= candles.size() - 1) {
-            int lo = (int) fi;
-            int hi = Math.min(lo + 1, candles.size() - 1);
-            float frac = fi - lo;
-            long tLo = candles.get(lo).timestamp;
-            long tHi = candles.get(hi).timestamp;
-            return tLo + Math.round(frac * (tHi - tLo));
+        fi = (candles.size() - 1) + (float)(ts - tN) / Math.max(1, avgInterval);
+    } else {
+        // Binary-search for the surrounding candles, then interpolate
+        int lo = 0, hi = candles.size() - 1;
+        while (lo + 1 < hi) {
+            int mid = (lo + hi) / 2;
+            if (candles.get(mid).timestamp <= ts) lo = mid; else hi = mid;
         }
-
-        // Before first candle
-        if (fi < 0) {
-            return t0 + Math.round((double) fi * avgInterval);
-        }
-
-        // After last candle — extrapolate forward from tN
-        float overflow = fi - (candles.size() - 1);
-        return tN + Math.round((double) overflow * avgInterval);
+        long tLo = candles.get(lo).timestamp, tHi = candles.get(hi).timestamp;
+        float frac = tHi == tLo ? 0f : (float)(ts - tLo) / (float)(tHi - tLo);
+        fi = lo + frac;
     }
 
-    private double timestampToPixelX(long ts) {
-        if (candles.isEmpty()) return 0;
-        int idx=ChartDrawing.resolveIndex(ts,candles);
-        Transformer tf=getTransformer(YAxis.AxisDependency.RIGHT);
-        float[] p={(float)idx,0}; tf.pointValuesToPixel(p); return p[0];
-    }
+    float[] p = {fi, 0};
+    tf.pointValuesToPixel(p);
+    return p[0];
+}
 
-    private double pixelToPrice(float py) {
-        Transformer tf=getTransformer(YAxis.AxisDependency.RIGHT);
-        float[] p={0,py}; tf.pixelsToValue(p); return p[1];
-    }
+private double pixelToPrice(float py) {
+    Transformer tf=getTransformer(YAxis.AxisDependency.RIGHT);
+    float[] p={0,py}; tf.pixelsToValue(p); return p[1];
+}
 
-    private float priceToPixelY(double price) {
-        Transformer tf=getTransformer(YAxis.AxisDependency.RIGHT);
-        float[] p={0,(float)price}; tf.pointValuesToPixel(p); return p[1];
-    }
+private float priceToPixelY(double price) {
+    Transformer tf=getTransformer(YAxis.AxisDependency.RIGHT);
+    float[] p={0,(float)price}; tf.pointValuesToPixel(p); return p[1];
+}
 
-    // ═════════════════════════════════════════════════════════════════
-    // DRAWING FACTORY
-    // ═════════════════════════════════════════════════════════════════
-    @Nullable
-    private ChartDrawing placeOnePoint(DrawingManager.DrawingTool tool, long ts, double price) {
-        switch (tool) {
-            case HORIZONTAL_LINE:  return drawingManager.addHorizontalLine(price);
-            case VERTICAL_LINE:    return drawingManager.addVerticalLine(ts);
-            case TEXT_ANNOTATION:  return drawingManager.addTextAnnotation(ts,price,"Note");
-            default:               return null;
-        }
+// ═════════════════════════════════════════════════════════════════
+// DRAWING FACTORY
+// ═════════════════════════════════════════════════════════════════
+@Nullable
+private ChartDrawing placeOnePoint(DrawingManager.DrawingTool tool, long ts, double price) {
+    switch (tool) {
+        case HORIZONTAL_LINE:  return drawingManager.addHorizontalLine(price);
+        case VERTICAL_LINE:    return drawingManager.addVerticalLine(ts);
+        case TEXT_ANNOTATION:  return drawingManager.addTextAnnotation(ts,price,"Note");
+        default:               return null;
     }
+}
 
-    @Nullable
-    private ChartDrawing buildDrawing(DrawingManager.DrawingTool tool,
-                                      long sTs,double sp,long eTs,double ep) {
-        ChartDrawing.DrawingStyle s=drawingManager.buildActiveStyle();
-        ChartDrawing.Source src=ChartDrawing.Source.USER;
-        double hi=Math.max(sp,ep),lo=Math.min(sp,ep);
-        switch (tool) {
-            case TREND_LINE:        return new ChartDrawing.TrendLine(sTs,sp,eTs,ep,s,src);
-            case RAY_LINE:          return new ChartDrawing.RayLine(sTs,sp,eTs,ep,s,src);
-            case EXTENDED_LINE:     return new ChartDrawing.ExtendedLine(sTs,sp,eTs,ep,s,src);
-            case LINEAR_REGRESSION: return new ChartDrawing.LinearRegression(sTs,eTs,s,src);
-            case FIB_RETRACEMENT: { ChartDrawing.DrawingStyle ds=s.copy();ds.dashed=true;
-                return new ChartDrawing.FibRetracement(sTs,hi,eTs,lo,ds,src); }
-            case PRICE_RANGE: { ChartDrawing.DrawingStyle ds=s.copy();ds.filled=true;
-                return new ChartDrawing.PriceRange(hi,lo,ds,src); }
-            case RECTANGLE: { ChartDrawing.DrawingStyle ds=s.copy();ds.filled=true;
-                return new ChartDrawing.Rectangle(sTs,sp,eTs,ep,ds,src); }
-            case ELLIPSE: { ChartDrawing.DrawingStyle ds=s.copy();ds.filled=true;
-                return new ChartDrawing.Ellipse(sTs,sp,eTs,ep,ds,src); }
-            case ARROW:             return new ChartDrawing.Arrow(sTs,sp,eTs,ep,s,src);
-            case PARALLEL_CHANNEL:  return new ChartDrawing.ParallelChannel(sTs,sp,eTs,ep,(sp+ep)/2,s,src);
-            case GANN_FAN:          return new ChartDrawing.GannFan(sTs,sp,eTs,ep,s,src);
-            default:                return null;
-        }
+@Nullable
+private ChartDrawing buildDrawing(DrawingManager.DrawingTool tool,
+                                  long sTs,double sp,long eTs,double ep) {
+    ChartDrawing.DrawingStyle s=drawingManager.buildActiveStyle();
+    ChartDrawing.Source src=ChartDrawing.Source.USER;
+    double hi=Math.max(sp,ep),lo=Math.min(sp,ep);
+    switch (tool) {
+        case TREND_LINE:        return new ChartDrawing.TrendLine(sTs,sp,eTs,ep,s,src);
+        case RAY_LINE:          return new ChartDrawing.RayLine(sTs,sp,eTs,ep,s,src);
+        case EXTENDED_LINE:     return new ChartDrawing.ExtendedLine(sTs,sp,eTs,ep,s,src);
+        case LINEAR_REGRESSION: return new ChartDrawing.LinearRegression(sTs,eTs,s,src);
+        case FIB_RETRACEMENT: { ChartDrawing.DrawingStyle ds=s.copy();ds.dashed=true;
+            return new ChartDrawing.FibRetracement(sTs,hi,eTs,lo,ds,src); }
+        case PRICE_RANGE: { ChartDrawing.DrawingStyle ds=s.copy();ds.filled=true;
+            return new ChartDrawing.PriceRange(hi,lo,ds,src); }
+        case RECTANGLE: { ChartDrawing.DrawingStyle ds=s.copy();ds.filled=true;
+            return new ChartDrawing.Rectangle(sTs,sp,eTs,ep,ds,src); }
+        case ELLIPSE: { ChartDrawing.DrawingStyle ds=s.copy();ds.filled=true;
+            return new ChartDrawing.Ellipse(sTs,sp,eTs,ep,ds,src); }
+        case ARROW:             return new ChartDrawing.Arrow(sTs,sp,eTs,ep,s,src);
+        case PARALLEL_CHANNEL:  return new ChartDrawing.ParallelChannel(sTs,sp,eTs,ep,(sp+ep)/2,s,src);
+        case GANN_FAN:          return new ChartDrawing.GannFan(sTs,sp,eTs,ep,s,src);
+        default:                return null;
     }
+}
 
-    private void finalizeDrawing(ChartDrawing d) {
-        postInvalidate();
-        if (drawingEventListener!=null) {
-            drawingEventListener.onDrawingCreated(d);
-            drawingEventListener.onDrawingsChanged();
-        }
+private void finalizeDrawing(ChartDrawing d) {
+    postInvalidate();
+    if (drawingEventListener!=null) {
+        drawingEventListener.onDrawingCreated(d);
+        drawingEventListener.onDrawingsChanged();
     }
+}
 }
