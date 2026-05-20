@@ -4,14 +4,20 @@ import static android.view.View.GONE;
 import static android.view.View.INVISIBLE;
 import static android.view.View.VISIBLE;
 
+import android.Manifest;
 import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.database.Cursor;
 import android.graphics.Color;
 import android.os.Bundle;
 import android.view.View;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import androidx.activity.EdgeToEdge;
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
+import androidx.core.content.ContextCompat;
 import androidx.core.graphics.Insets;
 import androidx.core.view.GravityCompat;
 import androidx.core.view.ViewCompat;
@@ -38,6 +44,15 @@ import java.util.Locale;
 public class HomeActivity extends SessionActivity implements OrdersList.Listener {
 
     public static final String HOME_LOG_TAG = "GutHome";
+
+    //ask for permissions
+    private final ActivityResultLauncher<String> requestPermissionLauncher =
+            registerForActivityResult(new ActivityResultContracts.RequestPermission(), isGranted -> {
+                if (!isGranted) {
+                    // Explain to the user that they won't see alert notifications
+                    Toast.makeText(this, "Notification permission is required for alerts", Toast.LENGTH_LONG).show();
+                }
+            });
 
     private TextView PL;
     private OrdersList ordersList;
@@ -123,6 +138,13 @@ public class HomeActivity extends SessionActivity implements OrdersList.Listener
 
         findViewById(R.id.orders_container).setVisibility(GONE);
         findViewById(R.id.ordersTitle).setVisibility(GONE);
+
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) !=
+                PackageManager.PERMISSION_GRANTED) {
+
+            // Trigger the system popup
+            requestPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS);
+        }
     }
 
 

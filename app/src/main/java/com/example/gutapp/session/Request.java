@@ -11,7 +11,7 @@ import java.util.Arrays;
 import java.util.stream.Stream;
 
 public abstract class Request {
-    protected byte[] reqId = new byte[4];
+    public final byte[] reqId = new byte[4];
     public Request(){
         SecureRandom random = new SecureRandom();
         random.nextBytes(reqId);

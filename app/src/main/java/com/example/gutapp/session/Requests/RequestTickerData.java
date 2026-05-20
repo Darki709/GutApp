@@ -40,6 +40,8 @@ public class RequestTickerData extends AsyncRequest {
 
     private final int limit;
 
+    public static final int CACHE_END = 255;
+
     public RequestTickerData(String symbol, StockDataHelper.Timeframe interval, long startTs , long endTs , boolean isSnapshot, boolean isStream , SessionCallback caller) {
         super(caller);
         this.symbol = symbol;
@@ -153,5 +155,6 @@ public class RequestTickerData extends AsyncRequest {
         //remove the last data point to prevent corrupted half baked data points
         //entries.remove(entries.size() - 1);
         stockDataHelper.saveStockData(symbol, interval, entries);
+        if(caller != null) caller.onActionRequired(CACHE_END, null);
     }
 }

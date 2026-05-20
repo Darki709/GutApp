@@ -69,6 +69,7 @@ public class DrawingChart extends CombinedChart {
     private float  dragLastX, dragLastY;
     /** Cached selected drawing ref at drag-start so we don't re-lookup every MOVE */
     @Nullable private ChartDrawing dragTarget = null;
+    private boolean isMatrixStale = false;
 
     // ── Settings ─────────────────────────────────────────────────────
     private boolean snapEnabled = true;
@@ -122,7 +123,11 @@ public class DrawingChart extends CombinedChart {
 
     // ── Public API ───────────────────────────────────────────────────
     public DrawingManager getDrawingManager() { return drawingManager; }
-    public void setCandles(List<Candle> c) { this.candles = new ArrayList<>(c); }
+    public void setCandles(List<Candle> c) {
+        this.candles = new ArrayList<>(c);
+        notifyDataSetChanged();
+        postInvalidate();
+    }
     public void setDrawingEventListener(DrawingEventListener l) { this.drawingEventListener = l; }
     public void setSnapEnabled(boolean snap) { this.snapEnabled = snap; }
     public boolean isSnapEnabled() { return snapEnabled; }
@@ -136,6 +141,7 @@ public class DrawingChart extends CombinedChart {
     public void replaceIndicatorDrawings(List<ChartDrawing> list) {
         drawingManager.clearIndicatorDrawings();
         for (ChartDrawing d : list) drawingManager.add(d);
+        notifyDataSetChanged();
         postInvalidate();
     }
 
@@ -174,12 +180,25 @@ public class DrawingChart extends CombinedChart {
         if (drawingEventListener != null) drawingEventListener.onDrawingsChanged();
     }
 
+    @Override
+    public void notifyDataSetChanged() {
+        super.notifyDataSetChanged();
+        isMatrixStale = true;
+    }
+
     // ── Two-pass onDraw ───────────────────────────────────────────────
     @Override
     protected void onDraw(Canvas canvas) {
         drawLayerPass(canvas, ChartDrawing.Layer.BEHIND_CANDLES);
         super.onDraw(canvas);                             // candles + indicators
         drawLayerPass(canvas, ChartDrawing.Layer.ABOVE_CANDLES);
+
+        if (isMatrixStale) {
+            super.onDraw(canvas);
+            isMatrixStale = false;
+            postInvalidate();
+            return;
+        }
 
         // Snap crosshair while placing a drawing
         if (drawingManager.hasActiveTool() && tapAnchorX > 0) {

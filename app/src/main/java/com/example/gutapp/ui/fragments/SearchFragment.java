@@ -1,7 +1,10 @@
 package com.example.gutapp.ui.fragments;
 
+import static android.app.Activity.RESULT_OK;
+
 import android.content.Intent;
 import android.os.Bundle;
+import android.speech.RecognizerIntent;
 import android.text.Editable;
 import android.text.TextWatcher;
 import android.view.LayoutInflater;
@@ -9,8 +12,11 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.view.inputmethod.EditorInfo;
 import android.widget.EditText;
+import android.widget.ImageButton;
 import android.widget.Toast;
 
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
@@ -29,11 +35,15 @@ import com.example.gutapp.ui.ExploreActivity;
 import com.example.gutapp.ui.HomeActivity;
 
 import java.util.ArrayList;
+import java.util.Locale;
 
 public class SearchFragment extends Fragment implements SessionCallback {
     private EditText searchInput;
     private RecyclerView searchDropdown;
     private SearchAdapter searchAdapter;
+    private ImageButton micButton;
+
+    private ActivityResultLauncher<Intent> speechToTextLauncher;
 
     @Nullable
     @Override
@@ -42,6 +52,7 @@ public class SearchFragment extends Fragment implements SessionCallback {
 
         searchInput = view.findViewById(R.id.search_input);
         searchDropdown = view.findViewById(R.id.suggestions_dropdown);
+        micButton = view.findViewById(R.id.micButton);
         searchAdapter = new SearchAdapter();
         searchDropdown.setLayoutManager(new LinearLayoutManager(requireContext()));
         searchDropdown.setAdapter(searchAdapter);
@@ -51,6 +62,10 @@ public class SearchFragment extends Fragment implements SessionCallback {
             intent.putExtra("name", result.name);
             startActivity(intent);
         });
+
+        initSpeechRecognizerLauncher();
+        micButton.setOnClickListener(v -> startVoiceRecognition());
+
 
         //set the quick search
         searchInput.addTextChangedListener(new TextWatcher() {
@@ -119,5 +134,36 @@ public class SearchFragment extends Fragment implements SessionCallback {
     @Override
     public void onActionRequired(int actionType, @Nullable Object data) {
 
+    }
+
+    private void initSpeechRecognizerLauncher() {
+        speechToTextLauncher = registerForActivityResult(
+                new ActivityResultContracts.StartActivityForResult(),
+                result -> {
+                    if (result.getResultCode() == RESULT_OK && result.getData() != null) {
+                        ArrayList<String> matches = result.getData()
+                                .getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS);
+
+                        if (matches != null && !matches.isEmpty()) {
+                            String spokenText = matches.get(0); //most accurate word
+
+                            //we change the searchInput text which automatically triggers the search
+                            searchInput.setText(spokenText);
+                        }
+                    }
+                }
+        );
+    }
+
+    private void startVoiceRecognition() {
+        Intent intent = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
+        intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
+        intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.US.toString());
+        intent.putExtra(RecognizerIntent.EXTRA_PROMPT, "Say a stock name or ticker (e.g., Apple or AAPL)...");
+        try {
+            speechToTextLauncher.launch(intent);
+        } catch (Exception e) {
+            Toast.makeText(requireActivity(), "Your device does not support Speech to Text", Toast.LENGTH_SHORT).show();
+        }
     }
 }

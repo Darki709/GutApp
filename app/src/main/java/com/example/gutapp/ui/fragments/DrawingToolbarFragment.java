@@ -62,7 +62,7 @@ public class DrawingToolbarFragment extends BottomSheetDialogFragment {
     };
 
     private int selectedColorIndex = 0;
-    private float selectedWidth = 1.5f;
+    private float selectedWidth = 1f;
     private boolean selectedDashed = false;
 
     // Tool definitions: {icon, label, tool_enum, description}
@@ -252,7 +252,7 @@ public class DrawingToolbarFragment extends BottomSheetDialogFragment {
         for (float w : new float[]{1f, 2f, 3f, 4f}) {
             TextView wBtn = chipBtn(w == Math.floor(w) ? (int)w+"px" : w+"px", "#78909C");
             if (w == selectedWidth) { wBtn.setBackgroundResource(com.example.gutapp.R.drawable.chart_btn_active); wBtn.setTextColor(Color.WHITE); }
-            wBtn.setOnClickListener(v -> { selectedWidth = w; applyActiveStyle(); refreshAll(); });
+            wBtn.setOnClickListener(v -> { selectedWidth = w; applyActiveStyle(); refreshAll(); refreshWidthRow(styleRow); });
             styleRow.addView(wBtn); styleRow.addView(spacer(4));
         }
 
@@ -268,6 +268,15 @@ public class DrawingToolbarFragment extends BottomSheetDialogFragment {
 
         col.addView(styleRow);
         return col;
+    }
+
+    private void refreshWidthRow(LinearLayout styleRow){
+        float[] widths = {1f, 2f, 3f, 4f};
+        for(int i = 2; i <= 8; i +=2){
+            TextView wBtn = (TextView) styleRow.getChildAt(i);
+            if (widths[(i-2)/2] == selectedWidth) { wBtn.setBackgroundResource(com.example.gutapp.R.drawable.chart_btn_active); wBtn.setTextColor(Color.WHITE); }
+            else { wBtn.setBackgroundResource(0); wBtn.setTextColor(Color.parseColor("#78909C")); }
+        }
     }
 
     private void refreshColorRow(LinearLayout swatchRow) {
@@ -477,16 +486,11 @@ public class DrawingToolbarFragment extends BottomSheetDialogFragment {
         boolean isAbove = d.layer == ChartDrawing.Layer.ABOVE_CANDLES;
         TextView layerBtn = chipBtn(isAbove ? "▲ Front" : "▼ Back", isAbove ? "#26A69A" : "#546E7A");
         layerBtn.setOnClickListener(v -> {
-            ChartDrawing.Layer newLayer = drawingChart.getDrawingManager().toggleSelectedLayer();
-            // re-select so toggle works even if not already selected
-            drawingChart.getDrawingManager().select(d.getInstanceId());
-            drawingChart.getDrawingManager().toggleSelectedLayer();
-            // apply directly
             d.layer = d.layer == ChartDrawing.Layer.BEHIND_CANDLES
                     ? ChartDrawing.Layer.ABOVE_CANDLES : ChartDrawing.Layer.BEHIND_CANDLES;
-            layerBtn.setText(d.layer == ChartDrawing.Layer.ABOVE_CANDLES ? "▲ Front" : "▼ Back");
-            layerBtn.setTextColor(android.graphics.Color.parseColor(
-                    d.layer == ChartDrawing.Layer.ABOVE_CANDLES ? "#26A69A" : "#546E7A"));
+            boolean above = d.layer == ChartDrawing.Layer.ABOVE_CANDLES;
+            layerBtn.setText(above ? "▲ Front" : "▼ Back");
+            layerBtn.setTextColor(android.graphics.Color.parseColor(above ? "#26A69A" : "#546E7A"));
             drawingChart.postInvalidate();
             notifyChanged();
         });
@@ -495,8 +499,10 @@ public class DrawingToolbarFragment extends BottomSheetDialogFragment {
         TextView dash = chipBtn(d.style.dashed ? "- -" : "───", d.style.dashed ? "#26A69A" : "#546E7A");
         dash.setOnClickListener(v -> {
             d.style.dashed = !d.style.dashed;
+            dash.setText(d.style.dashed ? "- -" : "───");
+            dash.setTextColor(android.graphics.Color.parseColor(d.style.dashed ? "#26A69A" : "#546E7A"));
             drawingChart.postInvalidate();
-            refreshDrawingsList();
+            notifyChanged();
         });
         row.addView(dash);
         row.addView(spacer(4));
@@ -506,6 +512,7 @@ public class DrawingToolbarFragment extends BottomSheetDialogFragment {
         wp.setOnClickListener(v -> {
             d.style.strokeWidth = Math.min(8f, d.style.strokeWidth + 0.5f);
             drawingChart.postInvalidate();
+            notifyChanged();
         });
         row.addView(wp);
         row.addView(spacer(2));
@@ -514,10 +521,10 @@ public class DrawingToolbarFragment extends BottomSheetDialogFragment {
         wm.setOnClickListener(v -> {
             d.style.strokeWidth = Math.max(0.5f, d.style.strokeWidth - 0.5f);
             drawingChart.postInvalidate();
+            notifyChanged();
         });
         row.addView(wm);
         row.addView(spacer(8));
-
 
     // Label edit (for HLine, VLine, Text)
         if (d instanceof ChartDrawing.HorizontalLine ||
@@ -601,6 +608,7 @@ private void openColorPicker(ChartDrawing d) {
             }
             drawingChart.postInvalidate();
             refreshDrawingsList();
+            notifyChanged();
             if (holder[0] != null) holder[0].dismiss();
         });
         grid.addView(sw);
@@ -641,6 +649,7 @@ private void openLabelEditor(ChartDrawing d) {
                     ((ChartDrawing.TextAnnotation)d).text = txt;
                 drawingChart.postInvalidate();
                 refreshDrawingsList();
+                notifyChanged();
             })
             .setNegativeButton("Cancel", null)
             .show();

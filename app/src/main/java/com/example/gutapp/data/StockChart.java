@@ -348,9 +348,6 @@ public class StockChart implements SessionCallback {
         chart.getXAxis().setValueFormatter(xFormatter);
         chart.setData(data);
 
-        // ── Single notify — avoid double layout pass ───────────────
-        chart.notifyDataSetChanged();
-
         // ── Pass candle list + indicator drawings to DrawingChart ──
         chart.setCandles(snap);
         chart.replaceIndicatorDrawings(indicatorDrawings);
@@ -394,7 +391,9 @@ public class StockChart implements SessionCallback {
             });
         }
 
+        chart.notifyDataSetChanged();
         chart.calculateOffsets();
+
         updateCurrentPriceLine(snap.get(snap.size() - 1));
         chart.postInvalidate();
 

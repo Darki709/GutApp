@@ -31,7 +31,7 @@ public class DrawingManager {
     @Nullable private String selectedId = null;
 
     private int   activeColor   = 0xFFECEFF1;
-    private float activeWidth   = 1.5f;
+    private float activeWidth   = 1f;
     private boolean activeDashed = false;
 
     public enum DrawingTool {

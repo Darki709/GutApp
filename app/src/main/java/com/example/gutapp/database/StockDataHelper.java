@@ -142,6 +142,34 @@ public class StockDataHelper {
         return TABLE_NAME;
     }
 
+    /**
+     * Returns the N most-recent candles for a symbol/timeframe, sorted oldest-first.
+     * Used by AlertManager / Condition implementations that need a rolling window.
+     */
+    public ArrayList<Candle> getStockData(String symbol, Timeframe timeframe, int count) {
+        ArrayList<Candle> result = new ArrayList<>();
+        String selection  = COLUMN_SYMBOL + "=? AND " + COLUMN_TIMEFRAME + "=?";
+        String[] selArgs  = {symbol, timeframe.value};
+        String order      = COLUMN_DATE + " DESC";
+        try (android.database.Cursor c = db_helper.getReadableDatabase().query(
+                TABLE_NAME,
+                new String[]{COLUMN_DATE, COLUMN_OPEN, COLUMN_HIGH, COLUMN_LOW, COLUMN_CLOSE, COLUMN_VOLUME},
+                selection, selArgs, null, null, order, String.valueOf(count))) {
+            while (c.moveToNext()) {
+                result.add(new Candle(
+                        c.getLong(0),
+                        c.getDouble(1), c.getDouble(2),
+                        c.getDouble(3), c.getDouble(4),
+                        c.getLong(5)));
+            }
+        } catch (Exception e) {
+            Log.e(DB_Helper.DB_LOG_TAG, "getStockData(count) failed: " + e.getMessage());
+        }
+        // Reverse so list is oldest-first (conditions expect oldest → newest)
+        java.util.Collections.reverse(result);
+        return result;
+    }
+
 
 
     //modular retrieval from database method

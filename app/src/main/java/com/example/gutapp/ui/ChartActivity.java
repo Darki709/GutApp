@@ -225,6 +225,7 @@ public class ChartActivity extends SessionActivity implements
         findViewById(R.id.btnZoomReset).setOnClickListener(this);
         findViewById(R.id.btnCalculateBias).setOnClickListener(this);
         findViewById(R.id.drawingPanel).setOnClickListener(this);
+        findViewById(R.id.btnAlerts).setOnClickListener(this);
 
 
 
@@ -352,6 +353,11 @@ public class ChartActivity extends SessionActivity implements
                     Snackbar.LENGTH_LONG).show();
         }
         else if(id == R.id.drawingPanel) openDrawingPanel();
+        else if(id == R.id.btnAlerts) {
+            android.content.Intent alertIntent = new android.content.Intent(this, com.example.gutapp.ui.AlertsActivity.class);
+            alertIntent.putExtra("symbol", symbol);
+            startActivity(alertIntent);
+        }
     }
 
     // ── Chart type / timeframe switchers ───────────────────────────────

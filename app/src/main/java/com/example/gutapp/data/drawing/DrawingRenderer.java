@@ -28,6 +28,11 @@ import java.util.Locale;
  */
 public class DrawingRenderer {
 
+
+    //buffers to reduce memory allocation in runtime
+    private final float[] pointBuffer = new float[2];
+    private final float[] lineBuffer = new float[4];
+
     private final Paint linePaint   = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint fillPaint   = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint textPaint   = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -52,7 +57,11 @@ public class DrawingRenderer {
     public void drawLayer(Canvas canvas, CombinedChart chart,
                           DrawingManager manager, List<Candle> candles,
                           ChartDrawing.Layer layer) {
-        if (manager.isEmpty() || candles == null) return;
+        if (manager.isEmpty() || candles == null || candles.isEmpty()) return;
+
+        canvas.save();
+        canvas.clipRect(chart.getContentRect());
+
         Transformer tf  = chart.getTransformer(YAxis.AxisDependency.RIGHT);
         RectF       rect = chart.getContentRect();
         float textSz = chart.getResources().getDisplayMetrics().density * 9f;
@@ -62,6 +71,8 @@ public class DrawingRenderer {
             if (d.style == null || d.layer != layer) continue;
             drawSingle(canvas, d, tf, rect, candles);
         }
+
+        canvas.restore();
     }
 
     /** Draw all drawings regardless of layer (used for preview managers). */
@@ -425,6 +436,7 @@ public class DrawingRenderer {
      */
     private float tsToX(long ts, List<Candle> candles, Transformer tf) {
         if (candles == null || candles.isEmpty()) return 0;
+        if (candles == null || candles.isEmpty()) return 0;
         int n = candles.size();
         if (n == 1) return indexToX(0, tf);
 
@@ -458,15 +470,30 @@ public class DrawingRenderer {
     private float clamp(float v, float lo, float hi) { return Math.max(lo,Math.min(hi,v)); }
     private float[] extendLine(float x1,float y1,float x2,float y2,RectF rect,boolean extL,boolean extR) {
         float dx=x2-x1, dy=y2-y1;
-        if (Math.abs(dx)<0.01f) return new float[]{x1,rect.top,x2,rect.bottom};
+        if (Math.abs(dx)<0.01f) {
+            lineBuffer[0] = x1;
+            lineBuffer[1] = rect.top;
+            lineBuffer[2] = x2;
+            lineBuffer[3] = rect.bottom;
+            return lineBuffer; // recycle the same allocated array
+        }
         float slope=dy/dx, rx1=x1,ry1=y1,rx2=x2,ry2=y2;
         if (extL) { rx1=rect.left-200; ry1=y1+(rx1-x1)*slope; }
         if (extR) { rx2=rect.right+200; ry2=y1+(rx2-x1)*slope; }
-        return new float[]{rx1,ry1,rx2,ry2};
+        lineBuffer[0] = rx1; lineBuffer[1] = ry1;
+        lineBuffer[2] = rx2; lineBuffer[3] = ry2;
+        return lineBuffer;
     }
     private float[] extendLineRight(float x1,float y1,float x2,float y2,RectF rect) {
         float dx=x2-x1, dy=y2-y1;
-        if (Math.abs(dx)<0.01f) return new float[]{x2,rect.bottom};
-        float xEnd=rect.right+200; return new float[]{xEnd, y1+(xEnd-x1)*(dy/dx)};
+        if (Math.abs(dx)<0.01f)
+        {
+            pointBuffer[0] = x2;
+            pointBuffer[1] = rect.bottom;
+            return pointBuffer;
+        }
+        float xEnd=rect.right+200;
+        pointBuffer[0] = xEnd; pointBuffer[1] = y1+(xEnd-x1)*(dy/dx);
+        return pointBuffer;
     }
 }

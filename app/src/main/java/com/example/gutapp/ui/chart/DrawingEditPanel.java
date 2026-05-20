@@ -137,6 +137,7 @@ public class DrawingEditPanel extends LinearLayout {
                     d.style.color = color;
                     d.style.fillColor = Color.argb(50,
                             Color.red(color), Color.green(color), Color.blue(color));
+                    refreshColorRow(swRow, d);
                 }
                 fire();
             });
@@ -144,6 +145,24 @@ public class DrawingEditPanel extends LinearLayout {
         }
         hsv.addView(swRow); col.addView(hsv);
         return col;
+    }
+
+    private void refreshColorRow(LinearLayout swatchRow, ChartDrawing d) {
+        for (int i = 0; i < swatchRow.getChildCount(); i++) {
+            View swatch = swatchRow.getChildAt(i);
+            boolean sel = d.style != null && d.style.color == COLORS[i];
+            LinearLayout.LayoutParams lp = new LayoutParams(sel ? dp(26) : dp(20), sel ? dp(26) : dp(20));
+            lp.setMarginEnd(dp(8));
+            swatch.setLayoutParams(lp);
+            if (sel) {
+                android.graphics.drawable.GradientDrawable ring =
+                        new android.graphics.drawable.GradientDrawable();
+                ring.setShape(android.graphics.drawable.GradientDrawable.OVAL);
+                ring.setColor(COLORS[i]); ring.setStroke(dp(2), Color.WHITE);
+                swatch.setBackground(ring);
+            }
+            else swatch.setBackgroundColor(COLORS[i]);
+        }
     }
 
     // ── Stroke row ────────────────────────────────────────────────────
