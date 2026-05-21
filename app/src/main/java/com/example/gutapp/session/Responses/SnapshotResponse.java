@@ -33,6 +33,7 @@ public class SnapshotResponse extends AsyncResponse {
             double low = buf.getDouble();    // 8 bytes
             double close = buf.getDouble();  // 8 bytes
             long volume = buf.getLong();     // 8 bytes
+            if(volume < 0) Log.e(NETWORK_LOG_TAG, "Negative volume: " + volume);
             this.entries.add(new Candle(timestamp, open, high, low, close, volume));
             //Log.d(NETWORK_LOG_TAG, "Parsing candle: " + timestamp + " " + open + " " + high + " " + low + " " + close + " " + volume);
         }

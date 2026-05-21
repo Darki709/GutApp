@@ -1,20 +1,28 @@
 package com.example.gutapp.data.indicators;
 
+import com.example.gutapp.data.indicators.impl.ApoIndicator;
 import com.example.gutapp.data.indicators.impl.AtrIndicator;
 import com.example.gutapp.data.indicators.impl.BollingerBandsIndicator;
 import com.example.gutapp.data.indicators.impl.CciIndicator;
+import com.example.gutapp.data.indicators.impl.CmoIndicator;
 import com.example.gutapp.data.indicators.impl.EmaIndicator;
+import com.example.gutapp.data.indicators.impl.HullMovingAverageIndicator;
+import com.example.gutapp.data.indicators.impl.KeltnerChannelsIndicator;
+import com.example.gutapp.data.indicators.impl.LinearRegressionSlopeIndicator;
 import com.example.gutapp.data.indicators.impl.MacdIndicator;
 import com.example.gutapp.data.indicators.impl.MaIndicator;
+import com.example.gutapp.data.indicators.impl.PriceChannelsIndicator;
+import com.example.gutapp.data.indicators.impl.RocIndicator;
 import com.example.gutapp.data.indicators.impl.RsiIndicator;
 import com.example.gutapp.data.indicators.impl.StochasticIndicator;
+import com.example.gutapp.data.indicators.impl.TsiIndicator;
 import com.example.gutapp.data.indicators.impl.VwapIndicator;
+import com.example.gutapp.data.indicators.impl.WilliamsRIndicator;
 import com.example.gutapp.data.indicators.impl.WmaIndicator;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 
 /**
  * IndicatorRegistry — immutable catalog of available indicator TYPES.
@@ -48,6 +56,15 @@ public class IndicatorRegistry {
         register(new StochasticIndicator());
         register(new WmaIndicator());
         register(new AtrIndicator());
+        register(new KeltnerChannelsIndicator());
+        register(new CmoIndicator());
+        register(new RocIndicator());
+        register(new TsiIndicator());
+        register(new PriceChannelsIndicator());
+        register(new WilliamsRIndicator());
+        register(new LinearRegressionSlopeIndicator());
+        register(new HullMovingAverageIndicator());
+        register(new ApoIndicator());
     }
 
     private void register(Indicator prototype) {

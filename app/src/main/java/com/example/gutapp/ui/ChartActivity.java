@@ -52,7 +52,7 @@ import com.example.gutapp.session.SessionCallback;
 import com.example.gutapp.ui.dialogue.AddAlertBottomSheet;
 import com.example.gutapp.ui.dialogue.DrawingEditPanel;
 import com.example.gutapp.ui.fragments.DrawingToolbarFragment;
-import com.example.gutapp.ui.fragments.IndicatorsPanel;
+import com.example.gutapp.ui.dialogue.IndicatorsPanel;
 import com.example.gutapp.ui.fragments.OrdersList;
 import com.google.android.material.bottomsheet.BottomSheetDialog;
 import com.google.android.material.snackbar.Snackbar;

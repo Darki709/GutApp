@@ -25,7 +25,7 @@ import com.example.gutapp.data.indicators.IndicatorRegistry;
 import com.example.gutapp.data.indicators.IndicatorSession;
 import com.example.gutapp.data.indicators.PresetRepository;
 import com.example.gutapp.session.DataType;
-import com.example.gutapp.ui.fragments.IndicatorsPanel;
+import com.example.gutapp.ui.dialogue.IndicatorsPanel;
 
 import java.util.List;
 import java.util.Locale;

@@ -54,7 +54,7 @@ public class AlertManager implements PriceResource {
 
     // alertDb is initialised lazily via ensureDb() so addAlert() works
     // even before start() is called (e.g. from AlertsActivity directly).
-    private AlertDBHelper alertDb;
+    private AlertDBHelper alertDb = null;
     private StockDataHelper stockDb;
     private ServiceRequestInterface networkInterface;
     private TriggerListener triggerListener;

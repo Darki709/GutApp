@@ -176,11 +176,15 @@ public class StockChart implements SessionCallback {
     public void zoomIn() {
         chart.zoom(1.5f, 1f, chart.getWidth() / 2f, chart.getHeight() / 2f);
         syncSubChartsToMain();
+        chart.postInvalidate();
+        chart.postInvalidate();
     }
 
     public void zoomOut() {
         chart.zoom(1f / 1.5f, 1f, chart.getWidth() / 2f, chart.getHeight() / 2f);
         syncSubChartsToMain();
+        chart.postInvalidate();
+        chart.postInvalidate();
     }
 
     public void zoomReset() {
@@ -195,6 +199,8 @@ public class StockChart implements SessionCallback {
             chart.postInvalidate();
         });
         isPinnedToRight = true;
+        chart.postInvalidate();
+        chart.postInvalidate();
     }
 
     public ArrayList<Candle> getAllCandles() {
@@ -370,11 +376,6 @@ public class StockChart implements SessionCallback {
         int total = snap.size();
 
         if (!initialViewApplied) {
-            // First load: scale volume axis, then position view
-            float maxVol = 0;
-            for (Candle c : snap) if (c.volume > maxVol) maxVol = c.volume;
-            chart.getAxisLeft().setAxisMaximum(maxVol > 0 ? maxVol * 8f : 1f);
-
             // Post so chart has completed its first layout before we set the viewport
             int finalTotal = total;
             mainHandler.post(() -> applyInitialView(finalTotal));
@@ -411,6 +412,9 @@ public class StockChart implements SessionCallback {
 
         updateCurrentPriceLine(snap.get(snap.size() - 1));
         chart.postInvalidate();
+        float maxVol = 0;
+        for (Candle c : snap) if (c.volume > maxVol) maxVol = c.volume;
+        chart.getAxisLeft().setAxisMaximum(maxVol > 0 ? maxVol * 8f : 1f);
 
         updateSubCharts(snap, xFormatter);
     }
@@ -725,7 +729,7 @@ public class StockChart implements SessionCallback {
         List<BarEntry> e = new ArrayList<>();
         int[] colors = new int[c.size()];
         for (int i=0;i<c.size();i++) {
-            Candle cv=c.get(i); e.add(new BarEntry(i,cv.volume));
+            Candle cv=c.get(i); e.add(new BarEntry(i,(float) Math.min(cv.volume, Integer.MAX_VALUE)));
             if      (cv.close>cv.open) colors[i]=COLOR_VOL_UP;
             else if (cv.close<cv.open) colors[i]=COLOR_VOL_DOWN;
             else                        colors[i]=COLOR_VOL_NEUTRAL;
@@ -752,9 +756,10 @@ public class StockChart implements SessionCallback {
         if (chunk==null||chunk.isEmpty()) return;
         Candle live = chunk.get(0);
         synchronized (allCandles) {
-            if (allCandles.isEmpty()&&!done) { streamBuffer.addAll(chunk); return; }
             if (allCandles.isEmpty()) return;
             Candle last = allCandles.get(allCandles.size()-1);
+            if(live.timestamp==last.timestamp) return; //duplicate price points
+            if (allCandles.isEmpty()&&!done) { streamBuffer.addAll(chunk); return; }
             if (last.timestamp+interval.interval>live.timestamp) {
                 allCandles.set(allCandles.size()-1, new Candle(last.timestamp,last.open,
                         Math.max(live.high,last.high),Math.min(live.low,last.low),live.close,last.volume+live.volume));
@@ -790,7 +795,9 @@ public class StockChart implements SessionCallback {
                 }
                 break;
         }
-        mainHandler.post(() -> {currentPrice.setValue(allCandles.get(allCandles.size()-1).close);});
+        synchronized (allCandles){
+            if(!allCandles.isEmpty()) mainHandler.post(() -> {currentPrice.setValue(allCandles.get(allCandles.size()-1).close);});
+        }
     }
     @Override public void onActionRequired(int a, @Nullable Object d) {}
 

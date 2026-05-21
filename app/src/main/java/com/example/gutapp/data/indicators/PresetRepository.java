@@ -30,8 +30,8 @@ import java.util.Map;
  */
 public class PresetRepository {
 
-    private static final String PREFS_NAME     = "indicator_presets";
-    private static final String KEY_PRESETS    = "presets_json";          // all named presets
+    public static final String PREFS_NAME     = "indicator_presets";
+    public static final String KEY_PRESETS    = "presets_json";          // all named presets
     private static final String KEY_AUTO_PREFIX = "auto_";                // auto_AAPL, auto_BTC…
 
     private final SharedPreferences prefs;

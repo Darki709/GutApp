@@ -1,4 +1,4 @@
-package com.example.gutapp.ui.fragments;
+package com.example.gutapp.ui.dialogue;
 
 import android.graphics.Color;
 import android.os.Bundle;
@@ -21,7 +21,6 @@ import com.example.gutapp.data.indicators.IndicatorRegistry;
 import com.example.gutapp.data.indicators.IndicatorSession;
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 
@@ -161,6 +160,34 @@ public class IndicatorsPanel extends BottomSheetDialogFragment {
         rebuildCatalog(ctx);
 
         return root;
+    }
+
+    @Override
+    public void onStart() {
+        super.onStart();
+
+        // Get the dialog and find the internal container frame
+        android.app.Dialog dialog = getDialog();
+        if (dialog != null) {
+            com.google.android.material.bottomsheet.BottomSheetDialog bsDialog =
+                    (com.google.android.material.bottomsheet.BottomSheetDialog) dialog;
+
+            // Find the standard container frame holding the view
+            android.view.View bottomSheet = bsDialog.findViewById(
+                    com.google.android.material.R.id.design_bottom_sheet
+            );
+
+            if (bottomSheet != null) {
+                com.google.android.material.bottomsheet.BottomSheetBehavior<android.view.View> behavior =
+                        com.google.android.material.bottomsheet.BottomSheetBehavior.from(bottomSheet);
+
+                // Force the sheet to open completely
+                behavior.setState(com.google.android.material.bottomsheet.BottomSheetBehavior.STATE_EXPANDED);
+
+                // Optional: prevent half-expanded or collapsed intermediate breaks
+                behavior.setSkipCollapsed(true);
+            }
+        }
     }
 
     // ── Title row ─────────────────────────────────────────────────────

@@ -183,9 +183,10 @@ public class DrawingChart extends CombinedChart {
     // ── Two-pass onDraw ───────────────────────────────────────────────
     @Override
     protected void onDraw(Canvas canvas) {
-        drawLayerPass(canvas, ChartDrawing.Layer.BEHIND_CANDLES);
-        super.onDraw(canvas);                             // candles + indicators
-        drawLayerPass(canvas, ChartDrawing.Layer.ABOVE_CANDLES);
+        prepareCanvas(canvas);                            //update the canvas with new price data
+        drawLayerPass(canvas, ChartDrawing.Layer.BEHIND_CANDLES); //paint under price layer
+        super.onDraw(canvas); //paint price
+        drawLayerPass(canvas, ChartDrawing.Layer.ABOVE_CANDLES);// paint above price layer
 
         // Snap crosshair while placing a drawing
         if (drawingManager.hasActiveTool() && tapAnchorX > 0) {
@@ -193,6 +194,49 @@ public class DrawingChart extends CombinedChart {
             canvas.drawLine(tapAnchorX, r.top, tapAnchorX, r.bottom, crosshairPaint);
             canvas.drawLine(r.left, tapAnchorY, r.right, tapAnchorY, crosshairPaint);
         }
+    }
+
+    private void prepareCanvas(Canvas canvas) {
+        if (mData == null)
+            return;
+
+        // execute all drawing commands
+        drawGridBackground(canvas);
+
+        if (mAutoScaleMinMaxEnabled) {
+            autoScale();
+        }
+
+        if (mAxisLeft.isEnabled())
+            mAxisRendererLeft.computeAxis(mAxisLeft.mAxisMinimum, mAxisLeft.mAxisMaximum, mAxisLeft.isInverted());
+
+        if (mAxisRight.isEnabled())
+            mAxisRendererRight.computeAxis(mAxisRight.mAxisMinimum, mAxisRight.mAxisMaximum, mAxisRight.isInverted());
+
+        if (mXAxis.isEnabled())
+            mXAxisRenderer.computeAxis(mXAxis.mAxisMinimum, mXAxis.mAxisMaximum, false);
+
+        mXAxisRenderer.renderAxisLine(canvas);
+        mAxisRendererLeft.renderAxisLine(canvas);
+        mAxisRendererRight.renderAxisLine(canvas);
+
+        if (mXAxis.isDrawGridLinesBehindDataEnabled())
+            mXAxisRenderer.renderGridLines(canvas);
+
+        if (mAxisLeft.isDrawGridLinesBehindDataEnabled())
+            mAxisRendererLeft.renderGridLines(canvas);
+
+        if (mAxisRight.isDrawGridLinesBehindDataEnabled())
+            mAxisRendererRight.renderGridLines(canvas);
+
+        if (mXAxis.isEnabled() && mXAxis.isDrawLimitLinesBehindDataEnabled())
+            mXAxisRenderer.renderLimitLines(canvas);
+
+        if (mAxisLeft.isEnabled() && mAxisLeft.isDrawLimitLinesBehindDataEnabled())
+            mAxisRendererLeft.renderLimitLines(canvas);
+
+        if (mAxisRight.isEnabled() && mAxisRight.isDrawLimitLinesBehindDataEnabled())
+            mAxisRendererRight.renderLimitLines(canvas);
     }
 
     private void drawLayerPass(Canvas canvas, ChartDrawing.Layer layer) {

@@ -113,6 +113,9 @@ public class AddAlertBottomSheet {
             activity.startActivity(i);
         });
 
+        if(symbol == null){
+        }
+
         // Label
         EditText etLabel = panel.findViewById(R.id.alertLabelInput);
         etLabel.setText(existing != null ? existing.getLabel() : "");

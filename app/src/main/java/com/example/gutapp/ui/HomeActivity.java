@@ -82,6 +82,7 @@ public class HomeActivity extends SessionActivity implements OrdersList.Listener
             UserGlobals.USER_NAME = null;
             UserGlobals.LOGGED_IN = false;
             UserGlobals.setBalance(0);
+            UserGlobals.clearUserData(this.getApplicationContext());
             // This prevents the user from going "back" into the app after logging out
             intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
             NetworkClient.getInstance(null).stop();

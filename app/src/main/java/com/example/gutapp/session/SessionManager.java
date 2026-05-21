@@ -56,8 +56,8 @@ public class SessionManager implements Runnable {
 
     private final BlockingQueue<AuthStruct> authQueue = new LinkedBlockingQueue<>();
 
-    private LinkedBlockingQueue<AsyncRequest> requestQueue;
-    private ConcurrentHashMap<Integer, AsyncRequest> pendingRequests;
+    private final LinkedBlockingQueue<AsyncRequest> requestQueue = new LinkedBlockingQueue<>();
+    private final ConcurrentHashMap<Integer, AsyncRequest> pendingRequests = new ConcurrentHashMap<>();
 
     @Nullable
     @Setter
@@ -309,8 +309,6 @@ public class SessionManager implements Runnable {
     //the loop where the session manager sends and receives messages
     private void work() throws IOException, RuntimeException{
         Log.i(NETWORK_LOG_TAG, "Starting work loop");
-        this.requestQueue = new LinkedBlockingQueue<>();
-        this.pendingRequests = new ConcurrentHashMap<>();
         this.working = true;
         sendThread = new Thread(this::sendLoop);
         recvThread = new Thread(this::recvLoop);
@@ -331,6 +329,8 @@ public class SessionManager implements Runnable {
         if(recvThread != null) recvThread.interrupt();
         if(currentCallback!=null && !CryptoUtility.logOutFlag.get()){
             currentCallback.onActionRequired(1,null);}
+        if(pushResponseCallback != null && !CryptoUtility.logOutFlag.get())
+            pushResponseCallback.onActionRequired(1,null); //tell background thread that connection is lost, it should resend all requests
     }
 
     private void sendLoop(){
@@ -378,7 +378,7 @@ public class SessionManager implements Runnable {
                     Log.w(NETWORK_LOG_TAG, "Discarding packet for unknown ReqID: " + (response.getReqId() & 0xffffffffL));
                 }
             }
-             catch (Exception e) {
+             catch (IOException e) {
                 Log.e(NETWORK_LOG_TAG, "Error receiving message: " + e.getMessage());
                 this.working = false;
                 Thread.currentThread().interrupt();

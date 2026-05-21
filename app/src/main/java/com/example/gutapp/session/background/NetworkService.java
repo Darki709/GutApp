@@ -6,6 +6,7 @@ import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.app.Service;
 import android.content.Intent;
+import android.content.pm.ServiceInfo;
 import android.os.IBinder;
 import android.util.Log;
 
@@ -58,7 +59,7 @@ public class NetworkService extends Service
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
-        startForeground(FG_ID, buildForegroundNotification());
+        startForeground(FG_ID, buildForegroundNotification(), ServiceInfo.FOREGROUND_SERVICE_TYPE_REMOTE_MESSAGING);
         return START_STICKY;
     }
 
@@ -122,7 +123,7 @@ public class NetworkService extends Service
     private Notification buildForegroundNotification() {
         return new NotificationCompat.Builder(this, CHANNEL_ID)
                 .setContentTitle("Market Monitor Active")
-                .setContentText("Gut is watching your alerts 📈")
+                .setContentText("Gut is watching your back 📈")
                 .setSmallIcon(R.drawable.logo)
                 .setPriority(NotificationCompat.PRIORITY_LOW)
                 .setOngoing(true)

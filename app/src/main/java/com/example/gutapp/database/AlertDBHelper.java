@@ -24,8 +24,6 @@ import java.util.List;
  */
 public class AlertDBHelper {
 
-    private static final String TAG = "AlertDB";
-
     // ── Table / Column names ──────────────────────────────────────────
     public static final String TABLE_ALERTS         = "alerts";
     public static final String COL_ID               = "_id";
@@ -106,7 +104,7 @@ public class AlertDBHelper {
      */
     public void updateAlert(Alert alert) {
         if (alert.getId() < 0) {
-            Log.w(TAG, "updateAlert called on unpersisted alert — inserting instead");
+            Log.w(DB_LOG_TAG, "updateAlert called on unpersisted alert — inserting instead");
             insertAlert(alert);
             return;
         }
@@ -116,7 +114,7 @@ public class AlertDBHelper {
                     COL_ID + "=?",
                     new String[]{String.valueOf(alert.getId())});
         } catch (Exception e) {
-            Log.e(TAG, "updateAlert failed for id=" + alert.getId(), e);
+            Log.e(DB_LOG_TAG, "updateAlert failed for id=" + alert.getId(), e);
         }
     }
 
@@ -132,7 +130,7 @@ public class AlertDBHelper {
                     COL_ID + "=?",
                     new String[]{String.valueOf(alert.getId())});
         } catch (Exception e) {
-            Log.e(TAG, "updateAlertStatus failed", e);
+            Log.e(DB_LOG_TAG, "updateAlertStatus failed", e);
         }
     }
 
@@ -145,7 +143,7 @@ public class AlertDBHelper {
                     COL_ID + "=?",
                     new String[]{String.valueOf(alert.getId())});
         } catch (Exception e) {
-            Log.e(TAG, "deleteAlert failed", e);
+            Log.e(DB_LOG_TAG, "deleteAlert failed", e);
         }
     }
 
@@ -156,7 +154,7 @@ public class AlertDBHelper {
                     COL_SYMBOL + "=?",
                     new String[]{symbol});
         } catch (Exception e) {
-            Log.e(TAG, "deleteAllForSymbol failed", e);
+            Log.e(DB_LOG_TAG, "deleteAllForSymbol failed", e);
         }
     }
 
@@ -171,7 +169,7 @@ public class AlertDBHelper {
                 if (a != null) results.add(a);
             }
         } catch (Exception e) {
-            Log.e(TAG, "queryAlerts failed", e);
+            Log.e(DB_LOG_TAG, "queryAlerts failed", e);
         }
         return results;
     }
@@ -215,8 +213,15 @@ public class AlertDBHelper {
                     cooldown, lastTriggered, expiresAt,
                     Alert.Priority.valueOf(priorityStr));
         } catch (Exception e) {
-            Log.e(TAG, "fromCursor failed", e);
+            Log.e(DB_LOG_TAG, "fromCursor failed", e);
             return null;
         }
+    }
+
+    public void clear(){
+        // 1. Delete all rows from your table
+        db.getWritableDatabase().delete(TABLE_ALERTS, null, null);
+        // 2. Reset the auto-increment counter back to 0
+        db.getWritableDatabase().delete("sqlite_sequence", "name = ?", new String[]{ TABLE_ALERTS });
     }
 }

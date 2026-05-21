@@ -9,8 +9,6 @@ import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
-import java.util.List;
-
 /**
  * DrawingPersistence — saves/loads USER drawings for a ticker to SharedPreferences.
  *
@@ -21,7 +19,7 @@ import java.util.List;
 public class DrawingPersistence {
 
     private static final String TAG       = "DrawingPersistence";
-    private static final String PREFS     = "chart_drawings";
+    public static final String PREFS_NAME = "chart_drawings";
     private static final String PREFIX    = "drawings_";
 
     // Style fields
@@ -60,7 +58,7 @@ public class DrawingPersistence {
     private final SharedPreferences prefs;
 
     public DrawingPersistence(Context ctx) {
-        this.prefs = ctx.getApplicationContext().getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+        this.prefs = ctx.getApplicationContext().getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
     }
 
     // ── Save ──────────────────────────────────────────────────────────

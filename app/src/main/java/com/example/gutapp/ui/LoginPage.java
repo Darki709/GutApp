@@ -24,6 +24,7 @@ import androidx.core.view.WindowInsetsCompat;
 
 import com.example.gutapp.R;
 import com.example.gutapp.data.UserGlobals;
+import com.example.gutapp.data.alerts.AlertManager;
 import com.example.gutapp.database.DB_Helper;
 import com.example.gutapp.session.DataType;
 import com.example.gutapp.session.NetworkClient;
@@ -35,6 +36,8 @@ import com.google.firebase.FirebaseApp;
 public class LoginPage extends AppCompatActivity implements View.OnClickListener, SessionCallback {
 
     private MediaPlayer startupPlayer;
+
+    private Thread mediaThread;
 
     //ask for permissions
     private final ActivityResultLauncher<String> requestPermissionLauncher =
@@ -81,6 +84,9 @@ public class LoginPage extends AppCompatActivity implements View.OnClickListener
         //start background alert listener
         Intent serviceIntent = new Intent(this, NetworkService.class);
         startForegroundService(serviceIntent);
+        // Initialise AlertManager with app context so DB is ready
+        // before any Activity or Service calls addAlert().
+        AlertManager.getInstance().init(this);
         //check if the background service has an active logged in connection
         NetworkClient.getInstance(this).start();
         if(UserGlobals.LOGGED_IN) startActivity(new Intent(this, HomeActivity.class));
@@ -114,6 +120,7 @@ public class LoginPage extends AppCompatActivity implements View.OnClickListener
     }
 
     private void playStartupSound() {
+        mediaThread = new Thread(() -> {
         try {
             startupPlayer = MediaPlayer.create(this, R.raw.app_startup);
             if (startupPlayer != null) {
@@ -125,6 +132,8 @@ public class LoginPage extends AppCompatActivity implements View.OnClickListener
         } catch (Exception e) {
             Log.e("Startup", "Failed to play startup sound", e);
         }
+        });
+        mediaThread.start();
     }
 
     public void UserLogin(String username, String password){
@@ -187,6 +196,13 @@ public class LoginPage extends AppCompatActivity implements View.OnClickListener
             startupPlayer.stop();
             startupPlayer.release();
             startupPlayer = null;
+        }
+        if (mediaThread != null) {
+            try {
+                mediaThread.join();
+            } catch (InterruptedException e) {
+                Log.e(APP_LOG_TAG, "Error joining media thread", e);
+            }
         }
     }
 }

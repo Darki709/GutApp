@@ -2,6 +2,8 @@ package com.example.gutapp.session;
 
 import android.content.Context;
 
+import com.example.gutapp.GutApp;
+
 import lombok.Getter;
 
 public class NetworkClient {
@@ -13,14 +15,14 @@ public class NetworkClient {
     private Context appContext;
 
 
-    private NetworkClient(Context context) {
-        this.appContext = context.getApplicationContext();
+    private NetworkClient() {
+        this.appContext = GutApp.getInstance().getApplicationContext();
         sessionManager = new SessionManager(appContext);
     }
 
     public static synchronized NetworkClient getInstance(Context context) {
         if (instance == null) {
-            instance = new NetworkClient(context);
+            instance = new NetworkClient();
         }
         return instance;
     }
