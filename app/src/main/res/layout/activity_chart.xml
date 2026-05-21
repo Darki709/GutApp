@@ -657,6 +657,17 @@
             android:textSize="13sp" />
     </LinearLayout>
 
+
+    <!-- Alert creation panel — slides up from bottom, elevation above scrim -->
+    <include
+        layout="@layout/panel_add_alert"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:elevation="20dp"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent" />
+
     <View
         android:id="@+id/indicatorsScrim"
         android:layout_width="0dp"

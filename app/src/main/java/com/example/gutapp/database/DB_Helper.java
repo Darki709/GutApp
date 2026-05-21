@@ -9,24 +9,21 @@ import androidx.annotation.Nullable;
 
 public class DB_Helper extends SQLiteOpenHelper {
     private static final String DB_NAME = "Gut.db";
-    private static final int DB_VERSION = 1;
+    // Bumped to 2 so existing installs run onUpgrade and get the alerts table
+    private static final int DB_VERSION = 2;
 
     private static DB_Helper instance;
-
-
     public static final String DB_LOG_TAG = "GutDB";
 
     private final String[] table_initialize_query = {
         StockDataHelper.createTable(),
         LastFetchCacheHelper.createTable(),
-        com.example.gutapp.database.AlertDBHelper.createTable()
+        AlertDBHelper.createTable()
     };
 
     public static synchronized DB_Helper getInstance(@Nullable Context context) {
         if (instance == null) {
-            if (context == null) {
-                throw new IllegalStateException("Context cannot be null");
-            }
+            if (context == null) throw new IllegalStateException("Context cannot be null");
             instance = new DB_Helper(context.getApplicationContext());
         }
         return instance;
@@ -37,16 +34,13 @@ public class DB_Helper extends SQLiteOpenHelper {
         Log.i(DB_LOG_TAG, "db helper created");
     }
 
-
     @Override
-    public void onCreate(SQLiteDatabase sqLiteDatabase) {
-
+    public void onCreate(SQLiteDatabase db) {
         Log.i(DB_LOG_TAG, "start create db");
-        for(String query : table_initialize_query){
+        for (String query : table_initialize_query) {
             try {
-                sqLiteDatabase.execSQL(query);
-            }
-            catch (Exception e){
+                db.execSQL(query);
+            } catch (Exception e) {
                 Log.e(DB_LOG_TAG, "error running query " + query + " error:" + e.getMessage());
                 throw e;
             }
@@ -55,7 +49,15 @@ public class DB_Helper extends SQLiteOpenHelper {
     }
 
     @Override
-    public void onUpgrade(SQLiteDatabase sqLiteDatabase, int i, int i1) {
-
+    public void onUpgrade(SQLiteDatabase db, int oldVersion, int newVersion) {
+        if (oldVersion < 2) {
+            // Version 1->2: alerts table added
+            try {
+                db.execSQL(AlertDBHelper.createTable());
+                Log.i(DB_LOG_TAG, "onUpgrade v2: alerts table created");
+            } catch (Exception e) {
+                Log.e(DB_LOG_TAG, "onUpgrade v2 failed: " + e.getMessage());
+            }
+        }
     }
 }

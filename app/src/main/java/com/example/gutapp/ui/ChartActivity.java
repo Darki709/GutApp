@@ -30,7 +30,6 @@ import androidx.core.widget.NestedScrollView;
 import com.example.gutapp.R;
 import com.example.gutapp.data.OrderDialog;
 import com.example.gutapp.data.StockChart;
-import com.example.gutapp.data.UserGlobals;
 import com.example.gutapp.data.api.GeminiHelper;
 import com.example.gutapp.data.indicators.CurrentSessionHolder;
 import com.example.gutapp.data.indicators.Indicator;
@@ -50,13 +49,14 @@ import com.example.gutapp.session.Requests.RequestTickerData;
 import com.example.gutapp.session.Requests.SendOrder;
 import com.example.gutapp.session.Requests.TickerInfoRequest;
 import com.example.gutapp.session.SessionCallback;
+import com.example.gutapp.ui.dialogue.AddAlertBottomSheet;
+import com.example.gutapp.ui.dialogue.DrawingEditPanel;
 import com.example.gutapp.ui.fragments.DrawingToolbarFragment;
 import com.example.gutapp.ui.fragments.IndicatorsPanel;
 import com.example.gutapp.ui.fragments.OrdersList;
 import com.google.android.material.bottomsheet.BottomSheetDialog;
 import com.google.android.material.snackbar.Snackbar;
 import com.example.gutapp.ui.chart.DrawingChart;
-import com.example.gutapp.ui.chart.DrawingEditPanel;
 import com.example.gutapp.data.drawing.DrawingManager;
 import com.example.gutapp.data.drawing.DrawingPersistence;
 import com.example.gutapp.data.drawing.ChartDrawing;
@@ -170,7 +170,7 @@ public class ChartActivity extends SessionActivity implements
         drawingModeHud = findViewById(R.id.drawingModeHud);
         hudToolName    = findViewById(R.id.hudToolName);
         findViewById(R.id.hudExitBtn).setOnClickListener(v -> {
-            chart.setActiveTool(null);
+            chart.setActiveTool(null);        // clears tool + fires onToolChanged → hides HUD
             chart.cancelCurrentDrawing();
         });
 
@@ -354,9 +354,13 @@ public class ChartActivity extends SessionActivity implements
         }
         else if(id == R.id.drawingPanel) openDrawingPanel();
         else if(id == R.id.btnAlerts) {
-            android.content.Intent alertIntent = new android.content.Intent(this, com.example.gutapp.ui.AlertsActivity.class);
-            alertIntent.putExtra("symbol", symbol);
-            startActivity(alertIntent);
+            // Toggle the in-chart alert panel (user sees live prices while creating the alert)
+            View alertPanel = findViewById(R.id.addAlertPanel);
+            if (alertPanel != null && alertPanel.getVisibility() == android.view.View.VISIBLE) {
+                AddAlertBottomSheet.hide(this);
+            } else {
+                AddAlertBottomSheet.show(this, symbol, null, null);
+            }
         }
     }
 

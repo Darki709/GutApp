@@ -18,6 +18,8 @@ import android.widget.Toast;
 
 import androidx.annotation.Nullable;
 import androidx.core.widget.NestedScrollView;
+import androidx.lifecycle.MutableLiveData;
+import androidx.lifecycle.Observer;
 
 import com.example.gutapp.data.drawing.ChartDrawing;
 import com.example.gutapp.data.indicators.Indicator;
@@ -122,6 +124,7 @@ public class StockChart implements SessionCallback {
     private final List<Candle> streamBuffer = new ArrayList<>();
 
     @Nullable private SessionCallback chainedListener = null;
+    private MutableLiveData<Double> currentPrice = new MutableLiveData<>(0.0);
     @Nullable private LimitLine currentPriceLine = null;
 
     /** Fired every time a fresh candle batch is applied to the chart (including timeframe switches). */
@@ -143,6 +146,18 @@ public class StockChart implements SessionCallback {
     public StockChart(DrawingChart chart, Context context) {
         this.chart          = chart;
         this.activityContext = context;
+        currentPrice.observeForever(new Observer<Double>() {
+            @Override
+            public void onChanged(Double aDouble) {
+                mainHandler.postDelayed(() -> {
+                    synchronized(allCandles) {
+                        if (chainedListener != null && !allCandles.isEmpty())
+                            chainedListener.onDataReceived(DataType.MARKET_DATA,allCandles.get(allCandles.size()-1).close);
+                    }
+                }, 50);
+            }
+        });
+
     }
 
     // ── Public API ─────────────────────────────────────────────────────
@@ -219,12 +234,12 @@ public class StockChart implements SessionCallback {
         right.setDrawLabels(true);    right.setDrawAxisLine(false);
         right.setLabelCount(6, false);
         right.setTextColor(COLOR_AXIS_TEXT); right.setTextSize(10f);
-        right.setSpaceTop(15f);       right.setSpaceBottom(15f);
+        right.setSpaceTop(40f);       right.setSpaceBottom(40f);
         right.setPosition(YAxis.YAxisLabelPosition.OUTSIDE_CHART);
 
         XAxis x = chart.getXAxis();
         x.setDrawGridLines(false);    x.setPosition(XAxis.XAxisPosition.BOTTOM);
-        x.setSpaceMin(0.5f);          x.setSpaceMax(10f);   // small right margin only
+        x.setSpaceMin(0.5f);          x.setSpaceMax(80f);   // small right margin only
         x.setTextColor(COLOR_AXIS_TEXT); x.setTextSize(10f);
         x.setDrawAxisLine(false);     x.setAvoidFirstLastClipping(true);
 
@@ -763,24 +778,19 @@ public class StockChart implements SessionCallback {
         switch (msgType) {
             case TICKER_STREAM:
                 streamUpdate(chunk.chunk);
-                if (chainedListener!=null) synchronized(allCandles) {
-                    if (!allCandles.isEmpty())
-                        chainedListener.onDataReceived(DataType.MARKET_DATA,allCandles.get(allCandles.size()-1).close);
-                }
                 break;
-            case TICKER_SNAPSHOT: addChunk(chunk.chunk); break;
+            case TICKER_SNAPSHOT:
+                addChunk(chunk.chunk);
+                break;
             case TICKER_REQUEST_DONE:
                 reqIds.remove(chunk.reqId);
                 if (chainedListener!=null) {
                     done=true;
                     for (Candle b:streamBuffer) streamUpdate(List.of(b));
-                    synchronized(allCandles) {
-                        if (!allCandles.isEmpty())
-                            chainedListener.onDataReceived(DataType.MARKET_DATA,allCandles.get(allCandles.size()-1).close);
-                    }
                 }
                 break;
         }
+        mainHandler.post(() -> {currentPrice.setValue(allCandles.get(allCandles.size()-1).close);});
     }
     @Override public void onActionRequired(int a, @Nullable Object d) {}
 

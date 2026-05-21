@@ -1,4 +1,4 @@
-package com.example.gutapp.ui.chart;
+package com.example.gutapp.ui.dialogue;
 
 import android.content.Context;
 import android.graphics.Color;

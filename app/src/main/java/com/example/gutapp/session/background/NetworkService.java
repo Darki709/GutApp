@@ -5,7 +5,6 @@ import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.app.Service;
-import android.content.Context;
 import android.content.Intent;
 import android.os.IBinder;
 import android.util.Log;
@@ -19,65 +18,47 @@ import com.example.gutapp.data.alerts.AlertManager;
 import com.example.gutapp.data.models.Candle;
 import com.example.gutapp.data.models.PriceChunk;
 import com.example.gutapp.database.DB_Helper;
+import com.example.gutapp.database.StockDataHelper;
 import com.example.gutapp.session.DataType;
 import com.example.gutapp.session.NetworkClient;
 import com.example.gutapp.session.Requests.CancelTickerStream;
 import com.example.gutapp.session.Requests.RequestTickerData;
 import com.example.gutapp.session.SessionCallback;
-import com.example.gutapp.database.StockDataHelper;
 import com.example.gutapp.ui.AlertsActivity;
 
+import java.nio.ByteBuffer;
 import java.util.concurrent.ConcurrentHashMap;
 
-/**
- * NetworkService — Android foreground service that:
- *  1. Keeps the network connection alive while the app is backgrounded.
- *  2. Bridges the live price stream to AlertManager.onNewPrice().
- *  3. Implements AlertManager.ServiceRequestInterface so AlertManager can
- *     subscribe/unsubscribe to symbols without knowing anything about networking.
- *  4. Implements AlertManager.TriggerListener to post system notifications
- *     when an alert fires.
- *
- * Lifecycle
- * ─────────
- *  Start:  startForegroundService(intent) from SessionActivity.onStart()
- *  Stop:   stopService() / service killed by OS
- *
- * The service starts AlertManager once the DB is ready, passing itself as
- * the ServiceRequestInterface and TriggerListener.
- */
 public class NetworkService extends Service
         implements SessionCallback,
                    AlertManager.ServiceRequestInterface,
                    AlertManager.TriggerListener {
 
-    public static final String TAG        = "NetworkService";
+    private static final String TAG        = "NetworkService";
     private static final String CHANNEL_ID = "StockAlertChannel";
-    private static final int    FG_NOTIF_ID = 101;
+    private static final int    FG_ID      = 101;
 
-    // Maps symbol → the reqId of the streaming RequestTickerData, so we can cancel it.
-    private final ConcurrentHashMap<String, byte[]> activeStreamReqIds = new ConcurrentHashMap<>();
-
-    // ── Service lifecycle ─────────────────────────────────────────────
+    // symbol → integer reqId of the live stream request
+    private final ConcurrentHashMap<String, Integer> streamReqIds = new ConcurrentHashMap<>();
 
     @Override
     public void onCreate() {
         super.onCreate();
         createNotificationChannel();
 
-        // Wire AlertManager
         AlertManager am = AlertManager.getInstance();
+        am.init(this);                          // ensure DB context is set
         am.setNetworkInterface(this);
         am.setTriggerListener(this);
-        am.start(DB_Helper.getInstance(this));
+        am.start(DB_Helper.getInstance(this));  // load active alerts, start worker
 
-        // Register as the push callback so TICKER_STREAM packets reach us
+        // Register as the push/stream callback so TICKER_STREAM arrives here
         NetworkClient.getInstance(this).getSessionManager().setPushResponseCallback(this);
     }
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
-        startForeground(FG_NOTIF_ID, buildForegroundNotification());
+        startForeground(FG_ID, buildForegroundNotification());
         return START_STICKY;
     }
 
@@ -85,81 +66,59 @@ public class NetworkService extends Service
     public void onDestroy() {
         super.onDestroy();
         AlertManager.getInstance().stop();
-        NetworkClient.getInstance(this).getSessionManager().setPushResponseCallback(null);
     }
 
-    @Nullable
-    @Override
-    public IBinder onBind(Intent intent) { return null; }
+    @Nullable @Override public IBinder onBind(Intent i) { return null; }
 
-    // ── SessionCallback — receives ALL data from the server ───────────
-
+    // ── SessionCallback ───────────────────────────────────────────────
     @Override
     public void onDataReceived(DataType msgType, Object parsedData) {
         if (msgType == DataType.TICKER_STREAM && parsedData instanceof PriceChunk) {
             PriceChunk chunk = (PriceChunk) parsedData;
-            if (!chunk.chunk.isEmpty()) {
+            if (chunk.chunk != null && !chunk.chunk.isEmpty()) {
                 Candle latest = chunk.chunk.get(chunk.chunk.size() - 1);
-                // Forward every tick to AlertManager for evaluation
-                // We don't know which symbol this chunk belongs to from PriceChunk alone,
-                // so we route by tracking which symbols have active alert subscriptions.
-                // The reqId stored in activeStreamReqIds lets us correlate chunk → symbol.
-                String symbol = findSymbolByReqId( chunk.reqId);
+                // Correlate reqId → symbol so AlertManager gets the right symbol
+                String symbol = findSymbolByReqId(chunk.reqId);
                 if (symbol != null) {
                     AlertManager.getInstance().onNewPrice(symbol, latest);
                 }
             }
         }
-        // All other data types are handled by the foreground Activity's SessionCallback.
-        // NetworkService intentionally ignores them to avoid double-processing.
     }
 
-    @Override
-    public void onActionRequired(int actionType, @Nullable Object data) {
-        // Forwarded to whichever Activity is current — not handled by the service.
-    }
+    @Override public void onActionRequired(int actionType, @Nullable Object data) {}
 
-    // ── ServiceRequestInterface — called by AlertManager on worker thread ──
-
+    // ── ServiceRequestInterface ───────────────────────────────────────
     @Override
     public void requestPriceData(String symbol) {
-        // Push a persistent stream request for this symbol.
-        // startTs=0, endTs=0 → server sends only live ticks.
         RequestTickerData req = new RequestTickerData(
-                symbol,
-                StockDataHelper.Timeframe.ONE_MIN,
-                0L, 0L,
-                false, true,   // no snapshot, stream only
-                this);
-
+                symbol, StockDataHelper.Timeframe.ONE_MIN,
+                0L, 0L, false, true, this);
         NetworkClient.getInstance(this).getSessionManager().pushRequest(req);
-
-        // Store reqId so we can cancel later (reqId is set after getBytes() is called
-        // during send — we store it right after construction because AsyncRequest
-        // assigns reqId in the constructor).
-        activeStreamReqIds.put(symbol, req.reqId);
+        // Store the integer reqId for correlation in onDataReceived
+        streamReqIds.put(symbol, req.getReqId());
         Log.i(TAG, "Requested stream for " + symbol);
     }
 
     @Override
     public void stopPriceData(String symbol) {
-        byte[] reqId = activeStreamReqIds.remove(symbol);
+        Integer reqId = streamReqIds.remove(symbol);
         if (reqId != null) {
+            // Convert int back to 4-byte array for CancelTickerStream
+            byte[] reqIdBytes = ByteBuffer.allocate(4).putInt(reqId).array();
             NetworkClient.getInstance(this).getSessionManager()
-                    .pushRequest(new CancelTickerStream(reqId, symbol));
+                    .pushRequest(new CancelTickerStream(reqIdBytes, symbol));
             Log.i(TAG, "Cancelled stream for " + symbol);
         }
     }
 
-    // ── TriggerListener — called by AlertManager worker thread ────────
-
+    // ── TriggerListener ───────────────────────────────────────────────
     @Override
     public void onAlertTriggered(Alert alert) {
         showAlertNotification(alert);
     }
 
     // ── Notification helpers ──────────────────────────────────────────
-
     private Notification buildForegroundNotification() {
         return new NotificationCompat.Builder(this, CHANNEL_ID)
                 .setContentTitle("Market Monitor Active")
@@ -171,47 +130,39 @@ public class NetworkService extends Service
     }
 
     private void showAlertNotification(Alert alert) {
-        // Tap notification → open AlertsActivity
-        Intent intent = new Intent(this, AlertsActivity.class);
-        intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
-        PendingIntent pi = PendingIntent.getActivity(
-                this, (int) alert.getId(), intent,
+        Intent i = new Intent(this, AlertsActivity.class);
+        i.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+        PendingIntent pi = PendingIntent.getActivity(this, (int) alert.getId(), i,
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
 
-        int importance = alert.getPriority() == Alert.Priority.HIGH
+        int priority = alert.getPriority() == Alert.Priority.HIGH
                 ? NotificationCompat.PRIORITY_HIGH
                 : alert.getPriority() == Alert.Priority.LOW
                         ? NotificationCompat.PRIORITY_LOW
                         : NotificationCompat.PRIORITY_DEFAULT;
 
-        Notification notif = new NotificationCompat.Builder(this, CHANNEL_ID)
+        Notification n = new NotificationCompat.Builder(this, CHANNEL_ID)
                 .setContentTitle("🔔 " + alert.getLabel())
                 .setContentText(alert.getNotification())
                 .setSmallIcon(android.R.drawable.stat_notify_chat)
-                .setPriority(importance)
+                .setPriority(priority)
                 .setAutoCancel(true)
                 .setContentIntent(pi)
                 .build();
 
-        NotificationManager nm = getSystemService(NotificationManager.class);
-        // Use a unique ID per alert so multiple alerts can stack
-        nm.notify((int) (alert.getId() & 0x7FFFFFFF), notif);
+        getSystemService(NotificationManager.class)
+                .notify((int)(alert.getId() & 0x7FFFFFFF), n);
     }
 
     private void createNotificationChannel() {
-        NotificationChannel channel = new NotificationChannel(
-                CHANNEL_ID, "Stock Alerts",
-                NotificationManager.IMPORTANCE_DEFAULT);
-        channel.setDescription("GutApp price alerts and monitoring");
-        getSystemService(NotificationManager.class).createNotificationChannel(channel);
+        NotificationChannel ch = new NotificationChannel(
+                CHANNEL_ID, "Stock Alerts", NotificationManager.IMPORTANCE_DEFAULT);
+        getSystemService(NotificationManager.class).createNotificationChannel(ch);
     }
 
-    // ── Helpers ───────────────────────────────────────────────────────
-
-    private String findSymbolByReqId(int reqIdInt) {
-        for (ConcurrentHashMap.Entry<String, byte[]> e : activeStreamReqIds.entrySet()) {
-            java.nio.ByteBuffer buf = java.nio.ByteBuffer.wrap(e.getValue());
-            if (buf.getInt() == reqIdInt) return e.getKey();
+    private String findSymbolByReqId(int reqId) {
+        for (ConcurrentHashMap.Entry<String, Integer> e : streamReqIds.entrySet()) {
+            if (e.getValue() == reqId) return e.getKey();
         }
         return null;
     }

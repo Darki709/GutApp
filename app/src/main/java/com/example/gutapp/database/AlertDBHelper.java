@@ -1,5 +1,7 @@
 package com.example.gutapp.database;
 
+import static com.example.gutapp.database.DB_Helper.DB_LOG_TAG;
+
 import android.content.ContentValues;
 import android.database.Cursor;
 import android.util.Log;
@@ -70,7 +72,7 @@ public class AlertDBHelper {
                     TABLE_ALERTS, null, toValues(alert));
             alert.setId(id);
         } catch (Exception e) {
-            Log.e(TAG, "insertAlert failed", e);
+            Log.e(DB_LOG_TAG, "insertAlert failed", e);
         }
     }
 
