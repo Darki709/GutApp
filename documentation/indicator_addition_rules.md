@@ -21,13 +21,14 @@ to using the GutScript scripting engine, to producing chart drawings from an ind
 6. [Result API Reference](#result-api-reference)
 7. [Helper Methods](#helper-methods)
 8. [Candle Fields](#candle-fields)
-9. [Full Examples](#full-examples)
+9. [Trend Bias API (`calculateBias`)](#trend-bias-api-calculatebias)
+10. [Full Examples](#full-examples)
    - [Donchian Channel (overlay, 2 lines)](#example-1-donchian-channel)
    - [Stochastic Oscillator (sub-chart)](#example-2-stochastic-oscillator)
    - [Pivot Points (drawings)](#example-3-pivot-points-with-drawings)
    - [ATR (sub-chart, single line)](#example-4-atr-average-true-range)
-10. [Common Mistakes](#common-mistakes)
-11. [Quick Checklist](#quick-checklist)
+11. [Common Mistakes](#common-mistakes)
+12. [Quick Checklist](#quick-checklist)
 
 ---
 
@@ -119,6 +120,11 @@ public class MyIndicator extends Indicator {
         r.overlayLines.add(makeLineSet(entries, getTag(), getColor(), 1.4f));
         return r;
     }
+
+    // ── Trend Bias ────────────────────────────────────────────────────
+    @Override public int calculateBias(ArrayList<Candle> data) { return 0; } // TODO: Optional override
+
+    // REQUIRED: must return a fresh instance with default params
 }
 ```
 
@@ -385,6 +391,49 @@ The `Entry` X coordinate must match the candle's array index:
 entries.add(new Entry(i, (float) candles.get(i).close));
 //                    ↑ array index, not timestamp
 ```
+## Trend Bias API (`calculateBias`)
+
+The system supports an optional bias assessment engine on indicators to track automated algorithmic positions or trend state values. If your indicator has quantitative directionality (momentum or threshold bounds), override the `calculateBias` method:
+
+```java
+@Override
+public int calculateBias(ArrayList<Candle> data) {
+   // Return +1 for Bullish, -1 for Bearish, or 0 for Neutral
+   return 0; 
+}
+```
+
+### Standard Return Constants
+
+| Value | Sentiment State | Mathematical Trigger Context Examples |
+| :--- | :--- | :--- |
+| **`1`** | **Bullish Bias** | Asset crosses above channel bands, moving average cross-up, oscillator moving away from floor bounds. |
+| **`-1`** | **Bearish Bias** | Asset drops below support targets, negative oscillator changes, or overbought ceiling exhaustion. |
+| **`0`** | **Neutral Bias** | Asset is sideways inside consolidation rooms, or historical baseline calculations don't meet minimum sizing. |
+
+### Structural Calculation Rule
+
+Unlike the `compute()` method which runs full mathematical iterations over historical records to map line sequences, `calculateBias()` typically isolates only the calculations leading directly to the **most current data point** (`data.size() - 1`). 
+
+*Always safely verify data count boundaries before extracting indices to prevent out-of-bounds exceptions:*
+
+```java
+@Override
+public int calculateBias(ArrayList<Candle> data) {
+   int period = (int) getParam("period");
+   if (data == null || data.size() < period) return 0; // Standard safe fallback
+
+    int lastIdx = data.size() - 1;
+    double latestClose = data.get(lastIdx).close;
+    
+    // ... isolate baseline math structures for index 'lastIdx' ...
+    
+    if (latestClose > calculationTarget) return 1;
+    if (latestClose < calculationTarget) return -1;
+    return 0;
+}
+```
+
 
 ---
 
@@ -776,3 +825,6 @@ Use this checklist every time you add a new Java indicator:
 - [ ] Added `import` and `register(new MyIndicator())` in `IndicatorRegistry.java`
 - [ ] Project builds without errors
 - [ ] Indicator appears in the panel and renders correctly on a chart
+- [ ] All `params` declared in constructor are read with `getParam("key")` in `compute()`
+- [ ] `calculateBias()` implemented or returning safe `0` fallback default
+- [ ] Added `import` and `register(new MyIndicator())` in `IndicatorRegistry.java`
