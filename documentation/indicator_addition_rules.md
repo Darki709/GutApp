@@ -1,7 +1,7 @@
 # Adding New Indicators to GutApp
 
-This guide covers every way to add a new indicator — from writing a simple Java class,
-to using the GutScript scripting engine, to producing chart drawings from an indicator's output.
+This guide covers how to add a new indicator — writing a Java class, registering it,
+and producing chart drawings from its output.
 
 ---
 
@@ -12,21 +12,24 @@ to using the GutScript scripting engine, to producing chart drawings from an ind
    - [Step 1: Create the class](#step-1-create-the-class)
    - [Step 2: Register it](#step-2-register-it)
    - [Step 3: Verify](#step-3-verify)
-3. [Method 2 — GutScript (No Java Required)](#method-2--gutscript-no-java-required)
-4. [Indicator Types Reference](#indicator-types-reference)
+3. [Indicator Types Reference](#indicator-types-reference)
    - [Overlay indicator](#overlay-indicator-lines-on-the-main-chart)
    - [Sub-chart indicator](#sub-chart-indicator-separate-pane-below)
    - [Drawing-producing indicator](#drawing-producing-indicator-overlay--drawings)
-5. [Parameters Reference](#parameters-reference)
-6. [Result API Reference](#result-api-reference)
-7. [Helper Methods](#helper-methods)
-8. [Candle Fields](#candle-fields)
-9. [Trend Bias API (`calculateBias`)](#trend-bias-api-calculatebias)
+4. [Parameters Reference](#parameters-reference)
+5. [Result API Reference](#result-api-reference)
+6. [Helper Methods](#helper-methods)
+7. [Candle Fields](#candle-fields)
+8. [Drawing API Reference](#drawing-api-reference)
+   - [Coordinate system](#coordinate-system--timestamps-not-indices)
+   - [DrawingStyle](#drawingstyle)
+   - [All drawing types](#all-drawing-types)
+9. [Trend Bias API](#trend-bias-api-calculatebias)
 10. [Full Examples](#full-examples)
-   - [Donchian Channel (overlay, 2 lines)](#example-1-donchian-channel)
-   - [Stochastic Oscillator (sub-chart)](#example-2-stochastic-oscillator)
-   - [Pivot Points (drawings)](#example-3-pivot-points-with-drawings)
-   - [ATR (sub-chart, single line)](#example-4-atr-average-true-range)
+    - [Donchian Channel](#example-1-donchian-channel)
+    - [Stochastic Oscillator](#example-2-stochastic-oscillator)
+    - [Pivot Points (drawings)](#example-3-pivot-points-with-drawings)
+    - [ATR](#example-4-atr-average-true-range)
 11. [Common Mistakes](#common-mistakes)
 12. [Quick Checklist](#quick-checklist)
 
@@ -62,7 +65,7 @@ Create a new file in:
 app/src/main/java/com/example/gutapp/data/indicators/impl/MyIndicator.java
 ```
 
-Use this template and fill in the sections marked with `TODO`:
+Use this template and fill in the sections marked `TODO`:
 
 ```java
 package com.example.gutapp.data.indicators.impl;
@@ -87,20 +90,13 @@ public class MyIndicator extends Indicator {
         setColor(Color.parseColor("#FFC107"));
     }
 
-    // ── Identity ──────────────────────────────────────────────────────
+    @Override public String  getId()          { return "my_indicator"; } // TODO: unique snake_case id
+    @Override public String  getDisplayName() { return "My Indicator"; } // TODO: panel display name
+    @Override public String  getTag()         { return "MYI"; }          // TODO: short tag on chart
+    @Override public boolean isSubChart()     { return false; }          // TODO: true = separate pane
 
-    @Override public String  getId()          { return "my_indicator"; }  // TODO: unique snake_case id
-    @Override public String  getDisplayName() { return "My Indicator"; }  // TODO: panel display name
-    @Override public String  getTag()         { return "MYI"; }           // TODO: short tag on chart
-    @Override public boolean isSubChart()     { return false; }           // TODO: true = separate pane
-
-    // REQUIRED: must return a fresh instance with default params
     @Override
-    public Indicator newInstance() {
-        return new MyIndicator();
-    }
-
-    // ── Computation ───────────────────────────────────────────────────
+    public Indicator newInstance() { return new MyIndicator(); }
 
     @Override
     public Result compute(ArrayList<Candle> candles) {
@@ -109,11 +105,9 @@ public class MyIndicator extends Indicator {
 
         int period = (int) getParam("period");
 
-        // TODO: compute your values and add them to r.overlayLines or r.subChartLines
         List<Entry> entries = new ArrayList<>();
         for (int i = period - 1; i < candles.size(); i++) {
-            // ... your calculation ...
-            float value = 0f; // replace with real value
+            float value = 0f; // TODO: replace with real calculation
             entries.add(new Entry(i, value));
         }
 
@@ -121,77 +115,35 @@ public class MyIndicator extends Indicator {
         return r;
     }
 
-    // ── Trend Bias ────────────────────────────────────────────────────
-    @Override public int calculateBias(ArrayList<Candle> data) { return 0; } // TODO: Optional override
-
-    // REQUIRED: must return a fresh instance with default params
+    @Override public int calculateBias(ArrayList<Candle> data) { return 50; }
 }
 ```
 
 ### Step 2: Register it
 
 Open `IndicatorRegistry.java`:
-
 ```
 app/src/main/java/com/example/gutapp/data/indicators/IndicatorRegistry.java
 ```
 
-Add two things:
+Add the import and one line in the constructor:
 
-**1. The import at the top:**
 ```java
 import com.example.gutapp.data.indicators.impl.MyIndicator;
-```
 
-**2. One line inside the constructor:**
-```java
 private IndicatorRegistry() {
     register(new MaIndicator());
-    register(new EmaIndicator());
-    register(new BollingerBandsIndicator());
-    register(new VwapIndicator());
-    register(new RsiIndicator());
-    register(new MacdIndicator());
+    // ... existing indicators ...
     register(new MyIndicator());   // ← add this line
 }
 ```
-
-That is all. The indicator will now appear in the "Add Indicator" list in the indicator panel
-immediately after a clean build.
 
 ### Step 3: Verify
 
 1. Build the project (`Ctrl+F9` / `⌘F9`).
 2. Open any chart, tap **⊕ Indicators**.
-3. Scroll to the bottom of the catalog list — your indicator should appear.
+3. Your indicator should appear at the bottom of the catalog list.
 4. Tap **+** to add an instance and verify the line renders on the chart.
-
----
-
-## Method 2 — GutScript (No Java Required)
-
-GutScript lets you write indicators directly inside the app without recompiling.
-Navigate to **Home → My Scripts → + New** and use this format:
-
-```
-@name    "My Indicator"
-@tag     "MYI"
-@subchart false
-@color   "#FFC107"
-
-param period int 2 200 14
-
-let closes = series(CLOSE)
-let result = sma(closes, period)
-
-plot(result, "My Line", @color, 1.5)
-```
-
-See the full language reference in `INTEGRATION_GUIDE.md` (scripting session) or
-the in-app snippet bar for common patterns.
-
-Scripts are saved and registered automatically. They appear alongside built-in
-indicators in the chart's indicator panel.
 
 ---
 
@@ -206,16 +158,9 @@ indicators in the chart's indicator panel.
 public Result compute(ArrayList<Candle> candles) {
     Result r = new Result();
     List<Entry> line = new ArrayList<>();
-
-    // ... calculate values ...
-    line.add(new Entry(i, value));
-
-    // Solid line
+    // ...
     r.overlayLines.add(makeLineSet(line, "Label", getColor(), 1.4f));
-
-    // Dashed line (e.g. for bands)
     r.overlayLines.add(makeDashedLineSet(line2, "Upper", getColor()));
-
     return r;
 }
 ```
@@ -229,29 +174,19 @@ public Result compute(ArrayList<Candle> candles) {
 public Result compute(ArrayList<Candle> candles) {
     Result r = new Result();
     List<Entry> values = new ArrayList<>();
-
-    // ... calculate values ...
-    values.add(new Entry(i, rsiValue));
-
-    // Pin the Y axis (e.g. RSI is always 0–100)
-    r.subChartMin = 0f;
-    r.subChartMax = 100f;
-
+    // ...
+    r.subChartMin = 0f;    // optional — pin Y axis
+    r.subChartMax = 100f;  // leave as Float.NaN for auto-scale
     r.subChartLines.add(makeLineSet(values, "RSI", getColor(), 1.4f));
     return r;
 }
 ```
 
-> **Tip:** If you do NOT set `subChartMin` / `subChartMax`, the Y axis auto-scales
-> to fit the data. Leave them as `Float.NaN` (the default) for free-range indicators like MACD.
-
 ### Drawing-producing indicator (overlay + drawings)
 
-Indicators can emit `ChartDrawing` objects (horizontal levels, trend lines, price zones, etc.)
-in addition to or instead of line data. These appear on the `DrawingOverlayView` canvas as
-locked, indicator-source drawings.
-
-Requires the `Indicator.java` from the **drawing_v2** session which adds `Result.drawings`.
+Indicators can emit `ChartDrawing` objects alongside or instead of line data.
+These are rendered on the drawing canvas as **locked, non-editable** overlays
+that are replaced automatically on each `compute()` call.
 
 ```java
 import com.example.gutapp.data.drawing.ChartDrawing;
@@ -262,43 +197,25 @@ import com.example.gutapp.data.drawing.ChartDrawing.Source;
 public Result compute(ArrayList<Candle> candles) {
     Result r = new Result();
 
-    // Example: mark a horizontal support level
-    double supportPrice = 182.50;
+    // Horizontal support level
     DrawingStyle style = DrawingStyle.dashed(Color.parseColor("#4CAF50"));
-    r.drawings.add(new ChartDrawing.HorizontalLine(
-        supportPrice, "Support", style, Source.INDICATOR));
+    r.drawings.add(new ChartDrawing.HorizontalLine(182.50, "Support", style, Source.INDICATOR));
 
-    // Example: shade a price range (supply zone)
-    DrawingStyle zoneStyle = DrawingStyle.filled(Color.parseColor("#EF5350"), 30);
-    r.drawings.add(new ChartDrawing.PriceRange(
-        185.0, 183.0,
-        0, candles.size() - 1,   // X bounds (start index, end index)
-        zoneStyle, Source.INDICATOR));
+    // Shaded supply/demand zone (full chart width — PriceRange has no X bounds)
+    DrawingStyle zone = new DrawingStyle(Color.parseColor("#EF5350"), 1f, false);
+    zone.filled = true;
+    r.drawings.add(new ChartDrawing.PriceRange(185.0, 183.0, zone, Source.INDICATOR));
 
     return r;
 }
 ```
 
-Available drawing types and their constructors:
-
-| Type | Constructor arguments |
-|---|---|
-| `HorizontalLine` | `(double price, String label, DrawingStyle, Source)` |
-| `TrendLine` | `(int startIdx, double startPrice, int endIdx, double endPrice, DrawingStyle, Source)` |
-| `RayLine` | `(int startIdx, double startPrice, int anchorIdx, double anchorPrice, DrawingStyle, Source)` |
-| `VerticalLine` | `(int candleIndex, DrawingStyle, Source)` |
-| `LinearRegression` | `(int startIdx, int endIdx, DrawingStyle, Source)` |
-| `FibRetracement` | `(int startIdx, double highPrice, int endIdx, double lowPrice, DrawingStyle, Source)` |
-| `PriceRange` | `(double priceHigh, double priceLow, int startIdx, int endIdx, DrawingStyle, Source)` |
-
-Always pass `Source.INDICATOR` — this makes the drawing locked (not editable or deletable
-by user touch) and ensures it is replaced on each `compute()` call.
+Always pass `Source.INDICATOR`. This locks the drawing (not editable by user touch)
+and ensures it is replaced on each `compute()`.
 
 ---
 
 ## Parameters Reference
-
-Parameters are declared in the constructor. They appear as sliders in the indicator panel.
 
 ```java
 params.add(new Param(
@@ -309,139 +226,359 @@ params.add(new Param(
     200,                // max
     14                  // default value
 ));
-
 params.add(new Param("mult", "Multiplier", Param.Type.FLOAT, 0.1f, 5.0f, 2.0f));
 ```
 
-Reading a parameter in `compute()`:
-
+Reading in `compute()`:
 ```java
-int    period = (int)   getParam("period");   // INTEGER
-float  mult   =         getParam("mult");     // FLOAT
+int   period = (int) getParam("period");
+float mult   =       getParam("mult");
 ```
 
-**Rules:**
-- Key must be unique within the same indicator.
-- Key must be a valid Java identifier (no spaces).
-- Min must be strictly less than max.
-- Default must be within [min, max].
+**Rules:** key must be unique within the indicator, no spaces, min < max, default within [min, max].
 
 ---
 
 ## Result API Reference
 
-`Result` is the object you return from `compute()`. It starts empty.
-
-| Field / Method | Type | Purpose |
+| Field | Type | Purpose |
 |---|---|---|
-| `r.overlayLines` | `List<LineDataSet>` | Lines drawn on the main price chart |
-| `r.subChartLines` | `List<LineDataSet>` | Lines drawn in the sub-chart pane |
-| `r.subChartMin` | `float` | Pin the sub-chart Y-axis minimum. `Float.NaN` = auto |
-| `r.subChartMax` | `float` | Pin the sub-chart Y-axis maximum. `Float.NaN` = auto |
-| `r.drawings` | `List<ChartDrawing>` | Overlay drawings (requires drawing_v2 `Indicator.java`) |
-
-You may populate multiple lists in one `compute()` call. For example, a VWAP indicator could
-add one overlay line and several horizontal level drawings simultaneously.
+| `r.overlayLines` | `List<LineDataSet>` | Lines on the main price chart |
+| `r.subChartLines` | `List<LineDataSet>` | Lines in the sub-chart pane |
+| `r.subChartMin` | `float` | Pin sub-chart Y-axis minimum (`Float.NaN` = auto) |
+| `r.subChartMax` | `float` | Pin sub-chart Y-axis maximum (`Float.NaN` = auto) |
+| `r.drawings` | `List<ChartDrawing>` | Overlay drawings on the drawing canvas |
 
 ---
 
 ## Helper Methods
 
-These are defined on `Indicator` and available directly in `compute()`:
-
 ```java
-// Solid line — the most common output
-makeLineSet(entries, label, color, lineWidthDp)
-
-// Dashed line — good for bands, targets, levels
-makeDashedLineSet(entries, label, color)
+makeLineSet(entries, label, color, lineWidthDp)    // solid line
+makeDashedLineSet(entries, label, color)            // dashed line
 ```
 
-Both return a `LineDataSet` ready to add to `r.overlayLines` or `r.subChartLines`.
-
-For sub-chart lines you need to set the axis dependency explicitly if your indicator
-mixes LEFT and RIGHT axis values (e.g. MACD signal vs histogram):
-
+For sub-chart indicators, set the axis dependency explicitly:
 ```java
-LineDataSet macdLine = makeLineSet(macdEntries, "MACD", getColor(), 1.4f);
-macdLine.setAxisDependency(YAxis.AxisDependency.RIGHT);
-r.subChartLines.add(macdLine);
+LineDataSet set = makeLineSet(entries, "MACD", getColor(), 1.4f);
+set.setAxisDependency(YAxis.AxisDependency.RIGHT);
+r.subChartLines.add(set);
 ```
 
 ---
 
 ## Candle Fields
 
-Every element of the `ArrayList<Candle>` passed to `compute()` has:
-
 | Field | Type | Description |
 |---|---|---|
-| `candle.timestamp` | `long` | Unix timestamp in seconds |
+| `candle.timestamp` | `long` | Unix timestamp in **seconds** |
 | `candle.open` | `double` | Open price |
 | `candle.high` | `double` | High price |
 | `candle.low` | `double` | Low price |
 | `candle.close` | `double` | Close price |
 | `candle.volume` | `float` | Volume |
 
-The candle list is **sorted ascending by timestamp** before being passed to `compute()`.
-Index `0` is the oldest candle. Index `candles.size()-1` is the most recent.
+Candles are sorted ascending: index `0` = oldest, `candles.size()-1` = most recent.
 
-The `Entry` X coordinate must match the candle's array index:
+`Entry` X must be the **array index**, not the timestamp:
 ```java
-entries.add(new Entry(i, (float) candles.get(i).close));
-//                    ↑ array index, not timestamp
+entries.add(new Entry(i, (float) candles.get(i).close)); // ✓ correct
+entries.add(new Entry((float) candles.get(i).timestamp, value)); // ✗ wrong
 ```
+
+---
+
+## Drawing API Reference
+
+### Coordinate system — timestamps, not indices
+
+> **Critical change from earlier versions.**
+> All time-position anchors in `ChartDrawing` now use **Unix timestamps in seconds**,
+> not candle array indices. This makes drawings timeframe-invariant — a drawing placed
+> on the 1D chart appears correctly on 5m, 1H, etc. without any extra work.
+
+To get the timestamp for a specific candle:
+```java
+long ts = candles.get(i).timestamp;  // seconds since epoch
+```
+
+To get the timestamp for the most recent candle:
+```java
+long latestTs = candles.get(candles.size() - 1).timestamp;
+```
+
+To get the timestamp for the first candle:
+```java
+long firstTs = candles.get(0).timestamp;
+```
+
+### DrawingStyle
+
+`DrawingStyle` controls color, stroke width, dash pattern, fill, and opacity.
+
+```java
+// Static factory methods (most common)
+DrawingStyle.solid(int color)               // solid line, width 1.5dp
+DrawingStyle.solid(int color, float width)  // solid line, custom width
+DrawingStyle.dashed(int color)              // dashed line, width 1dp
+
+// Full constructor
+new DrawingStyle(int color, float strokeWidth, boolean dashed)
+
+// Fields you can set after construction
+style.dashOn      = 8f;          // dash length in pixels
+style.dashOff     = 4f;          // gap length in pixels
+style.filled      = true;        // fill the shape (Rectangle, Ellipse, PriceRange)
+style.fillColor   = Color.argb(40, r, g, b); // fill color (auto-set from color if not specified)
+style.opacity     = 0.8f;        // 0.0–1.0
+```
+
+### All drawing types
+
+Every constructor ends with `(DrawingStyle style, Source source)`.
+Always pass `Source.INDICATOR` for indicator-produced drawings.
+
+---
+
+#### `HorizontalLine`
+A full-width horizontal price level.
+```java
+// Price only
+new ChartDrawing.HorizontalLine(double price, DrawingStyle style, Source.INDICATOR)
+
+// Price + label shown on Y axis
+new ChartDrawing.HorizontalLine(double price, String label, DrawingStyle style, Source.INDICATOR)
+```
+
+---
+
+#### `TrendLine`
+A line segment between two price/time anchors.
+```java
+new ChartDrawing.TrendLine(
+    long startTs, double startPrice,
+    long endTs,   double endPrice,
+    DrawingStyle style, Source.INDICATOR)
+
+// Optional extension flags
+trendLine.extendLeft  = true;  // extends infinitely to the left
+trendLine.extendRight = true;  // extends infinitely to the right
+```
+
+---
+
+#### `RayLine`
+Starts at an anchor and extends to the right forever.
+```java
+new ChartDrawing.RayLine(
+    long startTs,  double startPrice,   // origin
+    long anchorTs, double anchorPrice,  // second point defines direction
+    DrawingStyle style, Source.INDICATOR)
+```
+
+---
+
+#### `ExtendedLine`
+Like a trend line but extends infinitely in both directions.
+```java
+new ChartDrawing.ExtendedLine(
+    long startTs, double startPrice,
+    long endTs,   double endPrice,
+    DrawingStyle style, Source.INDICATOR)
+```
+
+---
+
+#### `VerticalLine`
+A full-height vertical line at a specific time.
+```java
+new ChartDrawing.VerticalLine(long candleTs, DrawingStyle style, Source.INDICATOR)
+new ChartDrawing.VerticalLine(long candleTs, String label, DrawingStyle style, Source.INDICATOR)
+```
+
+---
+
+#### `LinearRegression`
+Best-fit regression line over a time range.
+```java
+ChartDrawing.LinearRegression lr = new ChartDrawing.LinearRegression(
+    long startTs, long endTs,
+    DrawingStyle style, Source.INDICATOR);
+
+lr.drawChannel = true;  // optional: also draw ±1σ channel bands
+```
+
+---
+
+#### `FibRetracement`
+Fibonacci retracement levels between a high and low. Spans only the horizontal
+range between `startTs` and `endTs` — does not extend to chart edges.
+```java
+ChartDrawing.FibRetracement fib = new ChartDrawing.FibRetracement(
+    long startTs, double highPrice,
+    long endTs,   double lowPrice,
+    DrawingStyle style, Source.INDICATOR);
+
+// Optional: override default levels (0, 0.236, 0.382, 0.5, 0.618, 0.786, 1.0)
+fib.levels = new float[]{ 0f, 0.25f, 0.5f, 0.75f, 1f };
+```
+
+---
+
+#### `PriceRange`
+A full-width horizontal shaded band between two prices.
+```java
+new ChartDrawing.PriceRange(
+    double priceHigh, double priceLow,
+    DrawingStyle style, Source.INDICATOR)
+// Note: PriceRange has no X bounds — it always spans the full chart width.
+// Set style.filled = true for a shaded zone (this is done automatically by the constructor).
+```
+
+---
+
+#### `Rectangle`
+An axis-aligned box between two price/time corners.
+```java
+new ChartDrawing.Rectangle(
+    long startTs, double startPrice,   // one corner
+    long endTs,   double endPrice,     // opposite corner
+    DrawingStyle style, Source.INDICATOR)
+// Set style.filled = true for a filled box.
+```
+
+---
+
+#### `Ellipse`
+An oval between two price/time corners (bounding box corners).
+```java
+new ChartDrawing.Ellipse(
+    long startTs, double startPrice,
+    long endTs,   double endPrice,
+    DrawingStyle style, Source.INDICATOR)
+```
+
+---
+
+#### `TextAnnotation`
+A text bubble placed at a specific price/time point.
+```java
+new ChartDrawing.TextAnnotation(
+    long candleTs, double price,
+    String text,
+    DrawingStyle style, Source.INDICATOR)
+```
+
+---
+
+#### `Arrow`
+A directional arrow between two points (arrowhead at the end point).
+```java
+new ChartDrawing.Arrow(
+    long startTs, double startPrice,   // tail
+    long endTs,   double endPrice,     // head (arrowhead here)
+    DrawingStyle style, Source.INDICATOR)
+```
+
+---
+
+#### `ParallelChannel`
+Two parallel trend lines with a shaded fill and a dashed midline.
+```java
+new ChartDrawing.ParallelChannel(
+    long startTs, double startPrice,   // main line start
+    long endTs,   double endPrice,     // main line end
+    double midPrice,                   // sets channel width (price on the parallel line at startTs)
+    DrawingStyle style, Source.INDICATOR)
+```
+
+---
+
+#### `Pitchfork`
+Andrews Pitchfork from three anchor points.
+```java
+new ChartDrawing.Pitchfork(
+    long p0Ts, double p0Price,   // handle pivot
+    long p1Ts, double p1Price,   // upper prong
+    long p2Ts, double p2Price,   // lower prong
+    DrawingStyle style, Source.INDICATOR)
+```
+
+---
+
+#### `GannFan`
+Nine Gann angle lines radiating from a pivot. The second point defines the 1×1 slope unit.
+```java
+new ChartDrawing.GannFan(
+    long startTs, double startPrice,   // pivot point
+    long endTs,   double endPrice,     // reference point (defines 1×1 unit)
+    DrawingStyle style, Source.INDICATOR)
+```
+
+---
+
+### Getting timestamps from candle indices
+
+For drawings that need to span a known range of candles:
+
+```java
+// Convert any candle index to its timestamp
+long tsAt(int index, ArrayList<Candle> candles) {
+    return candles.get(index).timestamp;
+}
+
+// Example: draw a rectangle over the last 20 candles
+int n    = candles.size();
+long t1  = candles.get(n - 20).timestamp;
+long t2  = candles.get(n - 1).timestamp;
+double hi = /* highest high over those 20 candles */;
+double lo = /* lowest  low  over those 20 candles */;
+
+DrawingStyle style = DrawingStyle.solid(Color.parseColor("#2196F3"), 1f);
+style.filled    = true;
+style.fillColor = Color.argb(30, 33, 150, 243);
+r.drawings.add(new ChartDrawing.Rectangle(t1, hi, t2, lo, style, Source.INDICATOR));
+```
+
+---
+
 ## Trend Bias API (`calculateBias`)
 
-The system supports an optional bias assessment engine on indicators to track automated algorithmic positions or trend state values. If your indicator has quantitative directionality (momentum or threshold bounds), override the `calculateBias` method:
+Override to expose directional state for the bias dashboard.
+
+`calculateBias` returns an integer score from `0` (fully bearish) to `100` (fully bullish),
+with `50` representing neutral. Return `50` as the safe default when there is insufficient data.
 
 ```java
 @Override
 public int calculateBias(ArrayList<Candle> data) {
-   // Return +1 for Bullish, -1 for Bearish, or 0 for Neutral
-   return 0; 
-}
-```
-
-### Standard Return Ranges
-
-| Score Range | Sentiment State | Context Example Trigger Mechanics |
-| :--- | :--- | :--- |
-| **`71` to `100`** | **Strong Bullish Bias** | Price breaking through structural resistance or overbought momentum expansion. |
-| **`40` to `60`** | **Neutral / Balanced** | Consolidating in equilibrium ranges, or moving averages compressing. |
-| **`0` to `39`** | **Strong Bearish Bias** | Breakdown cascades under major channel bands, high distribution sell volumes. |
-
-### Structural Calculation Rule
-
-Unlike the `compute()` method which runs full mathematical iterations over historical records to map line sequences, `calculateBias()` typically isolates only the calculations leading directly to the **most current data point** (`data.size() - 1`). 
-
-*Always safely verify data count boundaries before extracting indices to prevent out-of-bounds exceptions:*
-
-```java
-@Override
-public int calculateBias(ArrayList<Candle> data) {
-   int period = (int) getParam("period");
-   if (data == null || data.size() < period) return 0; // Standard safe fallback
+    int period = (int) getParam("period");
+    if (data == null || data.size() < period) return 50;
 
     int lastIdx = data.size() - 1;
     double latestClose = data.get(lastIdx).close;
-    
-    // ... isolate baseline math structures for index 'lastIdx' ...
-    
-    if (latestClose > calculationTarget) return 1;
-    if (latestClose < calculationTarget) return -1;
-    return 0;
+    // ... calculate target ...
+    if (latestClose > target) return 75;   // bullish
+    if (latestClose < target) return 25;   // bearish
+    return 50;                             // neutral
 }
 ```
 
+| Return | Sentiment |
+|---|---|
+| `100` | Strongly Bullish |
+| `75` | Bullish |
+| `50` | Neutral |
+| `25` | Bearish |
+| `0` | Strongly Bearish |
+
+You may return any integer in the `0–100` range for finer-grained scoring.
 
 ---
 
 ## Full Examples
 
 ### Example 1: Donchian Channel
-
-Draws the highest high and lowest low over a rolling window. Two overlay lines.
 
 ```java
 package com.example.gutapp.data.indicators.impl;
@@ -477,8 +614,7 @@ public class DonchianChannelIndicator extends Indicator {
         List<Entry> midEntries   = new ArrayList<>();
 
         for (int i = period - 1; i < candles.size(); i++) {
-            double highest = Double.MIN_VALUE;
-            double lowest  = Double.MAX_VALUE;
+            double highest = Double.MIN_VALUE, lowest = Double.MAX_VALUE;
             for (int j = i - period + 1; j <= i; j++) {
                 if (candles.get(j).high > highest) highest = candles.get(j).high;
                 if (candles.get(j).low  < lowest)  lowest  = candles.get(j).low;
@@ -490,13 +626,30 @@ public class DonchianChannelIndicator extends Indicator {
         }
 
         int c = getColor();
-        int midColor = android.graphics.Color.argb(
-            120, Color.red(c), Color.green(c), Color.blue(c));
+        int midColor = android.graphics.Color.argb(120, Color.red(c), Color.green(c), Color.blue(c));
 
         r.overlayLines.add(makeDashedLineSet(upperEntries, "DC Upper", c));
         r.overlayLines.add(makeDashedLineSet(lowerEntries, "DC Lower", c));
         r.overlayLines.add(makeDashedLineSet(midEntries,   "DC Mid",   midColor));
         return r;
+    }
+
+    @Override
+    public int calculateBias(ArrayList<Candle> data) {
+        int period = (int) getParam("period");
+        if (data == null || data.size() < period) return 50;
+
+        int n = data.size();
+        double highest = Double.MIN_VALUE, lowest = Double.MAX_VALUE;
+        for (int i = n - period; i < n; i++) {
+            if (data.get(i).high > highest) highest = data.get(i).high;
+            if (data.get(i).low  < lowest)  lowest  = data.get(i).low;
+        }
+        double mid   = (highest + lowest) / 2.0;
+        double close = data.get(n - 1).close;
+        if (close > mid) return 75;
+        if (close < mid) return 25;
+        return 50;
     }
 }
 ```
@@ -504,8 +657,6 @@ public class DonchianChannelIndicator extends Indicator {
 ---
 
 ### Example 2: Stochastic Oscillator
-
-Classic %K and %D lines in a sub-chart pane with overbought/oversold level lines.
 
 ```java
 package com.example.gutapp.data.indicators.impl;
@@ -522,8 +673,8 @@ import java.util.List;
 public class StochasticIndicator extends Indicator {
 
     public StochasticIndicator() {
-        params.add(new Param("kPeriod", "K Period", Param.Type.INTEGER, 2, 50, 14));
-        params.add(new Param("dPeriod", "D Period", Param.Type.INTEGER, 2, 20,  3));
+        params.add(new Param("kPeriod", "K Period",   Param.Type.INTEGER, 2, 50, 14));
+        params.add(new Param("dPeriod", "D Period",   Param.Type.INTEGER, 2, 20,  3));
         params.add(new Param("ob",      "Overbought", Param.Type.INTEGER, 50, 95, 80));
         params.add(new Param("os",      "Oversold",   Param.Type.INTEGER,  5, 50, 20));
         setColor(Color.parseColor("#FF9800"));
@@ -540,16 +691,13 @@ public class StochasticIndicator extends Indicator {
         Result r = new Result();
         int kPeriod = (int) getParam("kPeriod");
         int dPeriod = (int) getParam("dPeriod");
-        float ob    = getParam("ob");
-        float os    = getParam("os");
+        float ob = getParam("ob"), os = getParam("os");
 
         if (candles.size() < kPeriod + dPeriod) return r;
 
-        // Calculate %K values
         float[] kValues = new float[candles.size()];
         for (int i = kPeriod - 1; i < candles.size(); i++) {
-            double highest = Double.MIN_VALUE;
-            double lowest  = Double.MAX_VALUE;
+            double highest = Double.MIN_VALUE, lowest = Double.MAX_VALUE;
             for (int j = i - kPeriod + 1; j <= i; j++) {
                 if (candles.get(j).high > highest) highest = candles.get(j).high;
                 if (candles.get(j).low  < lowest)  lowest  = candles.get(j).low;
@@ -559,14 +707,12 @@ public class StochasticIndicator extends Indicator {
                 : (float) ((candles.get(i).close - lowest) / range * 100.0);
         }
 
-        // Calculate %D as SMA of %K
         List<Entry> kEntries = new ArrayList<>();
         List<Entry> dEntries = new ArrayList<>();
-
         int start = kPeriod - 1;
-        for (int i = start; i < candles.size(); i++) {
+
+        for (int i = start; i < candles.size(); i++)
             kEntries.add(new Entry(i, kValues[i]));
-        }
 
         for (int i = start + dPeriod - 1; i < candles.size(); i++) {
             double sum = 0;
@@ -574,9 +720,7 @@ public class StochasticIndicator extends Indicator {
             dEntries.add(new Entry(i, (float)(sum / dPeriod)));
         }
 
-        // Level lines
-        List<Entry> obEntries = new ArrayList<>();
-        List<Entry> osEntries = new ArrayList<>();
+        List<Entry> obEntries = new ArrayList<>(), osEntries = new ArrayList<>();
         for (Entry e : kEntries) {
             obEntries.add(new Entry(e.getX(), ob));
             osEntries.add(new Entry(e.getX(), os));
@@ -585,24 +729,39 @@ public class StochasticIndicator extends Indicator {
         r.subChartMin = 0f;
         r.subChartMax = 100f;
 
-        LineDataSet kSet = makeLineSet(kEntries, "%K", getColor(), 1.4f);
-        LineDataSet dSet = makeLineSet(dEntries, "%D",
-            Color.parseColor("#9C27B0"), 1.2f);
-        LineDataSet obSet = makeDashedLineSet(obEntries, "OB",
-            Color.argb(140, 239, 83, 80));
-        LineDataSet osSet = makeDashedLineSet(osEntries, "OS",
-            Color.argb(140, 76, 175, 80));
+        LineDataSet kSet  = makeLineSet(kEntries, "%K", getColor(), 1.4f);
+        LineDataSet dSet  = makeLineSet(dEntries, "%D", Color.parseColor("#9C27B0"), 1.2f);
+        LineDataSet obSet = makeDashedLineSet(obEntries, "OB", Color.argb(140, 239, 83, 80));
+        LineDataSet osSet = makeDashedLineSet(osEntries, "OS", Color.argb(140, 76, 175, 80));
 
-        // Sub-chart uses RIGHT axis
-        for (LineDataSet s : new LineDataSet[]{kSet, dSet, obSet, osSet}) {
+        for (LineDataSet s : new LineDataSet[]{kSet, dSet, obSet, osSet})
             s.setAxisDependency(YAxis.AxisDependency.RIGHT);
-        }
 
         r.subChartLines.add(kSet);
         r.subChartLines.add(dSet);
         r.subChartLines.add(obSet);
         r.subChartLines.add(osSet);
         return r;
+    }
+
+    @Override
+    public int calculateBias(ArrayList<Candle> data) {
+        int kPeriod = (int) getParam("kPeriod");
+        int dPeriod = (int) getParam("dPeriod");
+        if (data == null || data.size() < kPeriod + dPeriod) return 50;
+
+        // Re-compute latest %K
+        int i = data.size() - 1;
+        double highest = Double.MIN_VALUE, lowest = Double.MAX_VALUE;
+        for (int j = i - kPeriod + 1; j <= i; j++) {
+            if (data.get(j).high > highest) highest = data.get(j).high;
+            if (data.get(j).low  < lowest)  lowest  = data.get(j).low;
+        }
+        double range = highest - lowest;
+        float k = range == 0 ? 50f : (float) ((data.get(i).close - lowest) / range * 100.0);
+
+        // Map %K (0–100) directly to bias score
+        return Math.round(k);
     }
 }
 ```
@@ -611,8 +770,7 @@ public class StochasticIndicator extends Indicator {
 
 ### Example 3: Pivot Points (with drawings)
 
-Classic daily pivot points rendered as `HorizontalLine` drawings. No line data needed.
-Requires the **drawing_v2** `Indicator.java` that adds `Result.drawings`.
+Demonstrates the updated drawing API using timestamps instead of indices.
 
 ```java
 package com.example.gutapp.data.indicators.impl;
@@ -627,10 +785,7 @@ import java.util.ArrayList;
 
 public class PivotPointsIndicator extends Indicator {
 
-    public PivotPointsIndicator() {
-        // No params — pivot points use the prior candle's HLC
-        setColor(Color.parseColor("#ECEFF1"));
-    }
+    public PivotPointsIndicator() { setColor(Color.parseColor("#ECEFF1")); }
 
     @Override public String  getId()          { return "pivots"; }
     @Override public String  getDisplayName() { return "Pivot Points"; }
@@ -643,7 +798,6 @@ public class PivotPointsIndicator extends Indicator {
         Result r = new Result();
         if (candles.size() < 2) return r;
 
-        // Use the previous candle's HLC to compute today's pivots
         Candle prev  = candles.get(candles.size() - 2);
         double pivot = (prev.high + prev.low + prev.close) / 3.0;
         double r1    = 2 * pivot - prev.low;
@@ -653,35 +807,30 @@ public class PivotPointsIndicator extends Indicator {
         double r3    = prev.high + 2 * (pivot - prev.low);
         double s3    = prev.low  - 2 * (prev.high - pivot);
 
-        // Central pivot — white solid
-        r.drawings.add(hline(pivot, "PP",
-            DrawingStyle.solid(Color.parseColor("#ECEFF1"), 1.2f)));
-
-        // Resistance levels — red shades
-        r.drawings.add(hline(r1, "R1",
-            DrawingStyle.dashed(Color.parseColor("#EF9A9A"))));
-        r.drawings.add(hline(r2, "R2",
-            DrawingStyle.dashed(Color.parseColor("#E57373"))));
-        r.drawings.add(hline(r3, "R3",
-            DrawingStyle.dashed(Color.parseColor("#F44336"))));
-
-        // Support levels — green shades
-        r.drawings.add(hline(s1, "S1",
-            DrawingStyle.dashed(Color.parseColor("#A5D6A7"))));
-        r.drawings.add(hline(s2, "S2",
-            DrawingStyle.dashed(Color.parseColor("#66BB6A"))));
-        r.drawings.add(hline(s3, "S3",
-            DrawingStyle.dashed(Color.parseColor("#4CAF50"))));
-
+        // HorizontalLine takes (price, label, style, source) — no timestamps needed
+        r.drawings.add(hline(pivot, "PP", DrawingStyle.solid(Color.parseColor("#ECEFF1"), 1.2f)));
+        r.drawings.add(hline(r1, "R1", DrawingStyle.dashed(Color.parseColor("#EF9A9A"))));
+        r.drawings.add(hline(r2, "R2", DrawingStyle.dashed(Color.parseColor("#E57373"))));
+        r.drawings.add(hline(r3, "R3", DrawingStyle.dashed(Color.parseColor("#F44336"))));
+        r.drawings.add(hline(s1, "S1", DrawingStyle.dashed(Color.parseColor("#A5D6A7"))));
+        r.drawings.add(hline(s2, "S2", DrawingStyle.dashed(Color.parseColor("#66BB6A"))));
+        r.drawings.add(hline(s3, "S3", DrawingStyle.dashed(Color.parseColor("#4CAF50"))));
         return r;
     }
 
+    @Override
+    public int calculateBias(ArrayList<Candle> data) {
+        if (data == null || data.size() < 2) return 50;
+        Candle prev  = data.get(data.size() - 2);
+        double pivot = (prev.high + prev.low + prev.close) / 3.0;
+        double close = data.get(data.size() - 1).close;
+        if (close > pivot) return 75;
+        if (close < pivot) return 25;
+        return 50;
+    }
+
     private ChartDrawing.HorizontalLine hline(double price, String label, DrawingStyle style) {
-        ChartDrawing.HorizontalLine hl =
-            new ChartDrawing.HorizontalLine(price, label, style, Source.INDICATOR);
-        hl.extendLeft  = true;
-        hl.extendRight = true;
-        return hl;
+        return new ChartDrawing.HorizontalLine(price, label, style, Source.INDICATOR);
     }
 }
 ```
@@ -689,8 +838,6 @@ public class PivotPointsIndicator extends Indicator {
 ---
 
 ### Example 4: ATR (Average True Range)
-
-Single sub-chart line with no fixed Y range.
 
 ```java
 package com.example.gutapp.data.indicators.impl;
@@ -721,7 +868,6 @@ public class AtrIndicator extends Indicator {
         int period = (int) getParam("period");
         if (candles.size() < period + 1) return r;
 
-        // True Range for each candle
         double[] tr = new double[candles.size()];
         tr[0] = candles.get(0).high - candles.get(0).low;
         for (int i = 1; i < candles.size(); i++) {
@@ -732,8 +878,6 @@ public class AtrIndicator extends Indicator {
         }
 
         List<Entry> entries = new ArrayList<>();
-
-        // Wilder's smoothing (same as the period-RMA used in TradingView)
         double atr = 0;
         for (int i = 0; i < period; i++) atr += tr[i];
         atr /= period;
@@ -743,10 +887,13 @@ public class AtrIndicator extends Indicator {
             entries.add(new Entry(i, (float) atr));
         }
 
-        // No subChartMin/Max — let the chart auto-scale
+        // No subChartMin/Max — auto-scale
         r.subChartLines.add(makeLineSet(entries, "ATR(" + period + ")", getColor(), 1.4f));
         return r;
     }
+
+    // ATR measures volatility, not direction — return neutral
+    @Override public int calculateBias(ArrayList<Candle> data) { return 50; }
 }
 ```
 
@@ -754,77 +901,63 @@ public class AtrIndicator extends Indicator {
 
 ## Common Mistakes
 
-### 1. X coordinate is a timestamp instead of an array index
-
+**1. Using timestamps as Entry X coordinates**
 ```java
-// ✗ WRONG — chart X axis is array index, not unix time
-entries.add(new Entry((float) candles.get(i).timestamp, value));
-
-// ✓ CORRECT
-entries.add(new Entry(i, value));
+entries.add(new Entry((float) candles.get(i).timestamp, value)); // ✗ wrong
+entries.add(new Entry(i, value));                                 // ✓ correct
 ```
 
-### 2. Returning null instead of an empty Result
-
+**2. Using candle indices as drawing timestamps**
 ```java
-// ✗ WRONG — will crash with NullPointerException
-if (candles.size() < period) return null;
+// ✗ wrong — index 42 is not a valid timestamp
+new ChartDrawing.TrendLine(42, startPrice, 100, endPrice, style, Source.INDICATOR)
 
-// ✓ CORRECT
-if (candles.size() < period) return new Result();
+// ✓ correct — use actual Unix timestamps from the candle
+long t1 = candles.get(42).timestamp;
+long t2 = candles.get(100).timestamp;
+new ChartDrawing.TrendLine(t1, startPrice, t2, endPrice, style, Source.INDICATOR)
 ```
 
-### 3. Not implementing `newInstance()`
-
+**3. Returning null instead of empty Result**
 ```java
-// ✗ WRONG — newInstance() that returns `this` shares state between instances
-@Override public Indicator newInstance() { return this; }
-
-// ✓ CORRECT — always return a brand-new object
-@Override public Indicator newInstance() { return new MyIndicator(); }
+if (candles.size() < period) return null;        // ✗ crashes
+if (candles.size() < period) return new Result(); // ✓ correct
 ```
 
-### 4. Duplicate `getId()` value
+**4. `newInstance()` returning `this`**
+```java
+@Override public Indicator newInstance() { return this; }           // ✗ shares state
+@Override public Indicator newInstance() { return new MyIndicator(); } // ✓ correct
+```
 
-Every registered indicator must return a unique string from `getId()`. Reusing
-an existing ID silently replaces the built-in indicator in the registry.
-
+**5. Duplicate `getId()` value**
 Built-in reserved IDs: `"ma"`, `"ema"`, `"bb"`, `"vwap"`, `"rsi"`, `"macd"`
 
-### 5. Adding lines to both `overlayLines` and `subChartLines`
+**6. Forgetting to register in `IndicatorRegistry`**
 
-Choose one or the other per indicator. Putting data in both simultaneously is
-not supported by the rendering pipeline.
+**7. `isSubChart()` not matching where data is added**
+If you add to `r.subChartLines` but `isSubChart()` returns `false`, nothing renders.
 
-### 6. Forgetting to register in IndicatorRegistry
-
-Creating the class but not calling `register(new MyIndicator())` in
-`IndicatorRegistry` means it will never appear in the panel.
-
-### 7. Sub-chart indicator with `isSubChart() = false`
-
-If you add data to `r.subChartLines` but `isSubChart()` returns `false`,
-the sub-chart pane will not be created for that indicator and the data will
-not be rendered.
+**8. Returning `0` from `calculateBias()` instead of `50` for neutral/insufficient data**
+```java
+@Override public int calculateBias(ArrayList<Candle> data) { return 0; }  // ✗ reads as strongly bearish
+@Override public int calculateBias(ArrayList<Candle> data) { return 50; } // ✓ correct neutral default
+```
 
 ---
 
 ## Quick Checklist
 
-Use this checklist every time you add a new Java indicator:
-
-- [ ] Created `MyIndicator.java` in `data/indicators/impl/`
-- [ ] `getId()` returns a **unique** snake_case string not used by any existing indicator
-- [ ] `getDisplayName()` returns a human-readable name (shown in the panel)
-- [ ] `getTag()` returns a short 2–5 character tag (shown on the chart)
-- [ ] `isSubChart()` matches where the lines are added (`overlayLines` vs `subChartLines`)
+- [ ] `getId()` returns a **unique** snake_case string
+- [ ] `getDisplayName()` returns a human-readable name
+- [ ] `getTag()` is 2–5 characters
+- [ ] `isSubChart()` matches `overlayLines` vs `subChartLines`
 - [ ] `newInstance()` returns `new MyIndicator()` (not `this`)
-- [ ] `compute()` returns `new Result()` (never `null`) even when there is not enough data
+- [ ] `compute()` returns `new Result()` (never `null`) when data is insufficient
 - [ ] All `Entry` objects use **array index** as X, not timestamp
-- [ ] All `params` declared in constructor are read with `getParam("key")` in `compute()`
-- [ ] Added `import` and `register(new MyIndicator())` in `IndicatorRegistry.java`
+- [ ] All drawing anchors use **Unix timestamps** from `candle.timestamp`, not array indices
+- [ ] `params` declared in constructor are read with `getParam("key")` in `compute()`
+- [ ] `calculateBias()` returns a value in the `0–100` range (`50` = neutral default)
+- [ ] Import added and `register(new MyIndicator())` called in `IndicatorRegistry.java`
 - [ ] Project builds without errors
-- [ ] Indicator appears in the panel and renders correctly on a chart
-- [ ] All `params` declared in constructor are read with `getParam("key")` in `compute()`
-- [ ] `calculateBias()` implemented or returning safe `0` fallback default
-- [ ] Added `import` and `register(new MyIndicator())` in `IndicatorRegistry.java`
+- [ ] Indicator appears in panel and renders correctly on chart
