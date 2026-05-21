@@ -8,9 +8,11 @@ import com.example.gutapp.data.indicators.impl.CmoIndicator;
 import com.example.gutapp.data.indicators.impl.EmaIndicator;
 import com.example.gutapp.data.indicators.impl.HullMovingAverageIndicator;
 import com.example.gutapp.data.indicators.impl.KeltnerChannelsIndicator;
+import com.example.gutapp.data.indicators.impl.LinearRegressionChannelIndicator;
 import com.example.gutapp.data.indicators.impl.LinearRegressionSlopeIndicator;
 import com.example.gutapp.data.indicators.impl.MacdIndicator;
 import com.example.gutapp.data.indicators.impl.MaIndicator;
+import com.example.gutapp.data.indicators.impl.PivotPointsIndicator;
 import com.example.gutapp.data.indicators.impl.PriceChannelsIndicator;
 import com.example.gutapp.data.indicators.impl.RocIndicator;
 import com.example.gutapp.data.indicators.impl.RsiIndicator;
@@ -65,6 +67,8 @@ public class IndicatorRegistry {
         register(new LinearRegressionSlopeIndicator());
         register(new HullMovingAverageIndicator());
         register(new ApoIndicator());
+        register(new PivotPointsIndicator());
+        register(new LinearRegressionChannelIndicator());
     }
 
     private void register(Indicator prototype) {

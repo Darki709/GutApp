@@ -199,7 +199,7 @@ public class DrawingRenderer {
         if (d.drawChannel) {
             double ss=0;
             for (int i=0;i<n;i++) { double res=candles.get(start+i).close-(intercept+slope*i); ss+=res*res; }
-            double std=Math.sqrt(ss/n);
+            double std=Math.sqrt(ss/n) * d.channelDeviation;
             Paint ch=new Paint(linePaint); ch.setAlpha(120);
             ch.setPathEffect(new android.graphics.DashPathEffect(new float[]{6,3},0));
             canvas.drawLine(rx1,priceToY(intercept+std,tf),rx2,priceToY(intercept+slope*(n-1)+std,tf),ch);

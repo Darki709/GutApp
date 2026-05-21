@@ -315,13 +315,66 @@ public class DrawingEditPanel extends LinearLayout {
         // LinReg channel toggle
         if (d instanceof ChartDrawing.LinearRegression) {
             ChartDrawing.LinearRegression lr = (ChartDrawing.LinearRegression) d;
+
             col.addView(sectionLabel("OPTIONS"));
-            TextView ch = chip(lr.drawChannel?"± 1σ Channel ON":"± 1σ Channel",
-                    lr.drawChannel?"#26A69A":"#78909C");
-            ch.setOnClickListener(v -> { lr.drawChannel = !lr.drawChannel;
-                ch.setText(lr.drawChannel?"± 1σ Channel ON":"± 1σ Channel");
-                ch.setTextColor(Color.parseColor(lr.drawChannel?"#26A69A":"#78909C")); fire(); });
-            col.addView(ch); has = true;
+
+            TextView ch = chip(
+                    lr.drawChannel ? "± " + lr.channelDeviation + "σ Channel ON"
+                            : "± " + lr.channelDeviation + "σ Channel",
+                    lr.drawChannel ? "#26A69A" : "#78909C"
+            );
+
+            col.addView(ch);
+
+            // container for +/- controls
+            LinearLayout devControls = new LinearLayout(col.getContext());
+            devControls.setOrientation(LinearLayout.HORIZONTAL);
+
+            TextView minus = chip("−1", "#78909C");
+            TextView plus  = chip("+1", "#78909C");
+
+            devControls.addView(minus);
+            devControls.addView(plus);
+
+            col.addView(devControls);
+
+            updateDevButtons(lr, minus, plus, ch);
+
+            // initial visibility
+            devControls.setVisibility(lr.drawChannel ? View.VISIBLE : View.GONE);
+
+            ch.setOnClickListener(v -> {
+                lr.drawChannel = !lr.drawChannel;
+
+                ch.setText(lr.drawChannel
+                        ? "± " + lr.channelDeviation + "σ Channel ON"
+                        : "± " + lr.channelDeviation + "σ Channel");
+
+                ch.setTextColor(Color.parseColor(lr.drawChannel ? "#26A69A" : "#78909C"));
+
+                devControls.setVisibility(lr.drawChannel ? View.VISIBLE : View.GONE);
+
+                fire();
+            });
+
+            minus.setOnClickListener(v -> {
+                if (lr.channelDeviation <= 1) return;
+
+                lr.channelDeviation = Math.max(1, lr.channelDeviation - 1);
+                ch.setText("± " + lr.channelDeviation + "σ Channel ON");
+
+                updateDevButtons(lr, minus, plus, ch);
+                fire();
+            });
+
+            plus.setOnClickListener(v -> {
+                lr.channelDeviation = lr.channelDeviation + 1;
+                ch.setText("± " + lr.channelDeviation + "σ Channel ON");
+                updateDevButtons(lr, minus, plus, ch);
+                fire();
+            });
+
+            has = true;
         }
 
         // Fib info
@@ -344,6 +397,17 @@ public class DrawingEditPanel extends LinearLayout {
         }
 
         return has ? col : null;
+    }
+
+    private void updateDevButtons(ChartDrawing.LinearRegression lr,
+                                  TextView minus,
+                                  TextView plus,
+                                  TextView ch) {
+
+        boolean canDecrement = lr.channelDeviation > 1;
+
+        minus.setEnabled(canDecrement);
+        minus.setAlpha(canDecrement ? 1f : 0.3f);
     }
 
     private void fire() {

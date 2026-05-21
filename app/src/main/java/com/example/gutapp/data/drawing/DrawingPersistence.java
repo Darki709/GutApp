@@ -41,6 +41,7 @@ public class DrawingPersistence {
     private static final String F_ANCHOR_PX  = "anchorPrice";
     private static final String F_CANDLE_TS  = "candleTs";
     private static final String F_DRAW_CH    = "drawChannel";
+    private static final String F_DRAW_CH_DEV = "drawChannelDev";
     private static final String F_LEVELS     = "levels";
     private static final String F_PRICE_HI   = "priceHigh";
     private static final String F_PRICE_LO   = "priceLow";
@@ -151,6 +152,7 @@ public class DrawingPersistence {
                 ChartDrawing.LinearRegression lr = (ChartDrawing.LinearRegression) d;
                 o.put(F_START_TS, lr.startTs); o.put(F_END_TS, lr.endTs);
                 o.put(F_DRAW_CH,  lr.drawChannel);
+                o.put(F_DRAW_CH_DEV, lr.channelDeviation);
                 break;
             }
             case FIB_RETRACEMENT: {
@@ -272,6 +274,7 @@ public class DrawingPersistence {
                 ChartDrawing.LinearRegression lr = new ChartDrawing.LinearRegression(
                         o.getLong(F_START_TS), o.getLong(F_END_TS), style, src);
                 lr.drawChannel = o.optBoolean(F_DRAW_CH, false);
+                lr.channelDeviation = o.optInt(F_DRAW_CH_DEV, 1);
                 d = lr; break;
             }
             case FIB_RETRACEMENT: {

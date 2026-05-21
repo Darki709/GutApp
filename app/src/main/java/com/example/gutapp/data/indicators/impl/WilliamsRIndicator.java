@@ -43,22 +43,22 @@ public class WilliamsRIndicator extends Indicator {
             }
 
             double range = highestHigh - lowestLow;
-            float wrValue = -50f; // Neutral default fallback for flat ranges
+            float wrValue = 50f; // Neutral default fallback for flat ranges
             if (range != 0) {
-                wrValue = (float) (((highestHigh - candles.get(i).close) / range) * -100.0);
+                wrValue = (float) (((highestHigh - candles.get(i).close) / range) * 100.0);
             }
 
             wrEntries.add(new Entry(i, wrValue));
-            obEntries.add(new Entry(i, -20f));
-            osEntries.add(new Entry(i, -80f));
+            obEntries.add(new Entry(i, 20f));
+            osEntries.add(new Entry(i, 80f));
         }
 
-        r.subChartMin = -100f;
-        r.subChartMax = 0f;
+        r.subChartMin = 0f;
+        r.subChartMax = 100f;
 
         LineDataSet wrSet = makeLineSet(wrEntries, getTag(), getColor(), 1.4f);
-        LineDataSet obSet = makeDashedLineSet(obEntries, "OB (-20)", Color.parseColor("#40EF5350"));
-        LineDataSet osSet = makeDashedLineSet(osEntries, "OS (-80)", Color.parseColor("#404CAF50"));
+        LineDataSet obSet = makeLineSet(obEntries, "OB (80)", Color.parseColor("#40EF5350"), 1f);
+        LineDataSet osSet = makeLineSet(osEntries, "OS (20)", Color.parseColor("#404CAF50"), 1f);
 
         for (LineDataSet set : new LineDataSet[]{wrSet, obSet, osSet}) {
             set.setAxisDependency(YAxis.AxisDependency.RIGHT);
@@ -88,9 +88,8 @@ public class WilliamsRIndicator extends Indicator {
         double range = highestHigh - lowestLow;
         if (range == 0) return 50;
 
-        double wrValue = ((highestHigh - data.get(lastIdx).close) / range) * -100.0;
+        double wrValue = ((highestHigh - data.get(lastIdx).close) / range) * 100.0;
 
-        // Shift native scale [-100, 0] cleanly to score scale [0, 100]
         int score = (int) Math.round(wrValue + 100.0);
         return Math.max(0, Math.min(100, score));
     }

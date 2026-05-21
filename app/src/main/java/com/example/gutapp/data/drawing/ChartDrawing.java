@@ -175,7 +175,7 @@ public abstract class ChartDrawing {
     }
 
     public static class LinearRegression extends ChartDrawing {
-        public long startTs; public long endTs; public boolean drawChannel;
+        public long startTs; public long endTs; public boolean drawChannel; public int channelDeviation = 1;
         public LinearRegression(long sTs, long eTs, DrawingStyle style, Source source) {
             super(source, style); this.startTs = sTs; this.endTs = eTs; this.drawChannel = false; }
         @Override public DrawingType getType() { return DrawingType.LINEAR_REGRESSION; }
