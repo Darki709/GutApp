@@ -69,7 +69,6 @@ public class DrawingChart extends CombinedChart {
     private float  dragLastX, dragLastY;
     /** Cached selected drawing ref at drag-start so we don't re-lookup every MOVE */
     @Nullable private ChartDrawing dragTarget = null;
-    private boolean isMatrixStale = false;
 
     // ── Settings ─────────────────────────────────────────────────────
     private boolean snapEnabled = true;
@@ -123,11 +122,7 @@ public class DrawingChart extends CombinedChart {
 
     // ── Public API ───────────────────────────────────────────────────
     public DrawingManager getDrawingManager() { return drawingManager; }
-    public void setCandles(List<Candle> c) {
-        this.candles = new ArrayList<>(c);
-        notifyDataSetChanged();
-        postInvalidate();
-    }
+    public void setCandles(List<Candle> c) { this.candles = new ArrayList<>(c); }
     public void setDrawingEventListener(DrawingEventListener l) { this.drawingEventListener = l; }
     public void setSnapEnabled(boolean snap) { this.snapEnabled = snap; }
     public boolean isSnapEnabled() { return snapEnabled; }
@@ -141,7 +136,6 @@ public class DrawingChart extends CombinedChart {
     public void replaceIndicatorDrawings(List<ChartDrawing> list) {
         drawingManager.clearIndicatorDrawings();
         for (ChartDrawing d : list) drawingManager.add(d);
-        notifyDataSetChanged();
         postInvalidate();
     }
 
@@ -180,10 +174,10 @@ public class DrawingChart extends CombinedChart {
         if (drawingEventListener != null) drawingEventListener.onDrawingsChanged();
     }
 
-    @Override
-    public void notifyDataSetChanged() {
-        super.notifyDataSetChanged();
-        isMatrixStale = true;
+    /** Public entry point for the toolbar to trigger a persistence save after inline edits. */
+    public void notifyDrawingsChanged() {
+        postInvalidate();
+        notifyChanged();
     }
 
     // ── Two-pass onDraw ───────────────────────────────────────────────
@@ -192,13 +186,6 @@ public class DrawingChart extends CombinedChart {
         drawLayerPass(canvas, ChartDrawing.Layer.BEHIND_CANDLES);
         super.onDraw(canvas);                             // candles + indicators
         drawLayerPass(canvas, ChartDrawing.Layer.ABOVE_CANDLES);
-
-        if (isMatrixStale) {
-            super.onDraw(canvas);
-            isMatrixStale = false;
-            postInvalidate();
-            return;
-        }
 
         // Snap crosshair while placing a drawing
         if (drawingManager.hasActiveTool() && tapAnchorX > 0) {
@@ -251,32 +238,27 @@ public class DrawingChart extends CombinedChart {
                     if (sel != null) {
                         int h = nearestHandle(sel, px, py);
                         if (h != Integer.MIN_VALUE) {
-                            dragHandleIdx = h;
-                            dragTarget = sel;
+                            dragHandleIdx = h; dragTarget = sel;
                             dragLastX = px; dragLastY = py;
-                            return true;          // consume — start handle drag
+                            return true;
                         }
-                        // 2. Try body drag (tap inside bounding area)
                         if (hitBody(sel, px, py)) {
-                            dragHandleIdx = -1;   // -1 = move whole drawing
-                            dragTarget = sel;
+                            dragHandleIdx = -1; dragTarget = sel;
                             dragLastX = px; dragLastY = py;
                             return true;
                         }
                     }
                 }
-                // 3. Pass to MPAndroidChart for pan/zoom (will also hit-test on UP)
-                return super.onTouchEvent(event);
+                // 3. Nothing hit — pass to super for pan/zoom
+                super.onTouchEvent(event);
+                return true;
             }
 
             case MotionEvent.ACTION_MOVE: {
                 if (dragTarget != null) {
                     float dxPx = px - dragLastX, dyPx = py - dragLastY;
-                    if (dragHandleIdx == -1) {
-                        moveDrawing(dragTarget, dxPx, dyPx);
-                    } else {
-                        moveHandle(dragTarget, dragHandleIdx, px, py);
-                    }
+                    if (dragHandleIdx == -1) moveDrawing(dragTarget, dxPx, dyPx);
+                    else moveHandle(dragTarget, dragHandleIdx, px, py);
                     dragLastX = px; dragLastY = py;
                     postInvalidate();
                     return true;
@@ -286,15 +268,16 @@ public class DrawingChart extends CombinedChart {
 
             case MotionEvent.ACTION_UP: {
                 if (dragTarget != null) {
-                    notifyChanged();      // persist after every edit
+                    notifyChanged();
                     dragTarget = null; dragHandleIdx = Integer.MIN_VALUE;
                     postInvalidate();
                     return true;
                 }
-                // Tap: hit-test select
+                // Tap with no drag: try to select
                 float dx = Math.abs(px - tapAnchorX), dy = Math.abs(py - tapAnchorY);
                 if (dx < 10 && dy < 10) trySelect(px, py);
-                return super.onTouchEvent(event);
+                super.onTouchEvent(event);
+                return true;
             }
 
             case MotionEvent.ACTION_CANCEL: {
@@ -607,7 +590,6 @@ public class DrawingChart extends CombinedChart {
                 lr.endTs  =shift.applyAsLong(lr.endTs); break; }
         }
 
-
         switch (d.getType()) {
         case HORIZONTAL_LINE:  ((ChartDrawing.HorizontalLine)d).price += dprice; break;
         case VERTICAL_LINE:    { ChartDrawing.VerticalLine v=(ChartDrawing.VerticalLine)d;
@@ -679,42 +661,128 @@ private float hitDistance(ChartDrawing d, float px, float py) {
     switch (d.getType()) {
         case HORIZONTAL_LINE:
             return Math.abs(py - priceToPixelY(((ChartDrawing.HorizontalLine)d).price));
+
         case VERTICAL_LINE:
             return Math.abs(px - (float)timestampToPixelX(((ChartDrawing.VerticalLine)d).candleTs));
-        case PRICE_RANGE: { ChartDrawing.PriceRange pr=(ChartDrawing.PriceRange)d;
-            float yH=priceToPixelY(pr.priceHigh),yL=priceToPixelY(pr.priceLow);
-            android.graphics.RectF r=getContentRect();
-            return Math.min(ptSeg(px,py,r.left,yH,r.right,yH),ptSeg(px,py,r.left,yL,r.right,yL)); }
-        case TREND_LINE: { ChartDrawing.TrendLine t=(ChartDrawing.TrendLine)d;
-            return ptSeg(px,py,(float)timestampToPixelX(t.startTs),priceToPixelY(t.startPrice),
-                    (float)timestampToPixelX(t.endTs),priceToPixelY(t.endPrice)); }
-        case RAY_LINE: { ChartDrawing.RayLine r=(ChartDrawing.RayLine)d;
-            return ptSeg(px,py,(float)timestampToPixelX(r.startTs),priceToPixelY(r.startPrice),
-                    (float)timestampToPixelX(r.anchorTs),priceToPixelY(r.anchorPrice)); }
-        case EXTENDED_LINE: { ChartDrawing.ExtendedLine el=(ChartDrawing.ExtendedLine)d;
-            return ptSeg(px,py,(float)timestampToPixelX(el.startTs),priceToPixelY(el.startPrice),
-                    (float)timestampToPixelX(el.endTs),priceToPixelY(el.endPrice)); }
-        case ARROW: { ChartDrawing.Arrow ar=(ChartDrawing.Arrow)d;
-            return ptSeg(px,py,(float)timestampToPixelX(ar.startTs),priceToPixelY(ar.startPrice),
-                    (float)timestampToPixelX(ar.endTs),priceToPixelY(ar.endPrice)); }
-        case RECTANGLE: { ChartDrawing.Rectangle r=(ChartDrawing.Rectangle)d;
-            float x1=(float)timestampToPixelX(r.startTs),y1=priceToPixelY(r.startPrice);
-            float x2=(float)timestampToPixelX(r.endTs),  y2=priceToPixelY(r.endPrice);
-            float xL=Math.min(x1,x2),xR=Math.max(x1,x2),yT=Math.min(y1,y2),yB=Math.max(y1,y2);
-            return Math.min(ptSeg(px,py,xL,yT,xR,yT), ptSeg(px,py,xL,yB,xR,yB)); }
-        case ELLIPSE: { ChartDrawing.Ellipse el=(ChartDrawing.Ellipse)d;
-            float x1=(float)timestampToPixelX(el.startTs),y1=priceToPixelY(el.startPrice);
-            float x2=(float)timestampToPixelX(el.endTs),  y2=priceToPixelY(el.endPrice);
-            float cx=(x1+x2)/2,cy=(y1+y2)/2,rx=Math.abs(x2-x1)/2,ry=Math.abs(y2-y1)/2;
-            if (rx<1||ry<1) return Float.MAX_VALUE;
-            double nx=(px-cx)/rx, ny=(py-cy)/ry;
-            return (float)(Math.abs(Math.sqrt(nx*nx+ny*ny)-1.0)*Math.min(rx,ry)); }
-        case FIB_RETRACEMENT: { ChartDrawing.FibRetracement f=(ChartDrawing.FibRetracement)d;
+
+        case PRICE_RANGE: {
+            ChartDrawing.PriceRange pr = (ChartDrawing.PriceRange) d;
+            float yH = priceToPixelY(pr.priceHigh), yL = priceToPixelY(pr.priceLow);
+            android.graphics.RectF rc = getContentRect();
+            return Math.min(ptSeg(px,py,rc.left,yH,rc.right,yH),
+                    ptSeg(px,py,rc.left,yL,rc.right,yL));
+        }
+
+        case TREND_LINE: { ChartDrawing.TrendLine t = (ChartDrawing.TrendLine) d;
+            return ptSeg(px,py,
+                    (float)timestampToPixelX(t.startTs), priceToPixelY(t.startPrice),
+                    (float)timestampToPixelX(t.endTs),   priceToPixelY(t.endPrice)); }
+
+        case RAY_LINE: { ChartDrawing.RayLine r = (ChartDrawing.RayLine) d;
+            return ptSeg(px,py,
+                    (float)timestampToPixelX(r.startTs),  priceToPixelY(r.startPrice),
+                    (float)timestampToPixelX(r.anchorTs), priceToPixelY(r.anchorPrice)); }
+
+        case EXTENDED_LINE: { ChartDrawing.ExtendedLine el = (ChartDrawing.ExtendedLine) d;
+            return ptSeg(px,py,
+                    (float)timestampToPixelX(el.startTs), priceToPixelY(el.startPrice),
+                    (float)timestampToPixelX(el.endTs),   priceToPixelY(el.endPrice)); }
+
+        case ARROW: { ChartDrawing.Arrow ar = (ChartDrawing.Arrow) d;
+            return ptSeg(px,py,
+                    (float)timestampToPixelX(ar.startTs), priceToPixelY(ar.startPrice),
+                    (float)timestampToPixelX(ar.endTs),   priceToPixelY(ar.endPrice)); }
+
+        case RECTANGLE: {
+            ChartDrawing.Rectangle r = (ChartDrawing.Rectangle) d;
+            float x1 = (float)timestampToPixelX(r.startTs), y1 = priceToPixelY(r.startPrice);
+            float x2 = (float)timestampToPixelX(r.endTs),   y2 = priceToPixelY(r.endPrice);
+            float xL = Math.min(x1,x2), xR = Math.max(x1,x2);
+            float yT = Math.min(y1,y2), yB = Math.max(y1,y2);
+            float d1 = ptSeg(px,py,xL,yT,xR,yT);
+            float d2 = ptSeg(px,py,xL,yB,xR,yB);
+            float d3 = ptSeg(px,py,xL,yT,xL,yB);
+            float d4 = ptSeg(px,py,xR,yT,xR,yB);
+            return Math.min(Math.min(d1,d2), Math.min(d3,d4));
+        }
+
+        case ELLIPSE: {
+            ChartDrawing.Ellipse el = (ChartDrawing.Ellipse) d;
+            float x1 = (float)timestampToPixelX(el.startTs), y1 = priceToPixelY(el.startPrice);
+            float x2 = (float)timestampToPixelX(el.endTs),   y2 = priceToPixelY(el.endPrice);
+            float cx = (x1+x2)/2, cy = (y1+y2)/2;
+            float rx = Math.abs(x2-x1)/2, ry = Math.abs(y2-y1)/2;
+            if (rx < 1 || ry < 1) return Float.MAX_VALUE;
+            double nx = (px-cx)/rx, ny = (py-cy)/ry;
+            return (float)(Math.abs(Math.sqrt(nx*nx+ny*ny) - 1.0) * Math.min(rx, ry));
+        }
+
+        case FIB_RETRACEMENT: {
+            ChartDrawing.FibRetracement f = (ChartDrawing.FibRetracement) d;
+            float x1 = (float)timestampToPixelX(f.startTs);
+            float x2 = (float)timestampToPixelX(f.endTs);
+            float xL = Math.min(x1,x2), xR = Math.max(x1,x2);
+            // Hit any level line within the horizontal range
+            if (f.levels != null && px >= xL && px <= xR) {
+                float minDist = Float.MAX_VALUE;
+                double range = f.highPrice - f.lowPrice;
+                for (float lv : f.levels) {
+                    float y = priceToPixelY(f.highPrice - lv * range);
+                    minDist = Math.min(minDist, Math.abs(py - y));
+                }
+                return minDist;
+            }
+            // Outside horizontal range — hit the anchor handles
             return Math.min(
-                    (float)Math.hypot(px-timestampToPixelX(f.startTs),py-priceToPixelY(f.highPrice)),
-                    (float)Math.hypot(px-timestampToPixelX(f.endTs),  py-priceToPixelY(f.lowPrice))); }
-        case TEXT_ANNOTATION: { ChartDrawing.TextAnnotation ta=(ChartDrawing.TextAnnotation)d;
-            return (float)Math.hypot(px-timestampToPixelX(ta.candleTs),py-priceToPixelY(ta.price)); }
+                    (float)Math.hypot(px - x1, py - priceToPixelY(f.highPrice)),
+                    (float)Math.hypot(px - x2, py - priceToPixelY(f.lowPrice)));
+        }
+
+        case TEXT_ANNOTATION: {
+            ChartDrawing.TextAnnotation ta = (ChartDrawing.TextAnnotation) d;
+            return (float)Math.hypot(px - timestampToPixelX(ta.candleTs),
+                    py - priceToPixelY(ta.price));
+        }
+
+        case PARALLEL_CHANNEL: {
+            ChartDrawing.ParallelChannel pc = (ChartDrawing.ParallelChannel) d;
+            float x1 = (float)timestampToPixelX(pc.startTs), y1 = priceToPixelY(pc.startPrice);
+            float x2 = (float)timestampToPixelX(pc.endTs),   y2 = priceToPixelY(pc.endPrice);
+            float ym  = priceToPixelY(pc.midPrice);
+            float offset = ym - y1;
+            float d1 = ptSeg(px,py, x1,y1,        x2,y2);
+            float d2 = ptSeg(px,py, x1,y1+offset, x2,y2+offset);
+            return Math.min(d1, d2);
+        }
+
+        case LINEAR_REGRESSION: {
+            ChartDrawing.LinearRegression lr = (ChartDrawing.LinearRegression) d;
+            // Hit on the start/end boundary lines (vertical handles)
+            float x1 = (float)timestampToPixelX(lr.startTs);
+            float x2 = (float)timestampToPixelX(lr.endTs);
+            android.graphics.RectF rc = getContentRect();
+            return Math.min(Math.abs(px - x1), Math.abs(px - x2));
+        }
+
+        case PITCHFORK: {
+            ChartDrawing.Pitchfork pf = (ChartDrawing.Pitchfork) d;
+            float x0 = (float)timestampToPixelX(pf.p0Ts), y0 = priceToPixelY(pf.p0Price);
+            float x1 = (float)timestampToPixelX(pf.p1Ts), y1 = priceToPixelY(pf.p1Price);
+            float x2 = (float)timestampToPixelX(pf.p2Ts), y2 = priceToPixelY(pf.p2Price);
+            float mx = (x1+x2)/2, my = (y1+y2)/2;
+            float d0 = ptSeg(px,py, x0,y0, mx,my);  // median line
+            float d1 = (float)Math.hypot(px-x1, py-y1); // p1 handle
+            float d2 = (float)Math.hypot(px-x2, py-y2); // p2 handle
+            return Math.min(d0, Math.min(d1, d2));
+        }
+
+        case GANN_FAN: {
+            ChartDrawing.GannFan gf = (ChartDrawing.GannFan) d;
+            // Hit on the pivot handle
+            return (float)Math.hypot(px - timestampToPixelX(gf.startTs),
+                    py - priceToPixelY(gf.startPrice));
+        }
+
         default: return Float.MAX_VALUE;
     }
 }
