@@ -396,6 +396,84 @@ public class DrawingEditPanel extends LinearLayout {
                     pr.priceLow, pr.priceHigh, delta, pct), "#ECEFF1", 10f, false)); has = true;
         }
 
+        if (d instanceof ChartDrawing.RiskReward) {
+            ChartDrawing.RiskReward rr = (ChartDrawing.RiskReward) d;
+            LinearLayout container = new LinearLayout(getContext());
+            container.setOrientation(LinearLayout.HORIZONTAL);
+            container.setGravity(Gravity.CENTER_VERTICAL);
+            container.setPadding(dp(8), 0, dp(8), 0);
+
+            // Element 1: Dynamic Long vs Short Mode Chip
+            TextView directChip = chip(rr.isLong ? "Type: LONG" : "Type: SHORT", rr.isLong ? "#26A69A" : "#EF5350");
+            directChip.setPadding(dp(10), dp(5), dp(10), dp(5));
+            directChip.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
+
+            directChip.setOnClickListener(v -> {
+                rr.isLong = !rr.isLong;
+                directChip.setText(rr.isLong ? "Type: LONG" : "Type: SHORT");
+
+                directChip.setTextColor(Color.parseColor(rr.isLong ? "#26A69A" : "#EF5350"));
+
+                // Swap target and stop offsets to follow standard directional changes
+                double targetDelta = rr.targetPrice - rr.entryPrice;
+                double stopDelta = rr.entryPrice - rr.stopPrice;
+                rr.targetPrice = rr.entryPrice - targetDelta;
+                rr.stopPrice = rr.entryPrice + stopDelta;
+
+                if (onChange != null) onChange.onChange();
+            });
+            container.addView(directChip);
+            container.addView(sp(16)); // Increased spacing for a cleaner visual layout
+
+            // Element 2: Label Header Styling
+            TextView labelTv = tv("Tick Size:", "#90A4AE", 11f, false);
+            labelTv.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
+            container.addView(labelTv);
+            container.addView(sp(6));
+
+            // Element 3: Premium Input Field Design
+            EditText sizeField = new EditText(getContext());
+            sizeField.setText(String.valueOf(rr.tickSize));
+            sizeField.setTextColor(Color.WHITE);
+            sizeField.setTextSize(12f);
+            sizeField.setGravity(Gravity.CENTER);
+            sizeField.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
+
+            // Create modern rounded container background for the field input box
+            android.graphics.drawable.GradientDrawable inputBg = new android.graphics.drawable.GradientDrawable();
+            inputBg.setColor(Color.parseColor("#1FFFFFFF")); // Subtle modern translucent overlay
+            inputBg.setCornerRadius(dp(4));
+            inputBg.setStroke(dp(1), Color.parseColor("#33FFFFFF")); // Fine edge contour line
+            sizeField.setBackground(inputBg);
+            sizeField.setPadding(dp(8), dp(4), dp(8), dp(4));
+
+            // Explicit sizing limits to prevent the layout from layout expanding strangely
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(dp(64), ViewGroup.LayoutParams.WRAP_CONTENT);
+            sizeField.setLayoutParams(lp);
+
+            // Live Instant update implementation
+            sizeField.addTextChangedListener(new android.text.TextWatcher() {
+                @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+                @Override public void onTextChanged(CharSequence s, int start, int before, int count) {}
+                @Override
+                public void afterTextChanged(android.text.Editable s) {
+                    try {
+                        String val = s.toString().trim();
+                        if (!val.isEmpty()) {
+                            double parsed = Double.parseDouble(val);
+                            if (parsed > 0) {
+                                rr.tickSize = parsed;
+                                if (onChange != null) onChange.onChange();
+                            }
+                        }
+                    } catch (Exception ignored) {}
+                }
+            });
+            container.addView(sizeField);
+
+            return container;
+        }
+
         return has ? col : null;
     }
 

@@ -39,7 +39,8 @@ public class DrawingManager {
         LINEAR_REGRESSION, FIB_RETRACEMENT,
         PRICE_RANGE, RECTANGLE, ELLIPSE,
         TEXT_ANNOTATION, ARROW,
-        PARALLEL_CHANNEL, PITCHFORK, GANN_FAN
+        PARALLEL_CHANNEL, PITCHFORK, GANN_FAN,
+        RISK_REWARD
     }
 
     // ── Tool state ───────────────────────────────────────────────────
@@ -229,6 +230,9 @@ public class DrawingManager {
     public ChartDrawing.GannFan addGannFan(long sTs, double sp, long eTs, double ep) {
         return add(new ChartDrawing.GannFan(sTs, sp, eTs, ep, buildActiveStyle(), ChartDrawing.Source.USER));
     }
+    public ChartDrawing.RiskReward addRiskReward(long sTs, long eTs, double entry, double target, double stop, boolean isLong) {
+        return add(new ChartDrawing.RiskReward(sTs, eTs, entry, target, stop, isLong, buildActiveStyle(), ChartDrawing.Source.USER));
+    }
 
     // ── Tool helpers ─────────────────────────────────────────────────
     public static boolean isTwoPointTool(DrawingTool tool) {
@@ -237,6 +241,7 @@ public class DrawingManager {
             case LINEAR_REGRESSION: case FIB_RETRACEMENT:
             case PRICE_RANGE: case RECTANGLE: case ELLIPSE:
             case ARROW: case PARALLEL_CHANNEL: case GANN_FAN:
+            case RISK_REWARD:
                 return true;
             default: return false;
         }

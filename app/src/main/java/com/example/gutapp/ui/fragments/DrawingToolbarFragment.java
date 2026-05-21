@@ -79,6 +79,7 @@ public class DrawingToolbarFragment extends BottomSheetDialogFragment {
             { "▭",  "Rectangle",     DrawingManager.DrawingTool.RECTANGLE,         "Price + time box" },
             { "⬭",  "Ellipse",       DrawingManager.DrawingTool.ELLIPSE,           "Oval zone" },
             { "▤",  "Price Range",   DrawingManager.DrawingTool.PRICE_RANGE,       "Horizontal supply/demand zone" },
+            { "📊", "Risk/Reward",   DrawingManager.DrawingTool.RISK_REWARD,       "Long/Short Position tool" },
             // ── Annotations ─────────────────────────────────────────────────
             { "T",  "Text",          DrawingManager.DrawingTool.TEXT_ANNOTATION,   "Tap to place note" },
             { "→",  "Arrow",         DrawingManager.DrawingTool.ARROW,             "Directional arrow" },
@@ -529,7 +530,8 @@ public class DrawingToolbarFragment extends BottomSheetDialogFragment {
     // Label edit (for HLine, VLine, Text)
         if (d instanceof ChartDrawing.HorizontalLine ||
     d instanceof ChartDrawing.VerticalLine   ||
-    d instanceof ChartDrawing.TextAnnotation) {
+    d instanceof ChartDrawing.TextAnnotation ||
+        d instanceof ChartDrawing.RiskReward) {
         TextView editBtn = chipBtn("✎", "#78909C");
         editBtn.setOnClickListener(v -> openLabelEditor(d));
         row.addView(editBtn);
@@ -583,6 +585,13 @@ private String describeDrawing(ChartDrawing d) {
         case PARALLEL_CHANNEL:return "Channel";
         case PITCHFORK:       return "Pitchfork";
         case GANN_FAN:        return "Gann Fan";
+        case RISK_REWARD: {
+            ChartDrawing.RiskReward rr = (ChartDrawing.RiskReward) d;
+            double reward = Math.abs(rr.targetPrice - rr.entryPrice);
+            double risk = Math.abs(rr.entryPrice - rr.stopPrice);
+            double ratio = risk == 0 ? 0 : reward / risk;
+            return String.format(Locale.US, "R:R Tool (Ratio: %.2f)", ratio);
+        }
         default:              return d.getType().name();
     }
 }
@@ -622,6 +631,42 @@ private void openColorPicker(ChartDrawing d) {
 }
 
 private void openLabelEditor(ChartDrawing d) {
+
+    if (d instanceof ChartDrawing.RiskReward) {
+        ChartDrawing.RiskReward rr = (ChartDrawing.RiskReward) d;
+
+        // Root container for fields
+        LinearLayout form = new LinearLayout(requireContext());
+        form.setOrientation(LinearLayout.VERTICAL);
+        form.setPadding(dp(16), dp(10), dp(16), dp(10));
+        form.setBackgroundColor(Color.parseColor("#161414"));
+
+        // Helper to build numeric entry fields
+        EditText entryInput  = buildNumericField("Entry Price", String.valueOf(rr.entryPrice), form);
+        EditText targetInput = buildNumericField("Target Price", String.valueOf(rr.targetPrice), form);
+        EditText stopInput   = buildNumericField("Stop Loss Price", String.valueOf(rr.stopPrice), form);
+
+        new AlertDialog.Builder(requireContext())
+                .setTitle("Adjust Coordinates")
+                .setView(form)
+                .setPositiveButton("Save", (dial, w) -> {
+                    try {
+                        rr.entryPrice  = Double.parseDouble(entryInput.getText().toString().trim());
+                        rr.targetPrice = Double.parseDouble(targetInput.getText().toString().trim());
+                        rr.stopPrice   = Double.parseDouble(stopInput.getText().toString().trim());
+
+                        drawingChart.postInvalidate();
+                        refreshDrawingsList();
+                        notifyChanged();
+                    } catch (NumberFormatException e) {
+                        Toast.makeText(requireContext(), "Invalid number entry", Toast.LENGTH_SHORT).show();
+                    }
+                })
+                .setNegativeButton("Cancel", null)
+                .show();
+        return;
+    }
+
     EditText input = new EditText(requireContext());
     input.setInputType(InputType.TYPE_CLASS_TEXT);
     input.setTextColor(Color.parseColor("#ECEFF1"));
@@ -654,6 +699,30 @@ private void openLabelEditor(ChartDrawing d) {
             .setNegativeButton("Cancel", null)
             .show();
 }
+
+    // Small helper method to keep layout rendering clean
+    private EditText buildNumericField(String hint, String initialValue, LinearLayout parent) {
+        TextView label = new TextView(requireContext());
+        label.setText(hint);
+        label.setTextColor(Color.parseColor("#546E7A"));
+        label.setTextSize(11f);
+        label.setPadding(0, dp(6), 0, dp(2));
+        parent.addView(label);
+
+        EditText input = new EditText(requireContext());
+        input.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
+        input.setTextColor(Color.parseColor("#ECEFF1"));
+        input.setBackgroundColor(Color.parseColor("#252323"));
+        input.setPadding(dp(10), dp(8), dp(10), dp(8));
+        input.setText(initialValue);
+
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(mp(), wc());
+        lp.bottomMargin = dp(8);
+        input.setLayoutParams(lp);
+
+        parent.addView(input);
+        return input;
+    }
 
 private void notifyChanged() {
     // Trigger auto-save via the chart's DrawingEventListener

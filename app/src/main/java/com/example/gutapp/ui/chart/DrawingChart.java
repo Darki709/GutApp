@@ -487,6 +487,21 @@ public class DrawingChart extends CombinedChart {
                 return new float[][]{
                         {(float)timestampToPixelX(lr.startTs), getContentRect().centerY()},
                         {(float)timestampToPixelX(lr.endTs),   getContentRect().centerY()}}; }
+            case RISK_REWARD: {
+                ChartDrawing.RiskReward rr = (ChartDrawing.RiskReward) d;
+                float xStart = (float) timestampToPixelX(rr.startTs);
+                float xEnd = (float) timestampToPixelX(rr.endTs);
+                float yEntry = priceToPixelY(rr.entryPrice);
+                float yTarget = priceToPixelY(rr.targetPrice);
+                float yStop = priceToPixelY(rr.stopPrice);
+
+                return new float[][]{
+                        {xStart, yEntry},          // Handle 0: Entry Anchor Point (Left boundary line)
+                        {(xStart + xEnd) / 2f, yTarget}, // Handle 1: Profit Target Ceiling/Floor Adjustment (Center)
+                        {(xStart + xEnd) / 2f, yStop},   // Handle 2: Stop Loss Ceiling/Floor Adjustment (Center)
+                        {xEnd, yEntry}             // Handle 3: Time Extension Limit (Right boundary line)
+                };
+            }
             default: return null;
         }
     }
@@ -571,6 +586,27 @@ public class DrawingChart extends CombinedChart {
                 ta.candleTs=newTs; ta.price=newPrice; break; }
             case LINEAR_REGRESSION: { ChartDrawing.LinearRegression lr=(ChartDrawing.LinearRegression)d;
                 if (handleIdx==0) lr.startTs=newTs; else lr.endTs=newTs; break; }
+            case RISK_REWARD:{
+                ChartDrawing.RiskReward rr = (ChartDrawing.RiskReward) d;
+                long currentTs = pixelToTimestamp(px);
+                double currentPrice = pixelToPrice(py); // or your specific pixel to data transformation utility
+
+                switch (handleIdx) {
+                    case 0: // Left anchor moved
+                        rr.startTs = currentTs;
+                        rr.entryPrice = currentPrice;
+                        break;
+                    case 1: // Take Profit vertical slider
+                        rr.targetPrice = currentPrice;
+                        break;
+                    case 2: // Stop Loss vertical slider
+                        rr.stopPrice = currentPrice;
+                        break;
+                    case 3: // Right side extension boundary moved
+                        rr.endTs = currentTs;
+                        break;
+                }
+                break;}
         }
     }
 
@@ -632,51 +668,18 @@ public class DrawingChart extends CombinedChart {
             case LINEAR_REGRESSION: { ChartDrawing.LinearRegression lr=(ChartDrawing.LinearRegression)d;
                 lr.startTs=shift.applyAsLong(lr.startTs);
                 lr.endTs  =shift.applyAsLong(lr.endTs); break; }
-        }
+            case RISK_REWARD:{
+                ChartDrawing.RiskReward rr = (ChartDrawing.RiskReward) d;
 
-        switch (d.getType()) {
-        case HORIZONTAL_LINE:  ((ChartDrawing.HorizontalLine)d).price += dprice; break;
-        case VERTICAL_LINE:    { ChartDrawing.VerticalLine v=(ChartDrawing.VerticalLine)d;
-            v.candleTs=shift.applyAsLong(v.candleTs); break; }
-        case PRICE_RANGE: { ChartDrawing.PriceRange pr=(ChartDrawing.PriceRange)d;
-            pr.priceHigh+=dprice; pr.priceLow+=dprice; break; }
-        case TREND_LINE: { ChartDrawing.TrendLine t=(ChartDrawing.TrendLine)d;
-            t.startTs=shift.applyAsLong(t.startTs); t.startPrice+=dprice;
-            t.endTs  =shift.applyAsLong(t.endTs);   t.endPrice  +=dprice; break; }
-        case RAY_LINE: { ChartDrawing.RayLine r=(ChartDrawing.RayLine)d;
-            r.startTs =shift.applyAsLong(r.startTs);  r.startPrice +=dprice;
-            r.anchorTs=shift.applyAsLong(r.anchorTs); r.anchorPrice+=dprice; break; }
-        case EXTENDED_LINE: { ChartDrawing.ExtendedLine el=(ChartDrawing.ExtendedLine)d;
-            el.startTs=shift.applyAsLong(el.startTs); el.startPrice+=dprice;
-            el.endTs  =shift.applyAsLong(el.endTs);   el.endPrice  +=dprice; break; }
-        case ARROW: { ChartDrawing.Arrow ar=(ChartDrawing.Arrow)d;
-            ar.startTs=shift.applyAsLong(ar.startTs); ar.startPrice+=dprice;
-            ar.endTs  =shift.applyAsLong(ar.endTs);   ar.endPrice  +=dprice; break; }
-        case RECTANGLE: { ChartDrawing.Rectangle r=(ChartDrawing.Rectangle)d;
-            r.startTs=shift.applyAsLong(r.startTs); r.startPrice+=dprice;
-            r.endTs  =shift.applyAsLong(r.endTs);   r.endPrice  +=dprice; break; }
-        case ELLIPSE: { ChartDrawing.Ellipse el=(ChartDrawing.Ellipse)d;
-            el.startTs=shift.applyAsLong(el.startTs); el.startPrice+=dprice;
-            el.endTs  =shift.applyAsLong(el.endTs);   el.endPrice  +=dprice; break; }
-        case FIB_RETRACEMENT: { ChartDrawing.FibRetracement f=(ChartDrawing.FibRetracement)d;
-            f.startTs=shift.applyAsLong(f.startTs); f.highPrice+=dprice;
-            f.endTs  =shift.applyAsLong(f.endTs);   f.lowPrice +=dprice; break; }
-        case PARALLEL_CHANNEL: { ChartDrawing.ParallelChannel pc=(ChartDrawing.ParallelChannel)d;
-            pc.startTs=shift.applyAsLong(pc.startTs); pc.startPrice+=dprice;
-            pc.endTs  =shift.applyAsLong(pc.endTs);   pc.endPrice  +=dprice;
-            pc.midPrice+=dprice; break; }
-        case PITCHFORK: { ChartDrawing.Pitchfork pf=(ChartDrawing.Pitchfork)d;
-            pf.p0Ts=shift.applyAsLong(pf.p0Ts); pf.p0Price+=dprice;
-            pf.p1Ts=shift.applyAsLong(pf.p1Ts); pf.p1Price+=dprice;
-            pf.p2Ts=shift.applyAsLong(pf.p2Ts); pf.p2Price+=dprice; break; }
-        case GANN_FAN: { ChartDrawing.GannFan gf=(ChartDrawing.GannFan)d;
-            gf.startTs=shift.applyAsLong(gf.startTs); gf.startPrice+=dprice;
-            gf.endTs  =shift.applyAsLong(gf.endTs);   gf.endPrice  +=dprice; break; }
-        case TEXT_ANNOTATION: { ChartDrawing.TextAnnotation ta=(ChartDrawing.TextAnnotation)d;
-            ta.candleTs=shift.applyAsLong(ta.candleTs); ta.price+=dprice; break; }
-        case LINEAR_REGRESSION: { ChartDrawing.LinearRegression lr=(ChartDrawing.LinearRegression)d;
-            lr.startTs=shift.applyAsLong(lr.startTs);
-            lr.endTs  =shift.applyAsLong(lr.endTs); break; }
+                // Convert the pixel offset differentials using your existing delta math pipelines
+                long deltaTs = pixelToTimestamp(dragLastX + dxPx) - pixelToTimestamp(dragLastX);
+
+                rr.startTs += deltaTs;
+                rr.endTs += deltaTs;
+                rr.entryPrice += dprice;
+                rr.targetPrice += dprice;
+                rr.stopPrice += dprice;
+        }
     }
 }
 
@@ -827,6 +830,36 @@ private float hitDistance(ChartDrawing d, float px, float py) {
                     py - priceToPixelY(gf.startPrice));
         }
 
+        case RISK_REWARD: {
+            ChartDrawing.RiskReward rr = (ChartDrawing.RiskReward) d;
+
+            // 1. Resolve structural anchor coordinates into screen-space pixel space
+            float xStart = (float) timestampToPixelX(rr.startTs);
+            float xEnd   = (float) timestampToPixelX(rr.endTs);
+
+            float yEntry  = priceToPixelY(rr.entryPrice);
+            float yTarget = priceToPixelY(rr.targetPrice);
+            float yStop   = priceToPixelY(rr.stopPrice);
+
+            // 2. Measure proximity to all 4 horizontal lines (Target, Entry, Stop Loss)
+            float dTarget = ptSeg(px, py, xStart, yTarget, xEnd, yTarget);
+            float dEntry  = ptSeg(px, py, xStart, yEntry,  xEnd, yEntry);
+            float dStop   = ptSeg(px, py, xStart, yStop,   xEnd, yStop);
+
+            // 3. Measure proximity to the vertical border paths (Left boundary & Right boundary)
+            float yTopLine = Math.min(yTarget, yStop); // Canvas min Y is visually higher up
+            float yBotLine = Math.max(yTarget, yStop); // Canvas max Y is visually lower down
+
+            float dLeftBorder  = ptSeg(px, py, xStart, yTopLine, xStart, yBotLine);
+            float dRightBorder = ptSeg(px, py, xEnd,   yTopLine, xEnd,   yBotLine);
+
+            // 4. Return the shortest distance value to any of its structural borders
+            float minH = Math.min(dTarget, Math.min(dEntry, dStop));
+            float minV = Math.min(dLeftBorder, dRightBorder);
+
+            return Math.min(minH, minV);
+        }
+
         default: return Float.MAX_VALUE;
     }
 }
@@ -936,6 +969,13 @@ private ChartDrawing buildDrawing(DrawingManager.DrawingTool tool,
         case ARROW:             return new ChartDrawing.Arrow(sTs,sp,eTs,ep,s,src);
         case PARALLEL_CHANNEL:  return new ChartDrawing.ParallelChannel(sTs,sp,eTs,ep,(sp+ep)/2,s,src);
         case GANN_FAN:          return new ChartDrawing.GannFan(sTs,sp,eTs,ep,s,src);
+        case RISK_REWARD: {
+            ChartDrawing.DrawingStyle ds = s.copy();
+            ds.filled = true; // Risk/Reward zones use fill tracking
+            boolean isLong = ep >= sp;
+            double stopPrice = sp - (ep - sp); // Symmetrical 1:1 default risk profile layout
+            return new ChartDrawing.RiskReward(sTs, eTs, sp, ep, stopPrice, isLong, ds, src);
+        }
         default:                return null;
     }
 }

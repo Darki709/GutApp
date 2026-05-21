@@ -100,6 +100,7 @@ public class DrawingRenderer {
             case PARALLEL_CHANNEL:   drawParallelChannel  (canvas,(ChartDrawing.ParallelChannel)d,  tf,rect,candles); break;
             case PITCHFORK:          drawPitchfork        (canvas,(ChartDrawing.Pitchfork)d,        tf,rect,candles); break;
             case GANN_FAN:           drawGannFan          (canvas,(ChartDrawing.GannFan)d,          tf,rect,candles); break;
+            case RISK_REWARD:        drawRiskReward       (canvas,(ChartDrawing.RiskReward)d,       tf,rect,candles); break;
         }
     }
 
@@ -397,6 +398,76 @@ public class DrawingRenderer {
         }
         linePaint.setAlpha(255);
         drawHandle(canvas,x0,y0,d.style.color,d.selected);
+    }
+
+    // ── RISK/REWARD ───────────────────────────────────────────────────
+
+    private void drawRiskReward(Canvas canvas, ChartDrawing.RiskReward rr, Transformer tf, RectF rect, List<Candle> candles) {
+        float x1 = tsToX(rr.startTs, candles, tf);
+        float x2 = tsToX(rr.endTs, candles, tf);
+        float yEntry = priceToY(rr.entryPrice, tf);
+        float yTarget = priceToY(rr.targetPrice, tf);
+        float yStop = priceToY(rr.stopPrice, tf);
+
+        float left = Math.min(x1, x2);
+        float right = Math.max(x1, x2);
+
+        // 1. Shaded Region Fills
+        fillPaint.setStyle(Paint.Style.FILL);
+
+        // Green target field zone mapping
+        fillPaint.setColor(Color.argb(35, 76, 175, 80));
+        canvas.drawRect(left, Math.min(yEntry, yTarget), right, Math.max(yEntry, yTarget), fillPaint);
+
+        // Red stop field zone mapping
+        fillPaint.setColor(Color.argb(35, 244, 67, 54));
+        canvas.drawRect(left, Math.min(yEntry, yStop), right, Math.max(yEntry, yStop), fillPaint);
+
+        // 2. Stroke Perimeter Line Renders
+        linePaint.setStyle(Paint.Style.STROKE);
+        linePaint.setStrokeWidth(rr.style.strokeWidth);
+        linePaint.setPathEffect(null);
+
+        // Standard outline structure
+        linePaint.setColor(Color.parseColor("#30FFFFFF"));
+        canvas.drawRect(left, Math.min(yTarget, yStop), right, Math.max(yTarget, yStop), linePaint);
+
+        // Green TP line indicator boundary edge
+        linePaint.setColor(Color.parseColor("#4CAF50"));
+        canvas.drawLine(left, yTarget, right, yTarget, linePaint);
+
+        // Red SL line indicator boundary edge
+        linePaint.setColor(Color.parseColor("#F44336"));
+        canvas.drawLine(left, yStop, right, yStop, linePaint);
+
+        // Primary central baseline entry tracker
+        linePaint.setColor(rr.style.color);
+        if (rr.style.dashed) {
+            linePaint.setPathEffect(new android.graphics.DashPathEffect(new float[]{rr.style.dashOn, rr.style.dashOff}, 0));
+        }
+        canvas.drawLine(left, yEntry, right, yEntry, linePaint);
+
+        // 3. Central HUD Metrics Text Overlay Plate
+        textPaint.setTextSize(24f);
+        textPaint.setTypeface(Typeface.create(Typeface.DEFAULT, Typeface.BOLD));
+        textPaint.setTextAlign(Paint.Align.CENTER);
+        textPaint.setColor(Color.WHITE);
+
+        String labelText = String.format(Locale.US, "R:R Ratio: %.2f | TP: +%d | SL: -%d Ticks",
+                rr.getRiskRewardRatio(), rr.getTargetTicks(), rr.getStopTicks());
+
+        float midX = (left + right) / 2f;
+        if (midX >= rect.left && midX <= rect.right) {
+            canvas.drawText(labelText, midX, yEntry - 12f, textPaint);
+        }
+
+        // 4. Selection Handles Render Pass
+        if (rr.selected) {
+            drawHandle(canvas, x1, yEntry, rr.style.color, true);
+            drawHandle(canvas, midX, yTarget, rr.style.color, true);
+            drawHandle(canvas, midX, yStop, rr.style.color, true);
+            drawHandle(canvas, x2, yEntry, rr.style.color, true);
+        }
     }
 
     // ── Handles ───────────────────────────────────────────────────────

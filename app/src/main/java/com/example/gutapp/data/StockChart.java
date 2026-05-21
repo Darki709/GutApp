@@ -387,7 +387,7 @@ public class StockChart implements SessionCallback {
         } else if (isLiveUpdate) {
             // Live tick — never touch viewport at all. autoScale handles Y automatically.
             // Only expand the right-side space so the newest candle is reachable.
-            chart.getXAxis().setSpaceMax(10f);
+            chart.getXAxis().setSpaceMax(80f);
 
         } else {
             // Timeframe / indicator reload — restore to approximately same X position
@@ -513,7 +513,7 @@ public class StockChart implements SessionCallback {
         x.setLabelCount(4, false);
         x.setValueFormatter(xFormatter);
         x.setSpaceMin(15f);
-        x.setSpaceMax(15f);
+        x.setSpaceMax(80f);
 
         sub.getAxisLeft().setEnabled(false);
         YAxis r = sub.getAxisRight();

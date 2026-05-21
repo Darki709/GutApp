@@ -114,7 +114,8 @@ public abstract class ChartDrawing {
         LINEAR_REGRESSION, FIB_RETRACEMENT,
         PRICE_RANGE, RECTANGLE, ELLIPSE,
         TEXT_ANNOTATION, ARROW,
-        PARALLEL_CHANNEL, PITCHFORK, GANN_FAN
+        PARALLEL_CHANNEL, PITCHFORK, GANN_FAN,
+        RISK_REWARD
     }
 
     // ── Layer ordering ───────────────────────────────────────────────
@@ -263,5 +264,47 @@ public abstract class ChartDrawing {
             super(source, style);
             this.startTs = sTs; this.startPrice = sp; this.endTs = eTs; this.endPrice = ep; }
         @Override public DrawingType getType() { return DrawingType.GANN_FAN; }
+    }
+
+    public static class RiskReward extends ChartDrawing {
+        public long startTs;
+        public long endTs;
+        public double entryPrice;
+        public double targetPrice;
+        public double stopPrice;
+        public boolean isLong;
+        public double tickSize = 0.01; // Default minimum asset step size
+
+        public RiskReward(long sTs, long eTs, double entry, double target, double stop, boolean isLong, DrawingStyle style, Source source) {
+            super(source, style);
+            this.startTs = sTs;
+            this.endTs = eTs;
+            this.entryPrice = entry;
+            this.targetPrice = target;
+            this.stopPrice = stop;
+            this.isLong = isLong;
+            this.layer = Layer.BEHIND_CANDLES; // Keeps chart candles legible on top
+        }
+
+        @Override
+        public DrawingType getType() {
+            return DrawingType.RISK_REWARD;
+        }
+
+        public double getRiskRewardRatio() {
+            double reward = Math.abs(targetPrice - entryPrice);
+            double risk = Math.abs(entryPrice - stopPrice);
+            return risk == 0 ? 0 : reward / risk;
+        }
+
+        public int getTargetTicks() {
+            if (tickSize <= 0) return 0;
+            return (int) Math.round(Math.abs(targetPrice - entryPrice) / tickSize);
+        }
+
+        public int getStopTicks() {
+            if (tickSize <= 0) return 0;
+            return (int) Math.round(Math.abs(entryPrice - stopPrice) / tickSize);
+        }
     }
 }

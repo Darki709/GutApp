@@ -55,6 +55,10 @@ public class DrawingPersistence {
     private static final String F_P2_PX      = "p2price";
     private static final String F_EXT_LEFT   = "extendLeft";
     private static final String F_EXT_RIGHT  = "extendRight";
+    private static final String F_ENTRY_PX   = "entryPrice";
+    private static final String F_TARGET_PX  = "targetPrice";
+    private static final String F_STOP_PX    = "stopPrice";
+    private static final String F_IS_LONG    = "isLong";
 
     private final SharedPreferences prefs;
 
@@ -215,6 +219,16 @@ public class DrawingPersistence {
                 o.put(F_END_TS,   gf.endTs);   o.put(F_END_PX,   gf.endPrice);
                 break;
             }
+            case RISK_REWARD: {
+                ChartDrawing.RiskReward rr = (ChartDrawing.RiskReward) d;
+                o.put(F_START_TS,  rr.startTs);
+                o.put(F_END_TS,    rr.endTs);
+                o.put(F_ENTRY_PX,  rr.entryPrice);
+                o.put(F_TARGET_PX, rr.targetPrice);
+                o.put(F_STOP_PX,   rr.stopPrice);
+                o.put(F_IS_LONG,   rr.isLong);
+                break;
+            }
         }
         return o;
     }
@@ -330,6 +344,18 @@ public class DrawingPersistence {
                         o.getLong(F_START_TS), o.getDouble(F_START_PX),
                         o.getLong(F_END_TS),   o.getDouble(F_END_PX), style, src);
                 break;
+            case RISK_REWARD: {
+                d = new ChartDrawing.RiskReward(
+                        o.getLong(F_START_TS),
+                        o.getLong(F_END_TS),
+                        o.getDouble(F_ENTRY_PX),
+                        o.getDouble(F_TARGET_PX),
+                        o.getDouble(F_STOP_PX),
+                        o.getBoolean(F_IS_LONG),
+                        style, src
+                );
+                break;
+            }
             default: return null;
         }
         d.layer = layer;
