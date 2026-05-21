@@ -403,13 +403,13 @@ public int calculateBias(ArrayList<Candle> data) {
 }
 ```
 
-### Standard Return Constants
+### Standard Return Ranges
 
-| Value | Sentiment State | Mathematical Trigger Context Examples |
+| Score Range | Sentiment State | Context Example Trigger Mechanics |
 | :--- | :--- | :--- |
-| **`1`** | **Bullish Bias** | Asset crosses above channel bands, moving average cross-up, oscillator moving away from floor bounds. |
-| **`-1`** | **Bearish Bias** | Asset drops below support targets, negative oscillator changes, or overbought ceiling exhaustion. |
-| **`0`** | **Neutral Bias** | Asset is sideways inside consolidation rooms, or historical baseline calculations don't meet minimum sizing. |
+| **`71` to `100`** | **Strong Bullish Bias** | Price breaking through structural resistance or overbought momentum expansion. |
+| **`40` to `60`** | **Neutral / Balanced** | Consolidating in equilibrium ranges, or moving averages compressing. |
+| **`0` to `39`** | **Strong Bearish Bias** | Breakdown cascades under major channel bands, high distribution sell volumes. |
 
 ### Structural Calculation Rule
 
