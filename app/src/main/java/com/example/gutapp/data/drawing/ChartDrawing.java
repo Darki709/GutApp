@@ -220,7 +220,7 @@ public abstract class ChartDrawing {
     public static class TextAnnotation extends ChartDrawing {
         public long candleTs; public double price; public String text; public float textSizeSp = 12f;
         public TextAnnotation(long ts, double price, String text, DrawingStyle style, Source source) {
-            super(source, style); this.candleTs = ts; this.price = price; this.text = text; }
+            super(source, style); this.candleTs = ts; this.price = price; this.text = text; layer = Layer.ABOVE_CANDLES;}
         @Override public DrawingType getType() { return DrawingType.TEXT_ANNOTATION; }
     }
 
