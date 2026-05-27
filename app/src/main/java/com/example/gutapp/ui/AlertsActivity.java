@@ -10,7 +10,11 @@ import android.widget.Switch;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import androidx.activity.EdgeToEdge;
 import androidx.annotation.Nullable;
+import androidx.core.graphics.Insets;
+import androidx.core.view.ViewCompat;
+import androidx.core.view.WindowInsetsCompat;
 
 import com.example.gutapp.R;
 import com.example.gutapp.data.alerts.Alert;
@@ -33,7 +37,22 @@ public class AlertsActivity extends SessionActivity {
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        EdgeToEdge.enable(this);
         setContentView(R.layout.activity_alerts);
+        ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main), (v, insets) -> {
+            // 1. Extract the system bar pixel dimensions (status bar + nav bar)
+            Insets systemBarsInsets = insets.getInsets(WindowInsetsCompat.Type.systemBars());
+
+            // 2. Apply the left, right, and bottom paddings, and force top padding to push the layout down
+            v.setPadding(
+                    systemBarsInsets.left,
+                    systemBarsInsets.top,   // 🚀 This shifts your "Alerts" title below the clock/wifi icons
+                    systemBarsInsets.right,
+                    systemBarsInsets.bottom
+            );
+
+            return insets;
+        });
 
         filterSymbol  = getIntent().getStringExtra("symbol");
         listContainer = findViewById(R.id.alertsListContainer);
@@ -51,7 +70,11 @@ public class AlertsActivity extends SessionActivity {
     }
 
     @Override protected void onResume() { super.onResume(); refreshList(); }
-    @Override protected void refreshNetwork() {}
+    @Override protected void networkReconnect() {}
+
+    @Override
+    protected void networkDisconnect() {}
+
     @Override public void onDataReceived(DataType t, Object d) {}
 
     // ── List ──────────────────────────────────────────────────────────

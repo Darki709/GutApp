@@ -148,7 +148,12 @@ public class WatchlistActivity extends SessionActivity implements StockLiveList.
     }
 
     @Override public void onLoadMore() {}
-    @Override protected void refreshNetwork() { refreshLists(); }
+    @Override protected void networkReconnect() { stock_list_fragment.refreshVisibleRows(); }
+
+    @Override
+    protected void networkDisconnect() {
+        stock_list_fragment.stop();
+    }
 
     private void confirmDelete() {
         if (selectedListName == null) return;

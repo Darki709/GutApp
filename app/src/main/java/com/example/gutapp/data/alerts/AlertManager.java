@@ -1,8 +1,11 @@
 package com.example.gutapp.data.alerts;
 
 import android.content.Context;
+import android.os.Handler;
+import android.os.Looper;
 import android.util.Log;
 
+import com.example.gutapp.GutApp;
 import com.example.gutapp.data.models.Candle;
 import com.example.gutapp.database.AlertDBHelper;
 import com.example.gutapp.database.DB_Helper;
@@ -62,6 +65,15 @@ public class AlertManager implements PriceResource {
 
     private volatile boolean isRunning = false;
     private Thread workerThread;
+
+
+    // ── Cooldown Configurations ──────────────────────────────────────
+    private static final long RECONNECT_COOLDOWN_MS = 5000; // 5-second hard safety limit
+    private long lastReconnectTimestamp = 0;
+
+    // Backup debounce handler to ensure the last dropped reconnection signal still fires safely
+    private final Handler debounceHandler = new Handler(Looper.getMainLooper());
+    private Runnable pendingReconnectRunnable = null;
 
     // ── Lazy DB init ──────────────────────────────────────────────────
     /** Ensures alertDb/stockDb are initialised. Must be called on any path that touches the DB. */
@@ -232,6 +244,53 @@ public class AlertManager implements PriceResource {
                 subscriptions.add(symbol);
             }
         }
+    }
+
+    /**
+     * Attempts a network reconnection.
+     * Implements a rate-limiting cooldown and trailing debounce to prevent abuse
+     * while guaranteeing that the client ultimately resubscribes once the network stabilizes.
+     */
+    public synchronized void networkReconnect() {
+        long currentTime = System.currentTimeMillis();
+        long timeElapsed = currentTime - lastReconnectTimestamp;
+
+        // 1. Cancel any trailing reconnect task that was previously queued
+        if (pendingReconnectRunnable != null) {
+            debounceHandler.removeCallbacks(pendingReconnectRunnable);
+            pendingReconnectRunnable = null;
+        }
+
+        // 2. If the request happens within the cooldown window, debounce it
+        if (timeElapsed < RECONNECT_COOLDOWN_MS) {
+            long remainingDelay = RECONNECT_COOLDOWN_MS - timeElapsed;
+
+            // Queue a delayed execution so the final connection state change is never permanently ignored
+            pendingReconnectRunnable = () -> {
+                synchronized (AlertManager.this) {
+                    executeRefresh();
+                }
+            };
+            debounceHandler.postDelayed(pendingReconnectRunnable, remainingDelay);
+            return;
+        }
+
+        // 3. Safe to execute immediately if outside the cooldown boundary
+        executeRefresh();
+    }
+
+    private void executeRefresh() {
+        lastReconnectTimestamp = System.currentTimeMillis();
+        pendingReconnectRunnable = null;
+
+        Log.d(TAG, "Refreshing subscriptions...");
+        //starting the alert manager again
+        start(DB_Helper.getInstance(GutApp.getInstance().getApplicationContext()));
+    }
+
+    public void networkLost(){
+        Log.d(TAG, "Network lost, stopping alert manager to save resources");
+        stop();
     }
 
     private synchronized void cleanupSubscriptions() {

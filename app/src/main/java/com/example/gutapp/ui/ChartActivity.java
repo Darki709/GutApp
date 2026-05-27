@@ -257,6 +257,7 @@ public class ChartActivity extends SessionActivity implements
         findViewById(R.id.ordersFragmentContainer).setVisibility(View.GONE);
         findViewById(R.id.emptyOrdersView).setVisibility(View.GONE);
 
+
         NetworkClient.getInstance(null).getSessionManager()
                 .pushRequest(new FetchOrders(symbol, FetchOrders.OrderView.ACTIVE, 0, this));
 
@@ -282,7 +283,14 @@ public class ChartActivity extends SessionActivity implements
             isManagerReturned = false;
         }
     }
-    @Override protected void refreshNetwork() { onResume(); }
+    @Override protected void networkReconnect() { onResume(); NetworkClient.getInstance(null).getSessionManager()
+            .pushRequest(new FetchOrders(symbol, FetchOrders.OrderView.ACTIVE, 0, this));}
+
+    @Override
+    protected void networkDisconnect() {
+        chartContainer.flushRequests();
+        if (ordersFragment != null) ordersFragment.onPause();
+    }
 
     @Override
     protected void onPause() {
@@ -667,31 +675,32 @@ public class ChartActivity extends SessionActivity implements
     private void updateChartData() {
         chartContainer.setInterval(interval);
         chartContainer.flushRequests();
-        chartContainer.clearChart();
+        if(!chartContainer.isDone()) {
+            chartContainer.clearChart();
 
-        StockDataHelper sdh = new StockDataHelper(db_helper);
-        LastFetchCacheHelper ch = new LastFetchCacheHelper(db_helper);
-        long last = ch.getLastFetchTime(symbol, interval);
+            StockDataHelper sdh = new StockDataHelper(db_helper);
+            LastFetchCacheHelper ch = new LastFetchCacheHelper(db_helper);
+            long last = ch.getLastFetchTime(symbol, interval);
 
-        NetworkClient.getInstance(this).getSessionManager()
-                .pushRequest(getRequest(symbol, interval, last, 0, true, false, chartContainer));
+            NetworkClient.getInstance(this).getSessionManager()
+                    .pushRequest(getRequest(symbol, interval, last, 0, true, false, chartContainer));
+            try {
+                ArrayList<Candle> data = sdh.getCachedStockData(symbol, interval);
+                if (data != null && !data.isEmpty()) {
+                    chartContainer.addChunk(data);
+                    double price = data.get(data.size() - 1).close;
+                    textViewPrice.setText(String.format(Locale.US, "%.6f", price));
+                    current_price = price;
+                } else throw new Exception("empty");
+            } catch (Exception e) {
+                Log.e(DB_Helper.DB_LOG_TAG, "Cache miss: " + e.getMessage());
+                if (last != 0)
+                    NetworkClient.getInstance(this).getSessionManager()
+                            .pushRequest(getRequest(symbol, interval, 0, last, true, false, chartContainer));
+            }
+        }
         NetworkClient.getInstance(this).getSessionManager()
                 .pushRequest(getRequest(symbol, interval, 0, 0, false, true, chartContainer));
-
-        try {
-            ArrayList<Candle> data = sdh.getCachedStockData(symbol, interval);
-            if (data != null && !data.isEmpty()) {
-                chartContainer.addChunk(data);
-                double price = data.get(data.size() - 1).close;
-                textViewPrice.setText(String.format(Locale.US, "%.6f", price));
-                current_price = price;
-            } else throw new Exception("empty");
-        } catch (Exception e) {
-            Log.e(DB_Helper.DB_LOG_TAG, "Cache miss: " + e.getMessage());
-            if (last != 0)
-                NetworkClient.getInstance(this).getSessionManager()
-                        .pushRequest(getRequest(symbol, interval, 0, last, true, false, chartContainer));
-        }
     }
 
     private RequestTickerData getRequest(String sym, StockDataHelper.Timeframe tf,

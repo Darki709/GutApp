@@ -40,6 +40,8 @@ import javax.annotation.Nullable;
 import lombok.Setter;
 
 public class SessionManager implements Runnable {
+
+    private boolean reconnect = false;
     Connection connection; //connection to server, holding the socket
     Queue<Request> outgoinQueue; //this is where the other threads put requests for the server
     private volatile boolean running = true;
@@ -100,8 +102,15 @@ public class SessionManager implements Runnable {
                 try {
                     //make sure that any thread is closed before reconnecting
                     this.working = false;
-                    if (sendThread != null) sendThread.interrupt();
-                    if (recvThread != null) recvThread.interrupt();
+                    // before messing with socket states
+                    if (sendThread != null) {
+                        sendThread.interrupt();
+                        try { sendThread.join(500); } catch (InterruptedException e) { break; }
+                    }
+                    if (recvThread != null) {
+                        recvThread.interrupt();
+                        try { recvThread.join(500); } catch (InterruptedException e) { break; }
+                    }
 
                     //make sure app is set to not logout
                     CryptoUtility.logOutFlag.set(false);
@@ -109,8 +118,8 @@ public class SessionManager implements Runnable {
 
                     Log.i(NETWORK_LOG_TAG, "Connecting to server");
                     //create a tcp connection
-                    if (connection != null) connection.close();
-                    connection = new Connection();
+                    if (connection != null) connection.reconnect();
+                    else connection = new Connection();
 
                     //perform key exchange with the server
                     performHandshake();
@@ -177,7 +186,7 @@ public class SessionManager implements Runnable {
                         Thread.currentThread().interrupt();
                     }
                 } catch (RuntimeException e) {
-                    Log.e(NETWORK_LOG_TAG, "Error connecting to server: " + e.getStackTrace());
+                    Log.e(NETWORK_LOG_TAG, "Error connecting to server: " + e.getMessage());
                 } catch (NoSuchAlgorithmException e) {
                     Log.e(NETWORK_LOG_TAG, "cannot find encryption/decryption algorithm: " + e);
                     this.running = false;
@@ -316,8 +325,12 @@ public class SessionManager implements Runnable {
         pushRequest(new GetBalance());
         sendThread.start();
         recvThread.start();
-        if(currentCallback!=null){
-            currentCallback.onActionRequired(0,null);}
+        if(reconnect){
+            if(currentCallback!=null)
+                uiHandler.post( () -> currentCallback.onActionRequired(0,null));
+            if(pushResponseCallback != null)
+                pushResponseCallback.onActionRequired(0, null);
+        }
         while(running && working && !Thread.currentThread().isInterrupted()){
             try {
                 Thread.sleep(100); // Check 10 times per second instead of millions
@@ -327,6 +340,7 @@ public class SessionManager implements Runnable {
         }
         if(sendThread != null) sendThread.interrupt();
         if(recvThread != null) recvThread.interrupt();
+        reconnect = true;
         if(currentCallback!=null && !CryptoUtility.logOutFlag.get()){
             currentCallback.onActionRequired(1,null);}
         if(pushResponseCallback != null && !CryptoUtility.logOutFlag.get())
@@ -348,7 +362,7 @@ public class SessionManager implements Runnable {
             }
             catch (Exception e){
                 Log.e(NETWORK_LOG_TAG, "Error sending message: " + e.getMessage());
-                if(request != null) request.getCaller().onDataReceived(DataType.ERROR, e.getMessage());
+                if(request != null && request.getCaller() != null) request.getCaller().onDataReceived(DataType.ERROR, e.getMessage());
                 this.working = false;
                 Thread.currentThread().interrupt();
             }

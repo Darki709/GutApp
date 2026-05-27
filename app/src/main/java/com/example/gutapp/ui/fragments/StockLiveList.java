@@ -1,14 +1,19 @@
 package com.example.gutapp.ui.fragments;
 
+import static com.example.gutapp.ui.HomeActivity.HOME_LOG_TAG;
+
 import android.content.Context;
 import android.graphics.Color;
 import android.graphics.Rect;
+import android.health.connect.datatypes.units.Length;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.ViewTreeObserver;
 import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.ProgressBar;
@@ -78,27 +83,12 @@ public class StockLiveList extends Fragment implements SessionCallback {
         this.loadBtn = view.findViewById(R.id.loadBtn);
         this.loadProgress = view.findViewById(R.id.loadProgress);
 
-        if(currentWatchlistName == null){
-            stopNothingFound();
-        }
-        else{
-            loadBtn.setOnClickListener(v -> {
-                loadBtn.setVisibility(View.GONE);
-                loadProgress.setVisibility(View.VISIBLE);
-
-                if (currentWatchlistName != null) {
-                    requestNextPage(); // Internal Pagination
-                } else if (activityCallback != null) {
-                    activityCallback.onLoadMore(); // External (ExploreActivity)
-                }
-        });}
-
         container.removeAllViews();
-        scrollView.getViewTreeObserver().addOnScrollChangedListener(this::updateVisibleTickerSubscriptions);
 
+        ArrayList<TickerInfo> source = null;
         if (getArguments() != null) {
             this.currentWatchlistName = getArguments().getString("list_name");
-            ArrayList<TickerInfo> source = getArguments().getParcelableArrayList("source");
+            source = getArguments().getParcelableArrayList("source");
 
             if (source != null) {
                 loadStockList(source);
@@ -106,6 +96,21 @@ public class StockLiveList extends Fragment implements SessionCallback {
                 requestNextPage(); // Initial internal load
             }
         }
+
+
+        loadBtn.setOnClickListener(v -> {
+            loadBtn.setVisibility(View.GONE);
+            loadProgress.setVisibility(View.VISIBLE);
+
+            if (currentWatchlistName != null) {
+                requestNextPage(); // Internal Pagination
+            } else if (activityCallback != null) {
+                activityCallback.onLoadMore(); // External (ExploreActivity)
+            }
+        });
+
+        scrollView.getViewTreeObserver().addOnScrollChangedListener(this::updateVisibleTickerSubscriptions);
+        scrollView.getViewTreeObserver().addOnGlobalLayoutListener(this::updateVisibleTickerSubscriptions);
     }
 
     /**
@@ -156,6 +161,7 @@ public class StockLiveList extends Fragment implements SessionCallback {
             container.addView(createStockRow(ticker.name, ticker.symbol));
         }
         refreshVisibleRows();
+        if(source.size() < PAGE_SIZE) stopNothingFound();
     }
 
     private void addTickersToContainer(ArrayList<String> tickers) {
@@ -188,14 +194,23 @@ public class StockLiveList extends Fragment implements SessionCallback {
     }
 
     private void updateVisibleTickerSubscriptions() {
-        Rect scrollBounds = new Rect();
-        scrollView.getHitRect(scrollBounds);
+
         for (StockRow row : stockList) {
+
             View rowView = row.getRow();
-            if (rowView.getLocalVisibleRect(scrollBounds)) {
-                if (!row.isActive()) row.loadPrice();
+
+            Rect rect = new Rect();
+
+            boolean visible = rowView.getLocalVisibleRect(rect);
+
+            if (visible) {
+                if (!row.isActive()) {
+                    row.loadPrice();
+                }
             } else {
-                if (row.isActive()) row.discard();
+                if (row.isActive()) {
+                    row.discard();
+                }
             }
         }
     }
@@ -243,6 +258,10 @@ public class StockLiveList extends Fragment implements SessionCallback {
     @Override
     public void onPause() {
         super.onPause();
+        stop();
+    }
+
+    public void stop(){
         for (StockRow row : stockList) row.discard();
     }
 }

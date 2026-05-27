@@ -209,14 +209,23 @@ public class HomeActivity extends SessionActivity implements OrdersList.Listener
     }
 
     @Override
-    protected void refreshNetwork() { onResume(); }
+    protected void networkReconnect() {
+        ordersList = null;
+        FetchOrders fetchOrder = new FetchOrders(null, FetchOrders.OrderView.ACTIVE, 0, this);
+        NetworkClient.getInstance(null).getSessionManager().pushRequest(fetchOrder);
+        stockLiveListFragment.refreshVisibleRows();
+    }
+
+    @Override
+    protected void networkDisconnect() {
+        ordersList = null;
+        stockLiveListFragment.stop();
+    }
 
     @Override
     protected void onResume(){
         super.onResume();
-        ordersList = null;
-        FetchOrders fetchOrder = new FetchOrders(null, FetchOrders.OrderView.ACTIVE, 0, this);
-        NetworkClient.getInstance(null).getSessionManager().pushRequest(fetchOrder);
+        networkReconnect();
     }
 
     private void updateAlertsBadge() {

@@ -4,6 +4,7 @@ import android.graphics.Color;
 import android.os.Bundle;
 import android.view.View;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import androidx.activity.EdgeToEdge;
 import androidx.core.graphics.Insets;
@@ -51,7 +52,6 @@ public class AllOrdersActivity extends SessionActivity implements OrderRow.Order
 
         View backBtn = findViewById(R.id.btnBack);
         if (backBtn != null) backBtn.setOnClickListener(v -> finish());
-
         setupSortButtons();
         loadOrders();
         updateSortButtonsUI();
@@ -192,6 +192,12 @@ public class AllOrdersActivity extends SessionActivity implements OrderRow.Order
         for (OrderRow row : activeRows) row.stop(); // Prevent memory leaks/network waste
     }
 
-    @Override protected void refreshNetwork() { loadOrders(); }
-    @Override public void onActionRequired(int a, Object d) {}
+    @Override protected void networkReconnect() {
+        loadOrders();
+    }
+
+    @Override
+    protected void networkDisconnect() {
+        for (OrderRow row : activeRows) row.stop(); // Prevent memory leaks/network waste
+    }
 }

@@ -1,6 +1,8 @@
 package com.example.gutapp.data.alerts;
 
-import androidx.annotation.Nullable;
+
+import lombok.Getter;
+import lombok.Setter;
 
 /**
  * Alert — a named, persisted trigger that watches one symbol via a Condition.
@@ -13,19 +15,24 @@ import androidx.annotation.Nullable;
  *  - Priority: LOW / MEDIUM / HIGH → drives Android notification priority.
  *  - DB-round-trip safe: all fields are primitive types or Strings.
  */
+@Getter
 public class Alert {
 
     // ── Identity ──────────────────────────────────────────────────────
+    // ── Getters / setters ─────────────────────────────────────────────
     /** Assigned by DB on insert; -1 until persisted. */
+    @Setter
     private long id = -1;
 
     private final String symbol;
+    @Setter
     private String label;           // User-defined display name, e.g. "BTC breakout"
 
     // ── Condition ─────────────────────────────────────────────────────
     private final Condition condition;
 
     // ── Status ────────────────────────────────────────────────────────
+    @Setter
     private Status status;
 
     public enum Status {
@@ -64,6 +71,7 @@ public class Alert {
     private int cooldownSeconds;
 
     /** Unix epoch (seconds) of the last trigger; 0 if never triggered. */
+    @Setter
     private long lastTriggeredAt;
 
     // ── Expiry ────────────────────────────────────────────────────────
@@ -74,6 +82,7 @@ public class Alert {
     private long expiresAt;
 
     // ── Priority ──────────────────────────────────────────────────────
+    @Setter
     private Priority priority;
 
     public enum Priority {
@@ -113,23 +122,6 @@ public class Alert {
         this(symbol, condition.getNotification(), condition,
              RepeatMode.ONCE, 0, 0L, Priority.MEDIUM);
     }
-
-    // ── Getters / setters ─────────────────────────────────────────────
-    public long   getId()             { return id; }
-    public void   setId(long id)      { this.id = id; }
-    public String getSymbol()         { return symbol; }
-    public String getLabel()          { return label; }
-    public void   setLabel(String l)  { this.label = l; }
-    public Condition getCondition()   { return condition; }
-    public Status getStatus()         { return status; }
-    public void   setStatus(Status s) { this.status = s; }
-    public RepeatMode getRepeatMode() { return repeatMode; }
-    public int getCooldownSeconds()   { return cooldownSeconds; }
-    public long getLastTriggeredAt()  { return lastTriggeredAt; }
-    public void setLastTriggeredAt(long t) { this.lastTriggeredAt = t; }
-    public long getExpiresAt()        { return expiresAt; }
-    public Priority getPriority()     { return priority; }
-    public void setPriority(Priority p) { this.priority = p; }
 
     // ── Evaluation logic ──────────────────────────────────────────────
     /**

@@ -322,7 +322,11 @@ public class ProfileActivity extends SessionActivity implements IndicatorsPanel.
         return Math.round(val * getResources().getDisplayMetrics().density);
     }
 
-    @Override protected void refreshNetwork() {}
+    @Override protected void networkReconnect() {}
+
+    @Override
+    protected void networkDisconnect() {
+    }
 
     @Override
     public void onDataReceived(DataType msgType, Object parsedData) {}

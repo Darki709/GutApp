@@ -63,10 +63,6 @@ public class OrdersList extends Fragment implements OrderRow.OrderRowContainer{
 
         container.removeAllViews();
 
-        //we want all orders to update so we can calculate P&L
-        // Smart Visibility Logic: Only stream prices for rows you can see
-        //scrollView.getViewTreeObserver().addOnScrollChangedListener(this::updateVisibleOrderSubscriptions);
-
         if (getArguments() != null) {
             ArrayList<Order> orders = (ArrayList<Order>) getArguments().getSerializable("orders");
             if (orders != null) {

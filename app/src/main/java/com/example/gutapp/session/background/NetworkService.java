@@ -1,5 +1,6 @@
 package com.example.gutapp.session.background;
 
+import android.app.AlarmManager;
 import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
@@ -87,7 +88,10 @@ public class NetworkService extends Service
         }
     }
 
-    @Override public void onActionRequired(int actionType, @Nullable Object data) {}
+    @Override public void onActionRequired(int actionType, @Nullable Object data) {
+        if(actionType == 0) AlertManager.getInstance().networkReconnect();
+        if(actionType == 1) AlertManager.getInstance().networkLost();
+    }
 
     // ── ServiceRequestInterface ───────────────────────────────────────
     @Override

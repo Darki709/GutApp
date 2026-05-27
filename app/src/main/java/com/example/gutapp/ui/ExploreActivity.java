@@ -131,7 +131,12 @@ public class ExploreActivity extends SessionActivity implements StockLiveList.Lo
     }
 
     @Override
-    protected void refreshNetwork() {
-        super.onResume();
+    protected void networkReconnect() {
+        stock_list_fragment.refreshVisibleRows();
+    }
+
+    @Override
+    protected void networkDisconnect() {
+        stock_list_fragment.stop();
     }
 }
