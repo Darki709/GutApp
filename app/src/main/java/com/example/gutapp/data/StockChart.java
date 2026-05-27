@@ -816,5 +816,8 @@ public class StockChart implements SessionCallback {
     }
     public void bindListener(SessionCallback l) { this.chainedListener=l; }
     public boolean isDone() { return done; }
-    public void setInterval(StockDataHelper.Timeframe tf) { this.interval=tf; }
+    public void setInterval(StockDataHelper.Timeframe tf) {
+        this.interval=tf;
+        done = false;
+    }
 }
