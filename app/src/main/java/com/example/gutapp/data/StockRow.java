@@ -182,7 +182,7 @@ public class StockRow implements SessionCallback {
     }
 
     private void buildListSelectionDialog(List<WatchlistResponses.WatchlistInfo> existingLists) {
-        AlertDialog.Builder builder = new AlertDialog.Builder(callerActivity, AlertDialog.THEME_HOLO_DARK);
+        AlertDialog.Builder builder = new AlertDialog.Builder(callerActivity, android.R.style.Theme_DeviceDefault_Dialog_Alert);
         builder.setTitle("Add " + symbol + " to List");
 
         LinearLayout layout = new LinearLayout(callerActivity);

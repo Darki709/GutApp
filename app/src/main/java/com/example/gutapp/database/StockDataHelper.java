@@ -75,10 +75,12 @@ public class StockDataHelper {
     //inserts data and updates last fetch time
     public void saveStockData(String symbol, Timeframe timeframe, ArrayList<Candle> stockData) {
         if (stockData == null || stockData.isEmpty()) return;
-        SQLiteDatabase db = db_helper.getWritableDatabase();
+
         LastFetchCacheHelper cacheHelper = new LastFetchCacheHelper(db_helper);
         String symbol_name = cacheHelper.getSymbolName(symbol);
+        long recorded_last_fetch = cacheHelper.getLastFetchTime(symbol, timeframe);
 
+        SQLiteDatabase db = db_helper.getWritableDatabase();
         db.beginTransaction();
 
         try {
@@ -100,7 +102,6 @@ public class StockDataHelper {
 
             //the timestamp of the last entry in the new data is the fetch time
             long last_update = stockData.get(stockData.size() - 1).timestamp;
-            long recorded_last_fetch = cacheHelper.getLastFetchTime(symbol, timeframe);
             if (last_update > recorded_last_fetch)
             {
                 String query = "INSERT OR REPLACE INTO " + LastFetchCacheHelper.TABLE_NAME + " (" + LastFetchCacheHelper.COLUMN_SYMBOL + ", " + LastFetchCacheHelper.COLUMN_INTERVAL + ", " +
@@ -227,9 +228,8 @@ public class StockDataHelper {
     }
 
     public Candle getLatestPrice(String symbol) {
-        try {
-            Cursor cursor = readFromDB(new String[]{StockDataHelper.COLUMN_DATE ,StockDataHelper.COLUMN_OPEN, StockDataHelper.COLUMN_HIGH, StockDataHelper.COLUMN_LOW, StockDataHelper.COLUMN_CLOSE, StockDataHelper.COLUMN_VOLUME}, "symbol = ?",
-                    new String[]{symbol}, "date DESC", 2);
+        try (Cursor cursor = readFromDB(new String[]{StockDataHelper.COLUMN_DATE ,StockDataHelper.COLUMN_OPEN, StockDataHelper.COLUMN_HIGH, StockDataHelper.COLUMN_LOW, StockDataHelper.COLUMN_CLOSE, StockDataHelper.COLUMN_VOLUME}, "symbol = ?",
+                    new String[]{symbol}, "date DESC", 2)){
             cursor.moveToFirst();
             Candle candle = new Candle(cursor.getLong(0), cursor.getDouble(1), cursor.getDouble(2), cursor.getDouble(3), cursor.getDouble(4), cursor.getLong(5));
             if(!cursor.isLast()) cursor.moveToNext();
