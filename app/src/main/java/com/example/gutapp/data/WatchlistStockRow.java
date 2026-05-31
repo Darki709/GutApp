@@ -2,6 +2,7 @@ package com.example.gutapp.data;
 
 import android.app.Activity;
 import android.app.AlertDialog;
+import com.example.gutapp.R;
 import android.widget.PopupMenu;
 import android.widget.Toast;
 
@@ -33,7 +34,7 @@ public class WatchlistStockRow extends StockRow {
     }
 
     private void showRemoveConfirmation() {
-        new AlertDialog.Builder(callerActivity, AlertDialog.THEME_HOLO_DARK)
+        new AlertDialog.Builder(callerActivity, R.style.GutDialog)
                 .setTitle("Remove Ticker")
                 .setMessage("Are you sure you want to remove " + symbol + " from " + currentListName + "?")
                 .setPositiveButton("Remove", (dialog, which) -> {

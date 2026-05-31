@@ -1,6 +1,7 @@
 package com.example.gutapp.ui.fragments;
 
 import android.app.AlertDialog;
+import com.example.gutapp.R;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.os.Bundle;
@@ -367,7 +368,7 @@ public class DrawingToolbarFragment extends BottomSheetDialogFragment {
             });
 
             card.setOnLongClickListener(v -> {
-                new AlertDialog.Builder(requireContext())
+                new AlertDialog.Builder(requireContext(), R.style.GutDialog)
                         .setTitle(label)
                         .setMessage(desc)
                         .setPositiveButton("Select", (d,w) -> { card.callOnClick(); })
@@ -418,7 +419,7 @@ public class DrawingToolbarFragment extends BottomSheetDialogFragment {
         actionRow.addView(spacer(8));
 
         TextView clearAllBtn = chipBtn("⊘ Clear All", "#B71C1C");
-        clearAllBtn.setOnClickListener(v -> new AlertDialog.Builder(requireContext())
+        clearAllBtn.setOnClickListener(v -> new AlertDialog.Builder(requireContext(), R.style.GutDialog)
                 .setTitle("Clear All Drawings")
                 .setMessage("Remove all user drawings from this chart?")
                 .setPositiveButton("Clear", (d, w) -> {
@@ -623,7 +624,7 @@ private void openColorPicker(ChartDrawing d) {
         grid.addView(sw);
     }
 
-    holder[0] = new AlertDialog.Builder(requireContext())
+    holder[0] = new AlertDialog.Builder(requireContext(), R.style.GutDialog)
             .setTitle("Pick Color")
             .setView(grid)
             .setNegativeButton("Cancel", null)
@@ -639,14 +640,13 @@ private void openLabelEditor(ChartDrawing d) {
         LinearLayout form = new LinearLayout(requireContext());
         form.setOrientation(LinearLayout.VERTICAL);
         form.setPadding(dp(16), dp(10), dp(16), dp(10));
-        form.setBackgroundColor(Color.parseColor("#161414"));
 
         // Helper to build numeric entry fields
         EditText entryInput  = buildNumericField("Entry Price", String.valueOf(rr.entryPrice), form);
         EditText targetInput = buildNumericField("Target Price", String.valueOf(rr.targetPrice), form);
         EditText stopInput   = buildNumericField("Stop Loss Price", String.valueOf(rr.stopPrice), form);
 
-        new AlertDialog.Builder(requireContext())
+        new AlertDialog.Builder(requireContext(), R.style.GutDialog)
                 .setTitle("Adjust Coordinates")
                 .setView(form)
                 .setPositiveButton("Save", (dial, w) -> {
@@ -671,7 +671,6 @@ private void openLabelEditor(ChartDrawing d) {
     input.setInputType(InputType.TYPE_CLASS_TEXT);
     input.setTextColor(Color.parseColor("#ECEFF1"));
     input.setHintTextColor(Color.parseColor("#546E7A"));
-    input.setBackgroundColor(Color.parseColor("#252323"));
     input.setPadding(dp(14),dp(10),dp(14),dp(10));
 
     String cur = "";
@@ -681,7 +680,7 @@ private void openLabelEditor(ChartDrawing d) {
     input.setText(cur);
     input.setSelection(input.getText().length());
 
-    new AlertDialog.Builder(requireContext())
+    new AlertDialog.Builder(requireContext(), R.style.GutDialog)
             .setTitle("Edit Label")
             .setView(input)
             .setPositiveButton("OK", (dial, w) -> {

@@ -82,6 +82,7 @@ public class ExploreActivity extends SessionActivity implements StockLiveList.Lo
     }
 
     private void loadMore() {
+        if(query == null) return;
         SearchTicker searchTicker = new SearchTicker(query, 50, lastTickerId, this);
         NetworkClient.getInstance(this).getSessionManager().pushRequest(searchTicker);
     }

@@ -157,7 +157,7 @@ public class WatchlistActivity extends SessionActivity implements StockLiveList.
 
     private void confirmDelete() {
         if (selectedListName == null) return;
-        new android.app.AlertDialog.Builder(this, android.app.AlertDialog.THEME_HOLO_DARK)
+        new android.app.AlertDialog.Builder(this, R.style.GutDialog)
                 .setTitle("Delete List")
                 .setMessage("Delete '" + selectedListName + "'? This cannot be undone.")
                 .setPositiveButton("Delete", (d, w) -> {
@@ -173,7 +173,7 @@ public class WatchlistActivity extends SessionActivity implements StockLiveList.
         input.setText(selectedListName);
         input.setPadding(40, 40, 40, 40);
 
-        new android.app.AlertDialog.Builder(this, android.app.AlertDialog.THEME_HOLO_DARK)
+        new android.app.AlertDialog.Builder(this, R.style.GutDialog)
                 .setTitle("Rename List")
                 .setView(input)
                 .setPositiveButton("Rename", (d, w) -> {

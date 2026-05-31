@@ -3,6 +3,7 @@ package com.example.gutapp.data;
 
 import android.app.Activity;
 import android.content.Intent;
+import com.example.gutapp.R;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.os.Handler;
@@ -182,7 +183,7 @@ public class StockRow implements SessionCallback {
     }
 
     private void buildListSelectionDialog(List<WatchlistResponses.WatchlistInfo> existingLists) {
-        AlertDialog.Builder builder = new AlertDialog.Builder(callerActivity, android.R.style.Theme_DeviceDefault_Dialog_Alert);
+        AlertDialog.Builder builder = new AlertDialog.Builder(callerActivity, R.style.GutDialog);
         builder.setTitle("Add " + symbol + " to List");
 
         LinearLayout layout = new LinearLayout(callerActivity);

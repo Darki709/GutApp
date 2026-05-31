@@ -111,7 +111,7 @@ public class ProfileActivity extends SessionActivity implements IndicatorsPanel.
 
         container.addView(input);
 
-        new AlertDialog.Builder(this, android.R.style.Theme_DeviceDefault_Dialog_Alert)
+        new AlertDialog.Builder(this, R.style.GutDialog)
                 .setTitle("New Preset")
                 .setMessage("Enter a name for this setup:")
                 .setView(container)
@@ -259,7 +259,7 @@ public class ProfileActivity extends SessionActivity implements IndicatorsPanel.
         // Delete
         TextView deleteBtn = actionChip("Delete", "#EF5350");
         deleteBtn.setOnClickListener(v ->
-                new AlertDialog.Builder(this)
+                new AlertDialog.Builder(this, R.style.GutDialog)
                         .setMessage("Delete preset \"" + preset.name + "\"?")
                         .setPositiveButton("Delete", (d, w) -> {
                             repo.deletePreset(preset.name);

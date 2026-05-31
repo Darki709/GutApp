@@ -546,7 +546,7 @@ public class IndicatorsPanel extends BottomSheetDialogFragment {
             });
             grid.addView(swatch);
         }
-        android.app.AlertDialog dialog = new android.app.AlertDialog.Builder(ctx)
+        android.app.AlertDialog dialog = new android.app.AlertDialog.Builder(ctx, R.style.GutDialog)
                 .setTitle("Pick Color")
                 .setView(grid)
                 .setNegativeButton("Cancel", null)

@@ -590,10 +590,9 @@ public class ChartActivity extends SessionActivity implements
         input.setHint("Preset name…");
         input.setTextColor(Color.parseColor("#ECEFF1"));
         input.setHintTextColor(Color.parseColor("#546E7A"));
-        input.setBackgroundColor(Color.parseColor("#252323"));
         input.setPadding(dpI(14), dpI(10), dpI(14), dpI(10));
 
-        new AlertDialog.Builder(this)
+        new AlertDialog.Builder(this, R.style.GutDialog)
                 .setTitle("Save Preset")
                 .setView(input)
                 .setPositiveButton("Save", (d, w) -> {

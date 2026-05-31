@@ -20,17 +20,13 @@ import com.example.gutapp.R;
 import com.example.gutapp.data.alerts.Alert;
 import com.example.gutapp.data.alerts.AlertManager;
 import com.example.gutapp.data.alerts.Condition;
-import com.example.gutapp.data.alerts.conditions.PriceChangePercentCondition;
-import com.example.gutapp.data.alerts.conditions.PriceThresholdCondition;
-import com.example.gutapp.data.alerts.conditions.RSICondition;
-import com.example.gutapp.data.alerts.conditions.SMACrossoverCondition;
-import com.example.gutapp.data.alerts.conditions.VolatilityCondition;
-import com.example.gutapp.data.alerts.conditions.VolumeSpikeCondition;
 import com.example.gutapp.database.StockDataHelper;
 import com.example.gutapp.ui.AlertsActivity;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * AddAlertBottomSheet — static helper that drives the panel_add_alert.xml
@@ -40,7 +36,7 @@ import java.util.List;
  * to a full-screen AlertsActivity-hosted BottomSheetDialog.
  *
  * Usage:
- *   AddAlertBottomSheet.show(activity, symbol, existingAlertOrNull, onSaveCallback);
+ * AddAlertBottomSheet.show(activity, symbol, existingAlertOrNull, onSaveCallback);
  *
  * The panel is already in ChartActivity's layout. show() just populates it
  * and makes it VISIBLE. close() sets it GONE.
@@ -94,7 +90,7 @@ public class AddAlertBottomSheet {
     // ── Binding ───────────────────────────────────────────────────────
 
     private static void bind(Activity activity, View panel,
-                              String symbol, Alert existing, Runnable onSave) {
+                             String symbol, Alert existing, Runnable onSave) {
         Context ctx = activity;
 
         // Title
@@ -130,22 +126,35 @@ public class AddAlertBottomSheet {
         LinearLayout condParams = panel.findViewById(R.id.alertConditionParams);
 
         int initialIdx = 0;
-        if (existing != null) {
+        if (existing != null && existing.getCondition() != null) {
             switch (existing.getCondition().getTypeName()) {
-                case PriceThresholdCondition.TYPE:     initialIdx = 0; break;
-                case PriceChangePercentCondition.TYPE: initialIdx = 1; break;
-                case SMACrossoverCondition.TYPE:       initialIdx = 2; break;
-                case VolatilityCondition.TYPE:         initialIdx = 3; break;
-                case RSICondition.TYPE:                initialIdx = 4; break;
-                case VolumeSpikeCondition.TYPE:        initialIdx = 5; break;
+                case "PRICE_THRESHOLD":       initialIdx = 0; break;
+                case "PRICE_CHANGE_PERCENT":  initialIdx = 1; break;
+                case "SMA_CROSSOVER":         initialIdx = 2; break;
+                case "VOLATILITY":            initialIdx = 3; break;
+                case "RSI":                   initialIdx = 4; break;
+                case "VOLUME_SPIKE":          initialIdx = 5; break;
             }
         }
-        condSpinner.setSelection(initialIdx);
+
         renderCondParams(ctx, condParams, initialIdx, existing);
+        condSpinner.setSelection(initialIdx);
 
         condSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
             @Override public void onItemSelected(AdapterView<?> p, View v, int pos, long id) {
-                renderCondParams(ctx, condParams, pos, null);
+                boolean matchesModel = false;
+                if (existing != null && existing.getCondition() != null) {
+                    String type = existing.getCondition().getTypeName();
+                    if ((pos == 0 && "PRICE_THRESHOLD".equals(type)) ||
+                            (pos == 1 && "PRICE_CHANGE_PERCENT".equals(type)) ||
+                            (pos == 2 && "SMA_CROSSOVER".equals(type)) ||
+                            (pos == 3 && "VOLATILITY".equals(type)) ||
+                            (pos == 4 && "RSI".equals(type)) ||
+                            (pos == 5 && "VOLUME_SPIKE".equals(type))) {
+                        matchesModel = true;
+                    }
+                }
+                renderCondParams(ctx, condParams, pos, matchesModel ? existing : null);
             }
             @Override public void onNothingSelected(AdapterView<?> p) {}
         });
@@ -166,6 +175,7 @@ public class AddAlertBottomSheet {
             }
         } else {
             ((RadioButton) panel.findViewById(R.id.rbOnce)).setChecked(true);
+            etCooldown.setVisibility(View.GONE);
         }
         repeatGroup.setOnCheckedChangeListener((g, id) ->
                 etCooldown.setVisibility(id == R.id.rbCooldown ? View.VISIBLE : View.GONE));
@@ -177,6 +187,8 @@ public class AddAlertBottomSheet {
                 case LOW:  ((RadioButton) panel.findViewById(R.id.rbPriLow)).setChecked(true);  break;
                 default:   ((RadioButton) panel.findViewById(R.id.rbPriMed)).setChecked(true);  break;
             }
+        } else {
+            ((RadioButton) panel.findViewById(R.id.rbPriMed)).setChecked(true);
         }
 
         // Expiry
@@ -193,10 +205,10 @@ public class AddAlertBottomSheet {
         saveBtn.setText(existing != null ? "Update Alert" : "Create Alert");
         saveBtn.setOnClickListener(v -> {
             String lbl = etLabel.getText().toString().trim();
-            String sym = (symbol != null ? symbol : "").toUpperCase().trim();
+            String sym = (symbol != null ? symbol : (existing != null ? existing.getSymbol() : "")).toUpperCase().trim();
 
             if (sym.isEmpty()) {
-                Toast.makeText(ctx, "No symbol — open this from the chart", Toast.LENGTH_SHORT).show();
+                Toast.makeText(ctx, "No symbol available", Toast.LENGTH_SHORT).show();
                 return;
             }
             if (lbl.isEmpty()) {
@@ -204,8 +216,7 @@ public class AddAlertBottomSheet {
                 return;
             }
 
-            Condition condition = buildCondition(ctx, condSpinner.getSelectedItemPosition(),
-                    sym, condParams);
+            Condition condition = buildCondition(ctx, condSpinner.getSelectedItemPosition(), sym, condParams);
             if (condition == null) return;
 
             // Repeat
@@ -236,9 +247,9 @@ public class AddAlertBottomSheet {
                 if (hours > 0) expiresAt = System.currentTimeMillis() / 1000L + hours * 3600L;
             } catch (NumberFormatException ignored) {}
 
-            Alert alert = new Alert(sym, lbl, condition, mode, cooldownSecs, expiresAt, priority);
-
             if (existing != null) AlertManager.getInstance().removeAlert(existing.getId());
+
+            Alert alert = new Alert(sym, lbl, condition, mode, cooldownSecs, expiresAt, priority);
             AlertManager.getInstance().addAlert(alert);
 
             panel.setVisibility(View.GONE);
@@ -265,69 +276,189 @@ public class AddAlertBottomSheet {
     private static void buildPriceThreshold(Context ctx, LinearLayout c, Alert ex) {
         c.addView(sectionLabel(ctx, "TARGET PRICE"));
         EditText et = numField(ctx, "e.g. 1.0850"); et.setTag("price"); c.addView(et);
-        if (ex != null && ex.getCondition() instanceof PriceThresholdCondition)
-            et.setText(String.valueOf(((PriceThresholdCondition) ex.getCondition()).getTargetPrice()));
 
         c.addView(sectionLabel(ctx, "DIRECTION"));
         RadioGroup rg = new RadioGroup(ctx); rg.setOrientation(RadioGroup.HORIZONTAL); rg.setTag("dir");
-        RadioButton above = radio(ctx, "Above ↑"); above.setTag("above"); above.setChecked(true);
+        RadioButton above = radio(ctx, "Above ↑"); above.setTag("above");
         RadioButton below = radio(ctx, "Below ↓"); below.setTag("below");
-        rg.addView(above); rg.addView(below);
-        if (ex != null && ex.getCondition() instanceof PriceThresholdCondition
-                && !((PriceThresholdCondition) ex.getCondition()).isLookForAbove())
-            below.setChecked(true);
-        c.addView(rg);
+        rg.addView(above); rg.addView(below); c.addView(rg);
+
+        above.setChecked(true);
+
+        if (ex != null && ex.getCondition() != null) {
+            String summary = ex.getCondition().getSummary();
+            try {
+                String clean = summary.replaceAll("[^0-9.]", "").trim();
+                if (!clean.isEmpty()) et.setText(clean);
+                if (summary.contains("<") || summary.contains("≤") || summary.toLowerCase().contains("below")) {
+                    below.setChecked(true);
+                } else {
+                    above.setChecked(true);
+                }
+            } catch (Exception ignored) {}
+        }
     }
 
     private static void buildPriceChangePct(Context ctx, LinearLayout c, Alert ex) {
         c.addView(sectionLabel(ctx, "% THRESHOLD"));
         EditText et = numField(ctx, "e.g. 2.0"); et.setTag("pct"); c.addView(et);
+
         c.addView(sectionLabel(ctx, "DIRECTION"));
         Spinner sp = spinner(ctx, Arrays.asList("Either", "Up ↑", "Down ↓")); sp.setTag("dir"); c.addView(sp);
+
         c.addView(sectionLabel(ctx, "TIMEFRAME"));
         Spinner tf = spinner(ctx, Arrays.asList(TF_LABELS)); tf.setTag("tf"); c.addView(tf);
+
+        if (ex != null && ex.getCondition() != null) {
+            String summary = ex.getCondition().getSummary();
+            try {
+                Pattern pattern = Pattern.compile("([0-9]+\\.?[0-9]*)\\s*%");
+                Matcher matcher = pattern.matcher(summary);
+                if (matcher.find()) {
+                    String clean = matcher.group(1);
+                    if (clean != null && !clean.isEmpty()) et.setText(clean);
+                } else {
+                    String clean = summary.replaceAll("[^0-9.]", "").trim();
+                    if (!clean.isEmpty()) et.setText(clean);
+                }
+
+                if (summary.toLowerCase().contains("up")) sp.setSelection(1);
+                else if (summary.toLowerCase().contains("down")) sp.setSelection(2);
+
+                for (int i = 0; i < TF_LABELS.length; i++) {
+                    if (summary.contains(TF_LABELS[i])) {
+                        tf.setSelection(i);
+                        break;
+                    }
+                }
+            } catch (Exception ignored) {}
+        }
     }
 
     private static void buildSma(Context ctx, LinearLayout c, Alert ex) {
         c.addView(sectionLabel(ctx, "PERIOD"));
         EditText et = numField(ctx, "e.g. 20"); et.setTag("period"); c.addView(et);
+
         c.addView(sectionLabel(ctx, "CROSS"));
         RadioGroup rg = new RadioGroup(ctx); rg.setOrientation(RadioGroup.HORIZONTAL); rg.setTag("cross");
-        RadioButton ab = radio(ctx, "Cross Above ↑"); ab.setChecked(true);
-        RadioButton bl = radio(ctx, "Cross Below ↓");
+        RadioButton ab = radio(ctx, "Cross Above ↑"); ab.setTag("above");
+        RadioButton bl = radio(ctx, "Cross Below ↓"); bl.setTag("below");
         rg.addView(ab); rg.addView(bl); c.addView(rg);
+
+        ab.setChecked(true);
+
         c.addView(sectionLabel(ctx, "TIMEFRAME"));
         Spinner tf = spinner(ctx, Arrays.asList(TF_LABELS)); tf.setTag("tf"); c.addView(tf);
+
+        if (ex != null && ex.getCondition() != null) {
+            String summary = ex.getCondition().getSummary();
+            try {
+                String clean = summary.replaceAll("[^0-9.]", "").trim();
+                if (!clean.isEmpty()) et.setText(clean);
+                if (summary.toLowerCase().contains("below")) {
+                    bl.setChecked(true);
+                } else {
+                    ab.setChecked(true);
+                }
+
+                for (int i = 0; i < TF_LABELS.length; i++) {
+                    if (summary.contains(TF_LABELS[i])) {
+                        tf.setSelection(i);
+                        break;
+                    }
+                }
+            } catch (Exception ignored) {}
+        }
     }
 
     private static void buildVolatility(Context ctx, LinearLayout c, Alert ex) {
         c.addView(sectionLabel(ctx, "% MOVE THRESHOLD"));
         EditText et = numField(ctx, "e.g. 2.0"); et.setTag("pct"); c.addView(et);
+
         c.addView(sectionLabel(ctx, "TIMEFRAME"));
         Spinner tf = spinner(ctx, Arrays.asList(TF_LABELS)); tf.setTag("tf"); c.addView(tf);
+
+        if (ex != null && ex.getCondition() != null) {
+            String summary = ex.getCondition().getSummary();
+            try {
+                String clean = summary.replaceAll("[^0-9.]", "").trim();
+                if (!clean.isEmpty()) et.setText(clean);
+
+                for (int i = 0; i < TF_LABELS.length; i++) {
+                    if (summary.contains(TF_LABELS[i])) {
+                        tf.setSelection(i);
+                        break;
+                    }
+                }
+            } catch (Exception ignored) {}
+        }
     }
 
     private static void buildRsi(Context ctx, LinearLayout c, Alert ex) {
         c.addView(sectionLabel(ctx, "PERIOD"));
         EditText etP = numField(ctx, "e.g. 14"); etP.setTag("period"); c.addView(etP);
+
         c.addView(sectionLabel(ctx, "LEVEL"));
         EditText etL = numField(ctx, "e.g. 30 (oversold) or 70"); etL.setTag("level"); c.addView(etL);
+
         c.addView(sectionLabel(ctx, "TRIGGER WHEN RSI"));
         RadioGroup rg = new RadioGroup(ctx); rg.setOrientation(RadioGroup.HORIZONTAL); rg.setTag("cross");
-        RadioButton bl = radio(ctx, "≤ Level (oversold)"); bl.setChecked(true);
-        RadioButton ab = radio(ctx, "≥ Level (overbought)");
+        RadioButton bl = radio(ctx, "≤ Level (oversold)"); bl.setTag("below");
+        RadioButton ab = radio(ctx, "≥ Level (overbought)"); ab.setTag("above");
         rg.addView(bl); rg.addView(ab); c.addView(rg);
+
+        bl.setChecked(true);
+
         c.addView(sectionLabel(ctx, "TIMEFRAME"));
         Spinner tf = spinner(ctx, Arrays.asList(TF_LABELS)); tf.setTag("tf"); c.addView(tf);
+
+        if (ex != null && ex.getCondition() != null) {
+            String summary = ex.getCondition().getSummary();
+            try {
+                String[] parts = summary.replaceAll("[^0-9. ]", "").trim().split("\\s+");
+                if (parts.length > 0 && !parts[0].isEmpty()) etP.setText(parts[0]);
+                if (parts.length > 1 && !parts[1].isEmpty()) etL.setText(parts[1]);
+                if (summary.contains(">") || summary.contains("≥") || summary.toLowerCase().contains("above")) {
+                    ab.setChecked(true);
+                } else {
+                    bl.setChecked(true);
+                }
+
+                for (int i = 0; i < TF_LABELS.length; i++) {
+                    if (summary.contains(TF_LABELS[i])) {
+                        tf.setSelection(i);
+                        break;
+                    }
+                }
+            } catch (Exception ignored) {}
+        }
     }
 
     private static void buildVolumeSpike(Context ctx, LinearLayout c, Alert ex) {
         c.addView(sectionLabel(ctx, "LOOKBACK CANDLES"));
         EditText etL = numField(ctx, "e.g. 20"); etL.setTag("lookback"); c.addView(etL);
+
         c.addView(sectionLabel(ctx, "SPIKE MULTIPLIER"));
         EditText etM = numField(ctx, "e.g. 3.0"); etM.setTag("mult"); c.addView(etM);
+
         c.addView(sectionLabel(ctx, "TIMEFRAME"));
         Spinner tf = spinner(ctx, Arrays.asList(TF_LABELS)); tf.setTag("tf"); c.addView(tf);
+
+        if (ex != null && ex.getCondition() != null) {
+            String summary = ex.getCondition().getSummary();
+            try {
+                String[] parts = summary.replaceAll("[^0-9. ]", "").trim().split("\\s+");
+                if (parts.length > 1 && !parts[1].isEmpty()) etL.setText(parts[1]);
+                if (parts.length > 0 && !parts[0].isEmpty()) etM.setText(parts[0]);
+
+                for (int i = 0; i < TF_LABELS.length; i++) {
+                    if (summary.contains(TF_LABELS[i])) {
+                        tf.setSelection(i);
+                        break;
+                    }
+                }
+            } catch (Exception ignored) {}
+        }
     }
 
     // ── Condition factory ─────────────────────────────────────────────
@@ -338,46 +469,61 @@ public class AddAlertBottomSheet {
                 case 0: {
                     double price = Double.parseDouble(((EditText) params.findViewWithTag("price")).getText().toString().trim());
                     RadioGroup rg = params.findViewWithTag("dir");
-                    RadioButton sel = params.findViewById(rg.getCheckedRadioButtonId());
-                    return new PriceThresholdCondition(symbol, price, "above".equals(sel.getTag()));
+                    RadioButton above = rg.findViewWithTag("above");
+                    RadioButton below = rg.findViewWithTag("below");
+                    boolean checked = above.isChecked();
+                    if (!checked && !below.isChecked()) {
+                        checked = true;
+                    }
+                    return new com.example.gutapp.data.alerts.conditions.PriceThresholdCondition(symbol, price, checked);
                 }
                 case 1: {
                     double pct = Double.parseDouble(((EditText) params.findViewWithTag("pct")).getText().toString().trim());
                     int dirIdx = ((Spinner) params.findViewWithTag("dir")).getSelectedItemPosition();
-                    PriceChangePercentCondition.Direction dir = dirIdx == 1
-                            ? PriceChangePercentCondition.Direction.UP
-                            : dirIdx == 2 ? PriceChangePercentCondition.Direction.DOWN
-                                          : PriceChangePercentCondition.Direction.EITHER;
+                    com.example.gutapp.data.alerts.conditions.PriceChangePercentCondition.Direction dir = dirIdx == 1
+                            ? com.example.gutapp.data.alerts.conditions.PriceChangePercentCondition.Direction.UP
+                            : dirIdx == 2 ? com.example.gutapp.data.alerts.conditions.PriceChangePercentCondition.Direction.DOWN
+                            : com.example.gutapp.data.alerts.conditions.PriceChangePercentCondition.Direction.EITHER;
                     int tfIdx = ((Spinner) params.findViewWithTag("tf")).getSelectedItemPosition();
-                    return new PriceChangePercentCondition(symbol, pct, dir, TF_VALUES[tfIdx]);
+                    return new com.example.gutapp.data.alerts.conditions.PriceChangePercentCondition(symbol, pct, dir, TF_VALUES[tfIdx]);
                 }
                 case 2: {
                     int period = Integer.parseInt(((EditText) params.findViewWithTag("period")).getText().toString().trim());
                     RadioGroup rg = params.findViewWithTag("cross");
-                    boolean above = rg.getCheckedRadioButtonId() == ((RadioButton) rg.getChildAt(0)).getId();
+                    RadioButton above = rg.findViewWithTag("above");
+                    RadioButton below = rg.findViewWithTag("below");
+                    boolean checked = above.isChecked();
+                    if (!checked && !below.isChecked()) {
+                        checked = true;
+                    }
                     int tfIdx = ((Spinner) params.findViewWithTag("tf")).getSelectedItemPosition();
-                    return new SMACrossoverCondition(symbol, TF_VALUES[tfIdx], period,
-                            above ? SMACrossoverCondition.CrossDirection.ABOVE : SMACrossoverCondition.CrossDirection.BELOW);
+                    return new com.example.gutapp.data.alerts.conditions.SMACrossoverCondition(symbol, TF_VALUES[tfIdx], period,
+                            checked ? com.example.gutapp.data.alerts.conditions.SMACrossoverCondition.CrossDirection.ABOVE : com.example.gutapp.data.alerts.conditions.SMACrossoverCondition.CrossDirection.BELOW);
                 }
                 case 3: {
                     double pct = Double.parseDouble(((EditText) params.findViewWithTag("pct")).getText().toString().trim());
                     int tfIdx = ((Spinner) params.findViewWithTag("tf")).getSelectedItemPosition();
-                    return new VolatilityCondition(symbol, pct, TF_VALUES[tfIdx]);
+                    return new com.example.gutapp.data.alerts.conditions.VolatilityCondition(symbol, pct, TF_VALUES[tfIdx]);
                 }
                 case 4: {
                     int period = Integer.parseInt(((EditText) params.findViewWithTag("period")).getText().toString().trim());
                     double level = Double.parseDouble(((EditText) params.findViewWithTag("level")).getText().toString().trim());
                     RadioGroup rg = params.findViewWithTag("cross");
-                    boolean below = rg.getCheckedRadioButtonId() == ((RadioButton) rg.getChildAt(0)).getId();
+                    RadioButton above = rg.findViewWithTag("above");
+                    RadioButton below = rg.findViewWithTag("below");
+                    boolean checked = above.isChecked();
+                    if (!checked && !below.isChecked()) {
+                        checked = false;
+                    }
                     int tfIdx = ((Spinner) params.findViewWithTag("tf")).getSelectedItemPosition();
-                    return new RSICondition(symbol, TF_VALUES[tfIdx], period, level,
-                            below ? RSICondition.CrossDirection.BELOW : RSICondition.CrossDirection.ABOVE);
+                    return new com.example.gutapp.data.alerts.conditions.RSICondition(symbol, TF_VALUES[tfIdx], period, level,
+                            !checked ? com.example.gutapp.data.alerts.conditions.RSICondition.CrossDirection.BELOW : com.example.gutapp.data.alerts.conditions.RSICondition.CrossDirection.ABOVE);
                 }
                 case 5: {
                     int lookback = Integer.parseInt(((EditText) params.findViewWithTag("lookback")).getText().toString().trim());
                     double mult  = Double.parseDouble(((EditText) params.findViewWithTag("mult")).getText().toString().trim());
                     int tfIdx    = ((Spinner) params.findViewWithTag("tf")).getSelectedItemPosition();
-                    return new VolumeSpikeCondition(symbol, TF_VALUES[tfIdx], lookback, mult);
+                    return new com.example.gutapp.data.alerts.conditions.VolumeSpikeCondition(symbol, TF_VALUES[tfIdx], lookback, mult);
                 }
             }
         } catch (Exception e) {
@@ -418,6 +564,7 @@ public class AddAlertBottomSheet {
 
     private static RadioButton radio(Context ctx, String text) {
         RadioButton rb = new RadioButton(ctx);
+        rb.setId(View.generateViewId());
         rb.setText(text);
         rb.setTextColor(0xFFECEFF1);
         rb.setTextSize(12f);

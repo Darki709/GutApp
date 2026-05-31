@@ -1,11 +1,20 @@
 package com.example.gutapp.ui;
 
+import android.app.AlertDialog;
+import android.content.Intent;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
+import android.text.Editable;
+import android.text.TextWatcher;
+import android.util.TypedValue;
 import android.view.LayoutInflater;
 import android.view.View;
+import android.widget.EditText;
 import android.widget.LinearLayout;
+import android.widget.ScrollView;
 import android.widget.Switch;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -19,10 +28,14 @@ import androidx.core.view.WindowInsetsCompat;
 import com.example.gutapp.R;
 import com.example.gutapp.data.alerts.Alert;
 import com.example.gutapp.data.alerts.AlertManager;
+import com.example.gutapp.data.models.TickerInfo;
 import com.example.gutapp.session.DataType;
+import com.example.gutapp.session.NetworkClient;
+import com.example.gutapp.session.Requests.SearchTicker;
 import com.example.gutapp.ui.dialogue.AddAlertBottomSheet;
 
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 import java.util.Locale;
@@ -33,6 +46,9 @@ public class AlertsActivity extends SessionActivity {
     private View emptyState;
     private TextView countBar;
     private String filterSymbol;
+
+    private AlertDialog tickerPickDialog;
+    private LinearLayout searchResultsContainer;
 
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
@@ -63,8 +79,12 @@ public class AlertsActivity extends SessionActivity {
         if (filterSymbol != null) title.setText("🔔  Alerts — " + filterSymbol);
 
         findViewById(R.id.btnAlertsBack).setOnClickListener(v -> finish());
-        findViewById(R.id.btnNewAlert).setOnClickListener(v ->
-                AddAlertBottomSheet.show(this, filterSymbol, null, this::refreshList));
+        findViewById(R.id.btnNewAlert).setOnClickListener(v -> {
+            if (filterSymbol != null)
+                AddAlertBottomSheet.show(this, filterSymbol, null, this::refreshList);
+            else
+                showTickerSearchDialog();
+        });
 
         refreshList();
     }
@@ -75,7 +95,106 @@ public class AlertsActivity extends SessionActivity {
     @Override
     protected void networkDisconnect() {}
 
-    @Override public void onDataReceived(DataType t, Object d) {}
+    @Override
+    public void onDataReceived(DataType t, Object d) {
+        if (searchResultsContainer == null) return;
+        runOnUiThread(() -> {
+            searchResultsContainer.removeAllViews();
+            if (t == DataType.SEARCH_RESULT && d != null) {
+                for (TickerInfo ticker : (ArrayList<TickerInfo>) d)
+                    searchResultsContainer.addView(buildSearchResultRow(ticker));
+            } else if (t == DataType.SEARCH_NO_RESULT) {
+                TextView empty = new TextView(this);
+                empty.setText("No results found");
+                empty.setTextColor(Color.GRAY);
+                empty.setPadding(dp(8), dp(16), dp(8), dp(8));
+                searchResultsContainer.addView(empty);
+            }
+        });
+    }
+
+    // ── Ticker search dialog ──────────────────────────────────────────
+
+    private void showTickerSearchDialog() {
+        LinearLayout root = new LinearLayout(this);
+        root.setOrientation(LinearLayout.VERTICAL);
+        root.setPadding(dp(16), dp(12), dp(16), dp(8));
+
+        EditText searchInput = new EditText(this);
+        searchInput.setHint("Search ticker or name…");
+        searchInput.setHintTextColor(Color.parseColor("#546E7A"));
+        searchInput.setTextColor(Color.WHITE);
+        searchInput.setSingleLine(true);
+        root.addView(searchInput);
+
+        searchResultsContainer = new LinearLayout(this);
+        searchResultsContainer.setOrientation(LinearLayout.VERTICAL);
+        LinearLayout.LayoutParams svLp = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, dp(320));
+        ScrollView sv = new ScrollView(this);
+        sv.setLayoutParams(svLp);
+        sv.addView(searchResultsContainer);
+        root.addView(sv);
+
+        tickerPickDialog = new AlertDialog.Builder(this, R.style.GutDialog)
+                .setTitle("Select Ticker")
+                .setView(root)
+                .setNegativeButton("Cancel", (d, w) -> searchResultsContainer = null)
+                .setOnDismissListener(d -> searchResultsContainer = null)
+                .create();
+        tickerPickDialog.show();
+
+        Handler handler = new Handler(Looper.getMainLooper());
+        Runnable[] pending = {null};
+        searchInput.addTextChangedListener(new TextWatcher() {
+            @Override public void beforeTextChanged(CharSequence s, int st, int c, int a) {}
+            @Override public void afterTextChanged(Editable s) {}
+            @Override public void onTextChanged(CharSequence s, int st, int before, int count) {
+                if (pending[0] != null) handler.removeCallbacks(pending[0]);
+                pending[0] = () -> {
+                    String q = s.toString().trim();
+                    if (q.length() >= 2) {
+                        if (searchResultsContainer != null) searchResultsContainer.removeAllViews();
+                        NetworkClient.getInstance(AlertsActivity.this).getSessionManager()
+                                .pushRequest(new SearchTicker(q, AlertsActivity.this));
+                    }
+                };
+                handler.postDelayed(pending[0], 400);
+            }
+        });
+    }
+
+    private View buildSearchResultRow(TickerInfo ticker) {
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.VERTICAL);
+        row.setPadding(dp(8), dp(12), dp(8), dp(12));
+        row.setClickable(true);
+        TypedValue ripple = new TypedValue();
+        getTheme().resolveAttribute(android.R.attr.selectableItemBackground, ripple, true);
+        row.setBackgroundResource(ripple.resourceId);
+
+        TextView sym = new TextView(this);
+        sym.setText(ticker.symbol);
+        sym.setTextColor(Color.WHITE);
+        sym.setTextSize(15f);
+        sym.setTypeface(null, Typeface.BOLD);
+
+        TextView name = new TextView(this);
+        name.setText(ticker.name);
+        name.setTextColor(Color.GRAY);
+        name.setTextSize(12f);
+
+        row.addView(sym);
+        row.addView(name);
+
+        row.setOnClickListener(v -> {
+            if (tickerPickDialog != null) { tickerPickDialog.dismiss(); tickerPickDialog = null; }
+            searchResultsContainer = null;
+            AddAlertBottomSheet.show(this, ticker.symbol, null, this::refreshList);
+        });
+
+        return row;
+    }
 
     // ── List ──────────────────────────────────────────────────────────
 
@@ -175,16 +294,23 @@ public class AlertsActivity extends SessionActivity {
 
         // Toggle
         Switch toggle = row.findViewById(R.id.alertToggle);
+        toggle.setOnCheckedChangeListener(null);
         toggle.setChecked(alert.getStatus() == Alert.Status.ACTIVE);
-        toggle.setOnCheckedChangeListener((btn, on) ->
-                AlertManager.getInstance().setAlertStatus(alert.getId(),
-                        on ? Alert.Status.ACTIVE : Alert.Status.INACTIVE));
+        toggle.setOnCheckedChangeListener((btn, on) -> {
+            Alert.Status targetStatus = on ? Alert.Status.ACTIVE : Alert.Status.INACTIVE;
+
+            if (alert.getStatus() != targetStatus) {
+                AlertManager.getInstance().setAlertStatus(alert.getId(), targetStatus);
+                refreshList();
+            }
+
+        });
 
         // Delete
         row.findViewById(R.id.alertDeleteBtn).setOnClickListener(v -> {
             AlertManager.getInstance().removeAlert(alert.getId());
             refreshList();
-            Toast.makeText(this, "Alert deleted", Toast.LENGTH_SHORT).show();
+            //Toast.makeText(this, "Alert deleted", Toast.LENGTH_SHORT).show();
         });
 
         // Row tap = edit
