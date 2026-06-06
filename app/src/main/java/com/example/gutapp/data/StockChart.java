@@ -48,6 +48,7 @@ import com.github.mikephil.charting.data.Entry;
 import com.github.mikephil.charting.data.LineData;
 import com.github.mikephil.charting.data.LineDataSet;
 import com.github.mikephil.charting.formatter.ValueFormatter;
+import com.github.mikephil.charting.utils.Transformer;
 import com.github.mikephil.charting.highlight.Highlight;
 import com.github.mikephil.charting.listener.ChartTouchListener;
 import com.github.mikephil.charting.listener.OnChartGestureListener;
@@ -115,6 +116,13 @@ public class StockChart implements SessionCallback {
 
     @Setter @Nullable private IndicatorSession indicatorSession = null;
 
+    // ── Indicator tap-to-select ─────────────────────────────────────────
+    /** instanceId → its overlay polyline(s), rebuilt every render; used for hit-testing taps. */
+    private final LinkedHashMap<String, List<LineDataSet>> overlayLinesByInstance = new LinkedHashMap<>();
+    /** Currently selected overlay indicator (highlighted + bound to the edit panel), or null. */
+    @Nullable private String selectedIndicatorId = null;
+    private static final float INDICATOR_HIT_PX = 32f;
+
     private StockDataHelper.Timeframe interval;
     private ChartType currentChartType = ChartType.CANDLE;
 
@@ -172,6 +180,57 @@ public class StockChart implements SessionCallback {
 
     /** Expose the DrawingChart so ChartActivity can access drawing tools */
     public DrawingChart getDrawingChart() { return chart; }
+
+    // ── Indicator tap-to-select ─────────────────────────────────────────
+    /**
+     * Hit-test a tap (view pixels) against every overlay indicator's polyline.
+     * Returns the nearest instance id within {@link #INDICATOR_HIT_PX}, or null.
+     * Uses the RIGHT-axis transformer — the same space overlay lines render in.
+     */
+    @Nullable
+    public String pickIndicatorAt(float px, float py) {
+        if (overlayLinesByInstance.isEmpty()) return null;
+        Transformer tf = chart.getTransformer(YAxis.AxisDependency.RIGHT);
+        String best = null;
+        float bestDist = INDICATOR_HIT_PX;
+        float[] buf = new float[2];
+        for (Map.Entry<String, List<LineDataSet>> e : overlayLinesByInstance.entrySet()) {
+            for (LineDataSet set : e.getValue()) {
+                int n = set.getEntryCount();
+                float prevX = 0, prevY = 0; boolean hasPrev = false;
+                for (int i = 0; i < n; i++) {
+                    Entry en = set.getEntryForIndex(i);
+                    buf[0] = en.getX(); buf[1] = en.getY();
+                    tf.pointValuesToPixel(buf);
+                    float x = buf[0], y = buf[1];
+                    if (hasPrev) {
+                        float d = ptSeg(px, py, prevX, prevY, x, y);
+                        if (d < bestDist) { bestDist = d; best = e.getKey(); }
+                    }
+                    prevX = x; prevY = y; hasPrev = true;
+                }
+            }
+        }
+        return best;
+    }
+
+    /** Mark an overlay indicator as selected (highlights its line) and re-render. */
+    public void setSelectedIndicator(@Nullable String instanceId) {
+        this.selectedIndicatorId = instanceId;
+        applyIndicators();
+    }
+
+    @Nullable public String getSelectedIndicator() { return selectedIndicatorId; }
+
+    /** Perpendicular distance from point (px,py) to segment (ax,ay)-(bx,by), in pixels. */
+    private static float ptSeg(float px, float py, float ax, float ay, float bx, float by) {
+        float dx = bx - ax, dy = by - ay;
+        if (dx == 0 && dy == 0) return (float) Math.hypot(px - ax, py - ay);
+        float t = ((px - ax) * dx + (py - ay) * dy) / (dx * dx + dy * dy);
+        t = Math.max(0f, Math.min(1f, t));
+        float cx = ax + t * dx, cy = ay + t * dy;
+        return (float) Math.hypot(px - cx, py - cy);
+    }
 
     public void zoomIn() {
         chart.zoom(1.5f, 1f, chart.getWidth() / 2f, chart.getHeight() / 2f);
@@ -357,11 +416,19 @@ public class StockChart implements SessionCallback {
 
         // ── Collect indicator results ──────────────────────────────
         List<ChartDrawing> indicatorDrawings = new ArrayList<>();
+        overlayLinesByInstance.clear();
 
         if (indicatorSession != null) {
             for (Indicator ind : indicatorSession.getOverlays()) {
                 Indicator.Result res = ind.compute(snap);
-                for (LineDataSet s : res.overlayLines)  lineData.addDataSet(s);
+                boolean isSelected = ind.getInstanceId().equals(selectedIndicatorId);
+                for (LineDataSet s : res.overlayLines) {
+                    // Emphasize the selected indicator's line so the tap-selection is visible.
+                    if (isSelected) s.setLineWidth(s.getLineWidth() + 1.6f);
+                    lineData.addDataSet(s);
+                }
+                if (!res.overlayLines.isEmpty())
+                    overlayLinesByInstance.put(ind.getInstanceId(), new ArrayList<>(res.overlayLines));
                 indicatorDrawings.addAll(res.drawings);  // ← collect drawings
             }
         }

@@ -89,7 +89,20 @@ public class DrawingChart extends CombinedChart {
         void onDrawingsChanged();
         /** Called whenever active tool changes — used to show/hide the HUD. */
         void onToolChanged(@Nullable DrawingManager.DrawingTool tool);
+        /** Called when a tap lands on an indicator's overlay line (by instance id). */
+        void onIndicatorSelected(String instanceId);
     }
+
+    /**
+     * Hook that maps a tap (in view pixels) to the instance id of an indicator
+     * whose overlay line is near it, or null. StockChart implements this since it
+     * owns the indicator geometry; DrawingChart only owns the gesture.
+     */
+    public interface IndicatorPicker {
+        @Nullable String pickIndicatorAt(float px, float py);
+    }
+    @Nullable private IndicatorPicker indicatorPicker;
+    public void setIndicatorPicker(@Nullable IndicatorPicker p) { this.indicatorPicker = p; }
 
     // ── Constructors ─────────────────────────────────────────────────
     public DrawingChart(Context context) { super(context); initDrawingLayer(); }
@@ -698,10 +711,19 @@ private void trySelect(float px, float py) {
         float dist = hitDistance(d, px, py);
         if (dist < bestDist) { bestDist=dist; best=d; }
     }
-    if (best != null) drawingManager.select(best.getInstanceId());
-    else drawingManager.clearSelection();
+    if (best != null) {
+        drawingManager.select(best.getInstanceId());
+        postInvalidate();
+        if (drawingEventListener != null) drawingEventListener.onDrawingSelected(best);
+        return;
+    }
+    // No user drawing under the tap — fall back to indicator overlay lines.
+    String indId = (indicatorPicker != null) ? indicatorPicker.pickIndicatorAt(px, py) : null;
+    drawingManager.clearSelection();
     postInvalidate();
-    if (drawingEventListener != null) drawingEventListener.onDrawingSelected(best);
+    if (drawingEventListener == null) return;
+    if (indId != null) drawingEventListener.onIndicatorSelected(indId);
+    else               drawingEventListener.onDrawingSelected(null);
 }
 
 private float hitDistance(ChartDrawing d, float px, float py) {

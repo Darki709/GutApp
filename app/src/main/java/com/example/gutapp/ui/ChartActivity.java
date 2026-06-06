@@ -51,6 +51,7 @@ import com.example.gutapp.session.Requests.TickerInfoRequest;
 import com.example.gutapp.session.SessionCallback;
 import com.example.gutapp.ui.dialogue.AddAlertBottomSheet;
 import com.example.gutapp.ui.dialogue.DrawingEditPanel;
+import com.example.gutapp.ui.dialogue.IndicatorEditPanel;
 import com.example.gutapp.ui.fragments.DrawingToolbarFragment;
 import com.example.gutapp.ui.dialogue.IndicatorsPanel;
 import com.example.gutapp.ui.fragments.OrdersList;
@@ -108,6 +109,9 @@ public class ChartActivity extends SessionActivity implements
     // Drawing edit panel (slides up when a drawing is selected)
     private DrawingEditPanel drawingEditPanel;
 
+    // Indicator edit panel (slides up when an indicator line is tapped)
+    private IndicatorEditPanel indicatorEditPanel;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -146,23 +150,31 @@ public class ChartActivity extends SessionActivity implements
             @Override public void onDrawingRemoved(ChartDrawing drawing) {}
             @Override public void onDrawingSelected(@androidx.annotation.Nullable ChartDrawing drawing) {
                 if (drawing != null && drawingEditPanel != null) {
+                    clearIndicatorSelection();   // a drawing takes focus over any selected indicator
                     drawingEditPanel.show(
                             drawing,
                             () -> { chart.removeDrawing(drawing.getInstanceId()); drawingEditPanel.hide(); },
                             () -> { chart.getDrawingManager().clearSelection(); chart.postInvalidate(); drawingEditPanel.hide(); },
                             () -> { chart.postInvalidate(); drawingPersistence.save(symbol, chart.getDrawingManager()); }
                     );
-                } else if (drawing == null && drawingEditPanel != null) {
-                    drawingEditPanel.hide();
+                } else if (drawing == null) {
+                    if (drawingEditPanel != null) drawingEditPanel.hide();
+                    clearIndicatorSelection();
                 }
+            }
+            @Override public void onIndicatorSelected(String instanceId) {
+                showIndicatorEditor(instanceId);
             }
             @Override public void onDrawingsChanged() {
                 drawingPersistence.save(symbol, chart.getDrawingManager());
             }
             @Override public void onToolChanged(@androidx.annotation.Nullable DrawingManager.DrawingTool tool) {
                 updateDrawingHud(tool);
-                // Hide the edit panel whenever we enter drawing mode
-                if (tool != null && drawingEditPanel != null) drawingEditPanel.hide();
+                // Hide both edit panels whenever we enter drawing mode
+                if (tool != null) {
+                    if (drawingEditPanel != null) drawingEditPanel.hide();
+                    clearIndicatorSelection();
+                }
             }
         });
 
@@ -195,8 +207,24 @@ public class ChartActivity extends SessionActivity implements
                 drawingEditPanel.setLayoutParams(clp);
                 drawingEditPanel.setTranslationZ(20f);
                 vg.addView(drawingEditPanel);
+
+                // Indicator edit panel — same bottom anchor; only one is ever visible at a time.
+                indicatorEditPanel = new IndicatorEditPanel(this);
+                androidx.constraintlayout.widget.ConstraintLayout.LayoutParams iclp =
+                        new androidx.constraintlayout.widget.ConstraintLayout.LayoutParams(
+                                android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+                                android.view.ViewGroup.LayoutParams.WRAP_CONTENT);
+                iclp.bottomToBottom = androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.PARENT_ID;
+                iclp.startToStart  = androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.PARENT_ID;
+                iclp.endToEnd      = androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.PARENT_ID;
+                indicatorEditPanel.setLayoutParams(iclp);
+                indicatorEditPanel.setTranslationZ(20f);
+                vg.addView(indicatorEditPanel);
             }
         }
+
+        // Let taps that miss every user drawing fall through to indicator overlay lines.
+        chart.setIndicatorPicker((px, py) -> chartContainer.pickIndicatorAt(px, py));
 
         // Reload saved drawings every time a fresh candle batch arrives (covers timeframe switches).
         // We clear user drawings first so switching 1D→5m doesn't duplicate them.
@@ -418,6 +446,38 @@ public class ChartActivity extends SessionActivity implements
         chartContainer.applyIndicators();
     }
 
+    /**
+     * Reveal the indicator edit panel for the tapped overlay indicator.
+     * Mirrors the drawing-panel flow: delete / deselect / live-change callbacks.
+     */
+    private void showIndicatorEditor(String instanceId) {
+        Indicator ind = indicatorSession.getInstance(instanceId);
+        if (ind == null || indicatorEditPanel == null) { clearIndicatorSelection(); return; }
+        if (drawingEditPanel != null) drawingEditPanel.hide();
+        chartContainer.setSelectedIndicator(instanceId);   // highlight the line + re-render
+        indicatorEditPanel.show(
+                ind,
+                () -> {   // delete
+                    indicatorSession.removeInstance(instanceId);
+                    indicatorEditPanel.hide();
+                    chartContainer.setSelectedIndicator(null);
+                    onIndicatorsChanged();
+                },
+                () -> {   // deselect
+                    indicatorEditPanel.hide();
+                    chartContainer.setSelectedIndicator(null);
+                },
+                this::onIndicatorsChanged   // live param/color change → re-render + persist
+        );
+    }
+
+    /** Collapse the indicator panel and drop the highlight (no-op if nothing selected). */
+    private void clearIndicatorSelection() {
+        if (indicatorEditPanel != null) indicatorEditPanel.hide();
+        if (chartContainer != null && chartContainer.getSelectedIndicator() != null)
+            chartContainer.setSelectedIndicator(null);
+    }
+
     private void refreshIndicatorChip() {
         TextView indBtn = findViewById(R.id.indicatorsButton);
         if (indBtn == null) return;
@@ -473,6 +533,7 @@ public class ChartActivity extends SessionActivity implements
         actionRowContainer.addView(makeActionRow(this, "✕", "Clear All Indicators", "#EF5350",
                 view -> {
                     indicatorSession.clearAll();
+                    clearIndicatorSelection();   // drop any selected-indicator highlight/panel
                     presetRepo.autoSave(symbol, indicatorSession);
                     refreshIndicatorChip();
                     chartContainer.applyIndicators();
@@ -571,6 +632,7 @@ public class ChartActivity extends SessionActivity implements
      */
     private void applyPreset(PresetRepository.Preset preset) {
         indicatorSession.loadPreset(preset.snapshots);
+        clearIndicatorSelection();   // old instance ids are gone after a preset swap
         presetRepo.autoSave(symbol, indicatorSession);
         refreshIndicatorChip();
         chartContainer.applyIndicators();
