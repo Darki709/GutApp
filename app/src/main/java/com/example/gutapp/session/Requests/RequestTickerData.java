@@ -136,8 +136,10 @@ public class RequestTickerData extends AsyncRequest {
                 PriceChunk streamChunk = new PriceChunk(streamResponse.getReqId(), streamEntries, false);
                 caller.onDataReceived(DataType.TICKER_STREAM, streamChunk);
                 Log.i(CHART_LOG_TAG, "Received stream data for " + symbol + " : open = " + candle.open + ", high = " + candle.high + ", low = " + candle.low + ", close = " + candle.close + ", volume = " + candle.volume + ", ts = " + candle.timestamp);
-                cacheThread = new Thread( () -> cachePriceData(streamEntries, StockDataHelper.Timeframe.ONE_MIN));
-                cacheThread.start();
+                // Do NOT cache individual stream ticks: they are partial single-tick candles
+                // (open=high=low=close=price) that would appear as white zero-height lines on
+                // the 1-min chart after a reload.  Historical data is already saved by the
+                // snapshot path above.
                 break;
     }
     }

@@ -60,7 +60,7 @@ public class StockDataHelper {
                     float high = cursor.getFloat(cursor.getColumnIndexOrThrow(COLUMN_HIGH));
                     float low = cursor.getFloat(cursor.getColumnIndexOrThrow(COLUMN_LOW));
                     float close = cursor.getFloat(cursor.getColumnIndexOrThrow(COLUMN_CLOSE));
-                    int volume = cursor.getInt(cursor.getColumnIndexOrThrow(COLUMN_VOLUME));
+                    long volume = cursor.getLong(cursor.getColumnIndexOrThrow(COLUMN_VOLUME));
 
 
                     Candle candle = new Candle(date_ts, open, high, low, close, volume);

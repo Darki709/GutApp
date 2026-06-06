@@ -168,7 +168,7 @@ public class StockChart implements SessionCallback {
     }
     public ChartType getChartType() { return currentChartType; }
 
-    public void applyIndicators() { triggerChartUpdate(true); }
+    public void applyIndicators() { triggerChartUpdate(false); }
 
     /** Expose the DrawingChart so ChartActivity can access drawing tools */
     public DrawingChart getDrawingChart() { return chart; }
@@ -340,6 +340,15 @@ public class StockChart implements SessionCallback {
         ArrayList<Candle> snap = new ArrayList<>(allCandles);
         if (snap.isEmpty()) return;
         Collections.sort(snap, (a, b) -> Long.compare(a.timestamp, b.timestamp));
+        // Remove duplicates produced by overlapping snapshot chunks or DB-cache + server seams.
+        // Keep the LAST occurrence of each timestamp (most up-to-date data wins).
+        ArrayList<Candle> deduped = new ArrayList<>(snap.size());
+        for (int i = 0; i < snap.size(); i++) {
+            if (i == snap.size() - 1 || snap.get(i).timestamp != snap.get(i + 1).timestamp) {
+                deduped.add(snap.get(i));
+            }
+        }
+        snap = deduped;
 
         // ── Build price/volume data ────────────────────────────────
         CombinedData data = new CombinedData();
@@ -385,9 +394,9 @@ public class StockChart implements SessionCallback {
             if (candlesReadyCallback != null) candlesReadyCallback.run();
 
         } else if (isLiveUpdate) {
-            // Live tick — never touch viewport at all. autoScale handles Y automatically.
-            // Only expand the right-side space so the newest candle is reachable.
+            // Live tick — viewport unchanged; only expand right-side space for newest candle.
             chart.getXAxis().setSpaceMax(80f);
+            // postInvalidate is handled below (only fires for isLiveUpdate).
 
         } else {
             // Timeframe / indicator reload — restore to approximately same X position
@@ -411,7 +420,11 @@ public class StockChart implements SessionCallback {
         chart.calculateOffsets();
 
         updateCurrentPriceLine(snap.get(snap.size() - 1));
-        chart.postInvalidate();
+        // Only invalidate immediately for live ticks (viewport doesn't change).
+        // For indicator/timeframe reload the viewport-restore callbacks call postInvalidate()
+        // themselves — triggering a redraw here first would render drawings at stale positions
+        // for one frame, causing the visible "jump" before they snap back on pan.
+        if (isLiveUpdate) chart.postInvalidate();
         float maxVol = 0;
         for (Candle c : snap) if (c.volume > maxVol) maxVol = c.volume;
         chart.getAxisLeft().setAxisMaximum(maxVol > 0 ? maxVol * 8f : 1f);
@@ -729,7 +742,7 @@ public class StockChart implements SessionCallback {
         List<BarEntry> e = new ArrayList<>();
         int[] colors = new int[c.size()];
         for (int i=0;i<c.size();i++) {
-            Candle cv=c.get(i); e.add(new BarEntry(i,(float) Math.min(cv.volume, Integer.MAX_VALUE)));
+            Candle cv=c.get(i); e.add(new BarEntry(i,(float) Math.max(0L, Math.min(cv.volume, Integer.MAX_VALUE))));
             if      (cv.close>cv.open) colors[i]=COLOR_VOL_UP;
             else if (cv.close<cv.open) colors[i]=COLOR_VOL_DOWN;
             else                        colors[i]=COLOR_VOL_NEUTRAL;
@@ -756,15 +769,21 @@ public class StockChart implements SessionCallback {
         if (chunk==null||chunk.isEmpty()) return;
         Candle live = chunk.get(0);
         synchronized (allCandles) {
+            // Buffer ticks until the snapshot is fully delivered so we never corrupt
+            // a partially-received candle.  done is set true by TICKER_REQUEST_DONE.
+            if (!done) { streamBuffer.addAll(chunk); return; }
             if (allCandles.isEmpty()) return;
             Candle last = allCandles.get(allCandles.size()-1);
-            if(live.timestamp==last.timestamp) return; //duplicate price points
-            if (allCandles.isEmpty()&&!done) { streamBuffer.addAll(chunk); return; }
+            if (live.timestamp==last.timestamp) return;
             if (last.timestamp+interval.interval>live.timestamp) {
                 allCandles.set(allCandles.size()-1, new Candle(last.timestamp,last.open,
-                        Math.max(live.high,last.high),Math.min(live.low,last.low),live.close,last.volume+live.volume));
+                        Math.max(live.high,last.high),Math.min(live.low,last.low),live.close,
+                        Math.max(0L,last.volume)+Math.max(0L,live.volume)));
             } else {
-                allCandles.add(new Candle(last.timestamp+interval.interval,live.open,live.high,live.low,live.close,live.volume));
+                // Floor-align the new candle's timestamp to the interval boundary so
+                // 5-min candles never land on e.g. :01, :02, :03 seconds.
+                long newTs = (live.timestamp / (long)interval.interval) * (long)interval.interval;
+                allCandles.add(new Candle(newTs,live.open,live.high,live.low,live.close,live.volume));
             }
         }
         triggerChartUpdate(true);
@@ -789,10 +808,11 @@ public class StockChart implements SessionCallback {
                 break;
             case TICKER_REQUEST_DONE:
                 reqIds.remove(chunk.reqId);
-                if (chainedListener!=null) {
-                    done=true;
-                    for (Candle b:streamBuffer) streamUpdate(List.of(b));
-                }
+                done = true;
+                // Flush any ticks that arrived while the snapshot was still in flight.
+                List<Candle> toFlush = new ArrayList<>(streamBuffer);
+                streamBuffer.clear();
+                for (Candle b : toFlush) streamUpdate(List.of(b));
                 break;
         }
         synchronized (allCandles){

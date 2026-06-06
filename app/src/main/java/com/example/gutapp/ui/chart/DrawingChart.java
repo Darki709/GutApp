@@ -901,11 +901,14 @@ private double timestampToPixelX(long ts) {
 
     float fi; // fractional candle index to pass to the transformer
 
+    long avgInterval = candles.size() < 2 ? 60L : (tN - t0) / Math.max(1, candles.size() - 1);
+
     if (ts <= t0) {
-        fi = 0f;
+        // Extrapolate left so drawings anchored before the first visible candle render
+        // off-screen rather than all collapsing to index 0 (which caused visual jumps).
+        fi = avgInterval > 0 ? (float)(ts - t0) / avgInterval : 0f;
     } else if (ts >= tN) {
-        // Extrapolate: how many intervals past the last candle?
-        long avgInterval = (tN - t0) / Math.max(1, candles.size() - 1);
+        // Extrapolate right past the last candle
         fi = (candles.size() - 1) + (float)(ts - tN) / Math.max(1, avgInterval);
     } else {
         // Binary-search for the surrounding candles, then interpolate
