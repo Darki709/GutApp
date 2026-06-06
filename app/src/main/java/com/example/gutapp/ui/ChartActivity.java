@@ -42,6 +42,7 @@ import com.example.gutapp.data.models.TickerInformation;
 import com.example.gutapp.database.DB_Helper;
 import com.example.gutapp.database.LastFetchCacheHelper;
 import com.example.gutapp.database.StockDataHelper;
+import com.example.gutapp.session.ChartSyncManager;
 import com.example.gutapp.session.DataType;
 import com.example.gutapp.session.NetworkClient;
 import com.example.gutapp.session.Requests.FetchOrders;
@@ -254,6 +255,7 @@ public class ChartActivity extends SessionActivity implements
         findViewById(R.id.btnCalculateBias).setOnClickListener(this);
         findViewById(R.id.drawingPanel).setOnClickListener(this);
         findViewById(R.id.btnAlerts).setOnClickListener(this);
+        findViewById(R.id.btnNews).setOnClickListener(this);
 
 
 
@@ -310,6 +312,23 @@ public class ChartActivity extends SessionActivity implements
             refreshPresetListUI();
             isManagerReturned = false;
         }
+        // Cross-device sync: pull the latest chart state; reload this chart if it changed.
+        ChartSyncManager sync = ChartSyncManager.init(this);
+        sync.setRemoteChangeListener(this::reloadChartStateFromCache);
+        sync.pullAll();
+    }
+
+    /** Re-load drawings + indicators for the current symbol from the (synced) cache. */
+    private void reloadChartStateFromCache() {
+        DrawingChart drawingChart = chartContainer.getDrawingChart();
+        if (drawingChart != null && drawingPersistence != null) {
+            drawingChart.getDrawingManager().clearUserDrawingsSilent();
+            drawingPersistence.load(symbol, drawingChart.getDrawingManager());
+            drawingChart.postInvalidate();
+        }
+        presetRepo.autoLoad(symbol, indicatorSession);
+        refreshIndicatorChip();
+        chartContainer.applyIndicators();
     }
     @Override protected void networkReconnect() { onResume(); NetworkClient.getInstance(null).getSessionManager()
             .pushRequest(new FetchOrders(symbol, FetchOrders.OrderView.ACTIVE, 0, this));}
@@ -332,6 +351,12 @@ public class ChartActivity extends SessionActivity implements
         }
         chartContainer.flushRequests();
         chartContainer.clearChart();
+        // Push the just-saved local changes now; stop receiving reload callbacks while backgrounded.
+        ChartSyncManager sync = ChartSyncManager.get();
+        if (sync != null) {
+            sync.setRemoteChangeListener(null);
+            sync.flush();
+        }
     }
 
     @Override
@@ -397,6 +422,12 @@ public class ChartActivity extends SessionActivity implements
             } else {
                 AddAlertBottomSheet.show(this, symbol, null, null);
             }
+        }
+        else if(id == R.id.btnNews) {
+            // Open the news screen scoped to the symbol currently being charted.
+            Intent newsIntent = new Intent(this, NewsActivity.class);
+            newsIntent.putExtra(NewsActivity.EXTRA_SYMBOL, symbol);
+            startActivity(newsIntent);
         }
     }
 

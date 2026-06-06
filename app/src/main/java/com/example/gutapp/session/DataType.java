@@ -26,5 +26,10 @@ public enum DataType {
     WATCHLISTS_LOADED,
     WATCHLIST_OPERATION_RESULT,
     WATCHLIST_CONTENT_LOADED,
-    WATCHLIST_ERROR;
+    WATCHLIST_ERROR,
+
+    // Chart-state sync (drawings + indicators + presets)
+    CHART_SYNC_PULLED,
+    CHART_SYNC_PUSHED,
+    CHART_SYNC_ERROR;
 }

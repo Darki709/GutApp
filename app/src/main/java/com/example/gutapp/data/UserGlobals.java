@@ -6,9 +6,9 @@ import android.content.Context;
 import androidx.lifecycle.LiveData;
 import androidx.lifecycle.MutableLiveData;
 
-import com.example.gutapp.data.drawing.DrawingPersistence;
-import com.example.gutapp.data.indicators.PresetRepository;
 import com.example.gutapp.database.AlertDBHelper;
+import com.example.gutapp.database.ChartStateDao;
+import com.example.gutapp.database.ChartStateMigration;
 import com.example.gutapp.database.DB_Helper;
 
 import java.util.concurrent.atomic.AtomicReference;
@@ -39,8 +39,11 @@ import java.util.concurrent.atomic.AtomicReference;
     }
 
     public static void clearUserData(Context context) {
-        context.getSharedPreferences(PresetRepository.PREFS_NAME, Context.MODE_PRIVATE).edit().clear().apply();
-        context.getSharedPreferences(DrawingPersistence.PREFS_NAME, Context.MODE_PRIVATE).edit().clear().apply();
+        // Drawings + indicators + presets now live in the SQLite cache (synced per-user with the
+        // server, which is the source of truth and re-populates on next login). Wipe the local
+        // cache + any legacy-prefs residue so a different user on this device starts clean.
+        new ChartStateDao(DB_Helper.getInstance(context)).clearAll();
+        ChartStateMigration.clearLegacyPrefs(context);
         AlertDBHelper alertDB = new AlertDBHelper(DB_Helper.getInstance(context));
         alertDB.clear();
     }

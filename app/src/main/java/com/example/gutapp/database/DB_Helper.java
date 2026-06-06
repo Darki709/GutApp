@@ -9,8 +9,8 @@ import androidx.annotation.Nullable;
 
 public class DB_Helper extends SQLiteOpenHelper {
     private static final String DB_NAME = "Gut.db";
-    // Bumped to 2 so existing installs run onUpgrade and get the alerts table
-    private static final int DB_VERSION = 2;
+    // Bumped to 3 so existing installs run onUpgrade and get the chart_state cache table
+    private static final int DB_VERSION = 3;
 
     private static DB_Helper instance;
     public static final String DB_LOG_TAG = "GutDB";
@@ -18,7 +18,8 @@ public class DB_Helper extends SQLiteOpenHelper {
     private final String[] table_initialize_query = {
         StockDataHelper.createTable(),
         LastFetchCacheHelper.createTable(),
-        AlertDBHelper.createTable()
+        AlertDBHelper.createTable(),
+        ChartStateDao.createTable()
     };
 
     public static synchronized DB_Helper getInstance(@Nullable Context context) {
@@ -57,6 +58,15 @@ public class DB_Helper extends SQLiteOpenHelper {
                 Log.i(DB_LOG_TAG, "onUpgrade v2: alerts table created");
             } catch (Exception e) {
                 Log.e(DB_LOG_TAG, "onUpgrade v2 failed: " + e.getMessage());
+            }
+        }
+        if (oldVersion < 3) {
+            // Version 2->3: chart_state cache table (drawings + indicators + presets)
+            try {
+                db.execSQL(ChartStateDao.createTable());
+                Log.i(DB_LOG_TAG, "onUpgrade v3: chart_state table created");
+            } catch (Exception e) {
+                Log.e(DB_LOG_TAG, "onUpgrade v3 failed: " + e.getMessage());
             }
         }
     }

@@ -1,26 +1,30 @@
 package com.example.gutapp.data.drawing;
 
 import android.content.Context;
-import android.content.SharedPreferences;
 import android.graphics.Color;
 import android.util.Log;
+
+import com.example.gutapp.database.ChartStateDao;
+import com.example.gutapp.database.ChartStateMigration;
+import com.example.gutapp.database.DB_Helper;
 
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
 /**
- * DrawingPersistence — saves/loads USER drawings for a ticker to SharedPreferences.
+ * DrawingPersistence — saves/loads USER drawings for a ticker.
  *
- * Key: "drawings_<SYMBOL>"  (timeframe-agnostic — drawings appear on all timeframes)
+ * Storage is the SQLite {@link ChartStateDao} cache (kind = "drawings", key = SYMBOL),
+ * which also feeds the cross-device server sync. The on-disk JSON format is unchanged,
+ * so this still round-trips through the same serialize()/deserialize() below.
+ *
  * Anchors are stored as UNIX TIMESTAMPS (seconds), not candle indices, so the
  * correct position is recomputed for any timeframe on load.
  */
 public class DrawingPersistence {
 
     private static final String TAG       = "DrawingPersistence";
-    public static final String PREFS_NAME = "chart_drawings";
-    private static final String PREFIX    = "drawings_";
 
     // Style fields
     private static final String F_TYPE       = "type";
@@ -60,11 +64,14 @@ public class DrawingPersistence {
     private static final String F_STOP_PX    = "stopPrice";
     private static final String F_IS_LONG    = "isLong";
 
-    private final SharedPreferences prefs;
+    private final ChartStateDao dao;
 
     public DrawingPersistence(Context ctx) {
-        this.prefs = ctx.getApplicationContext().getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+        this.dao = new ChartStateDao(DB_Helper.getInstance(ctx));
+        ChartStateMigration.migrateIfNeeded(ctx);
     }
+
+    private static String keyFor(String symbol) { return symbol.toUpperCase(); }
 
     // ── Save ──────────────────────────────────────────────────────────
 
@@ -76,7 +83,7 @@ public class DrawingPersistence {
                 JSONObject o = serialize(d);
                 if (o != null) arr.put(o);
             }
-            prefs.edit().putString(PREFIX + symbol.toUpperCase(), arr.toString()).apply();
+            dao.upsertLocal(ChartStateDao.KIND_DRAWINGS, keyFor(symbol), arr.toString());
             Log.d(TAG, "Saved " + arr.length() + " drawings for " + symbol);
         } catch (Exception e) {
             Log.e(TAG, "Save failed for " + symbol, e);
@@ -86,7 +93,7 @@ public class DrawingPersistence {
     // ── Load ──────────────────────────────────────────────────────────
 
     public void load(String symbol, DrawingManager mgr) {
-        String json = prefs.getString(PREFIX + symbol.toUpperCase(), null);
+        String json = dao.get(ChartStateDao.KIND_DRAWINGS, keyFor(symbol));
         if (json == null || json.isEmpty()) return;
         try {
             JSONArray arr = new JSONArray(json);
@@ -103,11 +110,11 @@ public class DrawingPersistence {
 
     /** Wipe all saved drawings for a ticker (user-triggered Clear All). */
     public void clear(String symbol) {
-        prefs.edit().remove(PREFIX + symbol.toUpperCase()).apply();
+        dao.softDelete(ChartStateDao.KIND_DRAWINGS, keyFor(symbol));
     }
 
     public int savedCount(String symbol) {
-        String json = prefs.getString(PREFIX + symbol.toUpperCase(), null);
+        String json = dao.get(ChartStateDao.KIND_DRAWINGS, keyFor(symbol));
         if (json == null) return 0;
         try { return new JSONArray(json).length(); } catch (Exception e) { return 0; }
     }

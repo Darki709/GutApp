@@ -17,7 +17,9 @@ public enum RequestType {
     FETCH_WATCHLISTS((byte) 12),
     MANAGE_WATCHLIST((byte) 13),
     MODIFY_WATCHLIST_ITEMS((byte) 14),
-    GET_WATCHLIST_CONTENT((byte) 15);
+    GET_WATCHLIST_CONTENT((byte) 15),
+    SYNC_CHART_PULL((byte) 16),
+    SYNC_CHART_PUSH((byte) 17);
 
     public final byte value;
 

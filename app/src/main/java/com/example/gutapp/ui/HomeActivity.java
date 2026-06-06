@@ -24,6 +24,7 @@ import com.example.gutapp.data.models.Order;
 import com.example.gutapp.data.models.TickerInfo;
 import com.example.gutapp.database.DB_Helper;
 import com.example.gutapp.database.LastFetchCacheHelper;
+import com.example.gutapp.session.ChartSyncManager;
 import com.example.gutapp.session.CryptoUtility;
 import com.example.gutapp.session.DataType;
 import com.example.gutapp.session.NetworkClient;
@@ -231,6 +232,8 @@ public class HomeActivity extends SessionActivity implements OrdersList.Listener
     protected void onResume(){
         super.onResume();
         networkReconnect();
+        // Pull the user's drawings/indicators/presets so they're fresh across devices.
+        ChartSyncManager.init(this).pullAll();
     }
 
     private void updateAlertsBadge() {
