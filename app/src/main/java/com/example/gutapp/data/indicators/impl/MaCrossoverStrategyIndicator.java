@@ -25,7 +25,7 @@ public class MaCrossoverStrategyIndicator extends Indicator {
 
     @Override public String  getId()          { return "ma_crossover_strategy"; }
     @Override public String  getDisplayName() { return "MA Crossover Strategy"; }
-    @Override public String  getTag()         { return "STRAT"; }
+    @Override public String  getTag()         { return "MA_CROSS_STRAT"; }
     @Override public boolean isSubChart()     { return false; }
 
     @Override

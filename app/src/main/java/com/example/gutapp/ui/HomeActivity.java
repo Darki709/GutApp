@@ -99,6 +99,11 @@ public class HomeActivity extends SessionActivity implements OrdersList.Listener
             startActivity(new Intent(this, AlertsActivity.class));
         });
 
+        findViewById(R.id.navNews).setOnClickListener(v -> {
+            drawerLayout.closeDrawers();
+            startActivity(new Intent(this, NewsActivity.class));
+        });
+
         // ── Alerts count badge in drawer ──────────────────────────
         updateAlertsBadge();
 

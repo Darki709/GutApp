@@ -1,11 +1,20 @@
 package com.example.gutapp.data.indicators;
 
+import com.example.gutapp.data.indicators.impl.AdlIndicator;
 import com.example.gutapp.data.indicators.impl.ApoIndicator;
+import com.example.gutapp.data.indicators.impl.ArnaudLegouxMovingAverageIndicator;
 import com.example.gutapp.data.indicators.impl.AtrIndicator;
+import com.example.gutapp.data.indicators.impl.AwesomeOscillatorIndicator;
+import com.example.gutapp.data.indicators.impl.BbBreakoutStrategyIndicator;
 import com.example.gutapp.data.indicators.impl.BollingerBandsIndicator;
 import com.example.gutapp.data.indicators.impl.CciIndicator;
+import com.example.gutapp.data.indicators.impl.ChandeKrollStopIndicator;
+import com.example.gutapp.data.indicators.impl.CmfIndicator;
 import com.example.gutapp.data.indicators.impl.CmoIndicator;
+import com.example.gutapp.data.indicators.impl.CoppockIndicator;
+import com.example.gutapp.data.indicators.impl.DpoIndicator;
 import com.example.gutapp.data.indicators.impl.EmaIndicator;
+import com.example.gutapp.data.indicators.impl.EomIndicator;
 import com.example.gutapp.data.indicators.impl.HullMovingAverageIndicator;
 import com.example.gutapp.data.indicators.impl.KeltnerChannelsIndicator;
 import com.example.gutapp.data.indicators.impl.LinearRegressionChannelIndicator;
@@ -13,14 +22,19 @@ import com.example.gutapp.data.indicators.impl.LinearRegressionSlopeIndicator;
 import com.example.gutapp.data.indicators.impl.MaCrossoverStrategyIndicator;
 import com.example.gutapp.data.indicators.impl.MacdIndicator;
 import com.example.gutapp.data.indicators.impl.MaIndicator;
+import com.example.gutapp.data.indicators.impl.ParabolicSARIndicator;
 import com.example.gutapp.data.indicators.impl.PivotPointsIndicator;
 import com.example.gutapp.data.indicators.impl.PriceChannelsIndicator;
 import com.example.gutapp.data.indicators.impl.RocIndicator;
 import com.example.gutapp.data.indicators.impl.RsiIndicator;
+import com.example.gutapp.data.indicators.impl.RsiReversalStrategyIndicator;
 import com.example.gutapp.data.indicators.impl.StochasticIndicator;
+import com.example.gutapp.data.indicators.impl.SuperTrendStrategyIndicator;
 import com.example.gutapp.data.indicators.impl.SupplyDemandZoneIndicator;
 import com.example.gutapp.data.indicators.impl.TsiIndicator;
+import com.example.gutapp.data.indicators.impl.UltimateOscillatorIndicator;
 import com.example.gutapp.data.indicators.impl.VwapIndicator;
+import com.example.gutapp.data.indicators.impl.VwmaIndicator;
 import com.example.gutapp.data.indicators.impl.WilliamsRIndicator;
 import com.example.gutapp.data.indicators.impl.WmaIndicator;
 
@@ -73,6 +87,20 @@ public class IndicatorRegistry {
         register(new LinearRegressionChannelIndicator());
         register(new SupplyDemandZoneIndicator());
         register(new MaCrossoverStrategyIndicator());
+        register(new AdlIndicator());
+        register(new CmfIndicator());
+        register(new ChandeKrollStopIndicator());
+        register(new ArnaudLegouxMovingAverageIndicator());
+        register(new ParabolicSARIndicator());
+        register(new AwesomeOscillatorIndicator());
+        register(new VwmaIndicator());
+        register(new EomIndicator());
+        register(new DpoIndicator());
+        register(new CoppockIndicator());
+        register(new UltimateOscillatorIndicator());
+        register(new SuperTrendStrategyIndicator());
+        register(new BbBreakoutStrategyIndicator());
+        register(new RsiReversalStrategyIndicator());
     }
 
     private void register(Indicator prototype) {
