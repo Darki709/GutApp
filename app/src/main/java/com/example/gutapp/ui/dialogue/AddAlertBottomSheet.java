@@ -25,8 +25,6 @@ import com.example.gutapp.ui.AlertsActivity;
 
 import java.util.Arrays;
 import java.util.List;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 /**
  * AddAlertBottomSheet — static helper that drives the panel_add_alert.xml
@@ -285,17 +283,13 @@ public class AddAlertBottomSheet {
 
         above.setChecked(true);
 
-        if (ex != null && ex.getCondition() != null) {
-            String summary = ex.getCondition().getSummary();
-            try {
-                String clean = summary.replaceAll("[^0-9.]", "").trim();
-                if (!clean.isEmpty()) et.setText(clean);
-                if (summary.contains("<") || summary.contains("≤") || summary.toLowerCase().contains("below")) {
-                    below.setChecked(true);
-                } else {
-                    above.setChecked(true);
-                }
-            } catch (Exception ignored) {}
+        if (ex != null && ex.getCondition() instanceof
+                com.example.gutapp.data.alerts.conditions.PriceThresholdCondition) {
+            com.example.gutapp.data.alerts.conditions.PriceThresholdCondition cond =
+                    (com.example.gutapp.data.alerts.conditions.PriceThresholdCondition) ex.getCondition();
+            et.setText(numStr(cond.getTargetPrice()));
+            if (cond.isLookForAbove()) above.setChecked(true);
+            else                       below.setChecked(true);
         }
     }
 
@@ -309,29 +303,17 @@ public class AddAlertBottomSheet {
         c.addView(sectionLabel(ctx, "TIMEFRAME"));
         Spinner tf = spinner(ctx, Arrays.asList(TF_LABELS)); tf.setTag("tf"); c.addView(tf);
 
-        if (ex != null && ex.getCondition() != null) {
-            String summary = ex.getCondition().getSummary();
-            try {
-                Pattern pattern = Pattern.compile("([0-9]+\\.?[0-9]*)\\s*%");
-                Matcher matcher = pattern.matcher(summary);
-                if (matcher.find()) {
-                    String clean = matcher.group(1);
-                    if (clean != null && !clean.isEmpty()) et.setText(clean);
-                } else {
-                    String clean = summary.replaceAll("[^0-9.]", "").trim();
-                    if (!clean.isEmpty()) et.setText(clean);
-                }
-
-                if (summary.toLowerCase().contains("up")) sp.setSelection(1);
-                else if (summary.toLowerCase().contains("down")) sp.setSelection(2);
-
-                for (int i = 0; i < TF_LABELS.length; i++) {
-                    if (summary.contains(TF_LABELS[i])) {
-                        tf.setSelection(i);
-                        break;
-                    }
-                }
-            } catch (Exception ignored) {}
+        if (ex != null && ex.getCondition() instanceof
+                com.example.gutapp.data.alerts.conditions.PriceChangePercentCondition) {
+            com.example.gutapp.data.alerts.conditions.PriceChangePercentCondition cond =
+                    (com.example.gutapp.data.alerts.conditions.PriceChangePercentCondition) ex.getCondition();
+            et.setText(numStr(cond.getPercentThreshold()));
+            switch (cond.getDirection()) {
+                case UP:   sp.setSelection(1); break;
+                case DOWN: sp.setSelection(2); break;
+                default:   sp.setSelection(0); break;
+            }
+            tf.setSelection(tfIndex(cond.getTimeframe()));
         }
     }
 
@@ -350,24 +332,17 @@ public class AddAlertBottomSheet {
         c.addView(sectionLabel(ctx, "TIMEFRAME"));
         Spinner tf = spinner(ctx, Arrays.asList(TF_LABELS)); tf.setTag("tf"); c.addView(tf);
 
-        if (ex != null && ex.getCondition() != null) {
-            String summary = ex.getCondition().getSummary();
-            try {
-                String clean = summary.replaceAll("[^0-9.]", "").trim();
-                if (!clean.isEmpty()) et.setText(clean);
-                if (summary.toLowerCase().contains("below")) {
-                    bl.setChecked(true);
-                } else {
-                    ab.setChecked(true);
-                }
-
-                for (int i = 0; i < TF_LABELS.length; i++) {
-                    if (summary.contains(TF_LABELS[i])) {
-                        tf.setSelection(i);
-                        break;
-                    }
-                }
-            } catch (Exception ignored) {}
+        if (ex != null && ex.getCondition() instanceof
+                com.example.gutapp.data.alerts.conditions.SMACrossoverCondition) {
+            com.example.gutapp.data.alerts.conditions.SMACrossoverCondition cond =
+                    (com.example.gutapp.data.alerts.conditions.SMACrossoverCondition) ex.getCondition();
+            et.setText(String.valueOf(cond.getPeriod()));
+            if (cond.getCrossDirection() ==
+                    com.example.gutapp.data.alerts.conditions.SMACrossoverCondition.CrossDirection.BELOW)
+                bl.setChecked(true);
+            else
+                ab.setChecked(true);
+            tf.setSelection(tfIndex(cond.getTimeframe()));
         }
     }
 
@@ -378,19 +353,12 @@ public class AddAlertBottomSheet {
         c.addView(sectionLabel(ctx, "TIMEFRAME"));
         Spinner tf = spinner(ctx, Arrays.asList(TF_LABELS)); tf.setTag("tf"); c.addView(tf);
 
-        if (ex != null && ex.getCondition() != null) {
-            String summary = ex.getCondition().getSummary();
-            try {
-                String clean = summary.replaceAll("[^0-9.]", "").trim();
-                if (!clean.isEmpty()) et.setText(clean);
-
-                for (int i = 0; i < TF_LABELS.length; i++) {
-                    if (summary.contains(TF_LABELS[i])) {
-                        tf.setSelection(i);
-                        break;
-                    }
-                }
-            } catch (Exception ignored) {}
+        if (ex != null && ex.getCondition() instanceof
+                com.example.gutapp.data.alerts.conditions.VolatilityCondition) {
+            com.example.gutapp.data.alerts.conditions.VolatilityCondition cond =
+                    (com.example.gutapp.data.alerts.conditions.VolatilityCondition) ex.getCondition();
+            et.setText(numStr(cond.getPercentThreshold()));
+            tf.setSelection(tfIndex(cond.getTimeframe()));
         }
     }
 
@@ -412,25 +380,18 @@ public class AddAlertBottomSheet {
         c.addView(sectionLabel(ctx, "TIMEFRAME"));
         Spinner tf = spinner(ctx, Arrays.asList(TF_LABELS)); tf.setTag("tf"); c.addView(tf);
 
-        if (ex != null && ex.getCondition() != null) {
-            String summary = ex.getCondition().getSummary();
-            try {
-                String[] parts = summary.replaceAll("[^0-9. ]", "").trim().split("\\s+");
-                if (parts.length > 0 && !parts[0].isEmpty()) etP.setText(parts[0]);
-                if (parts.length > 1 && !parts[1].isEmpty()) etL.setText(parts[1]);
-                if (summary.contains(">") || summary.contains("≥") || summary.toLowerCase().contains("above")) {
-                    ab.setChecked(true);
-                } else {
-                    bl.setChecked(true);
-                }
-
-                for (int i = 0; i < TF_LABELS.length; i++) {
-                    if (summary.contains(TF_LABELS[i])) {
-                        tf.setSelection(i);
-                        break;
-                    }
-                }
-            } catch (Exception ignored) {}
+        if (ex != null && ex.getCondition() instanceof
+                com.example.gutapp.data.alerts.conditions.RSICondition) {
+            com.example.gutapp.data.alerts.conditions.RSICondition cond =
+                    (com.example.gutapp.data.alerts.conditions.RSICondition) ex.getCondition();
+            etP.setText(String.valueOf(cond.getPeriod()));
+            etL.setText(numStr(cond.getLevel()));
+            if (cond.getCrossDirection() ==
+                    com.example.gutapp.data.alerts.conditions.RSICondition.CrossDirection.ABOVE)
+                ab.setChecked(true);
+            else
+                bl.setChecked(true);
+            tf.setSelection(tfIndex(cond.getTimeframe()));
         }
     }
 
@@ -444,20 +405,13 @@ public class AddAlertBottomSheet {
         c.addView(sectionLabel(ctx, "TIMEFRAME"));
         Spinner tf = spinner(ctx, Arrays.asList(TF_LABELS)); tf.setTag("tf"); c.addView(tf);
 
-        if (ex != null && ex.getCondition() != null) {
-            String summary = ex.getCondition().getSummary();
-            try {
-                String[] parts = summary.replaceAll("[^0-9. ]", "").trim().split("\\s+");
-                if (parts.length > 1 && !parts[1].isEmpty()) etL.setText(parts[1]);
-                if (parts.length > 0 && !parts[0].isEmpty()) etM.setText(parts[0]);
-
-                for (int i = 0; i < TF_LABELS.length; i++) {
-                    if (summary.contains(TF_LABELS[i])) {
-                        tf.setSelection(i);
-                        break;
-                    }
-                }
-            } catch (Exception ignored) {}
+        if (ex != null && ex.getCondition() instanceof
+                com.example.gutapp.data.alerts.conditions.VolumeSpikeCondition) {
+            com.example.gutapp.data.alerts.conditions.VolumeSpikeCondition cond =
+                    (com.example.gutapp.data.alerts.conditions.VolumeSpikeCondition) ex.getCondition();
+            etL.setText(String.valueOf(cond.getLookback()));
+            etM.setText(numStr(cond.getMultiplier()));
+            tf.setSelection(tfIndex(cond.getTimeframe()));
         }
     }
 
@@ -589,5 +543,22 @@ public class AddAlertBottomSheet {
 
     private static int dp(Context ctx, int v) {
         return Math.round(ctx.getResources().getDisplayMetrics().density * v);
+    }
+
+    /** Index of a timeframe within TF_VALUES (0 if not found) — for spinner pre-selection. */
+    private static int tfIndex(StockDataHelper.Timeframe tf) {
+        for (int i = 0; i < TF_VALUES.length; i++) if (TF_VALUES[i] == tf) return i;
+        return 0;
+    }
+
+    /**
+     * Format a stored numeric value the way the user would type it back: integral values
+     * (20.0, 30.0) show with no decimals, others keep their exact digits with no scientific
+     * notation. Used to pre-fill edit fields without mangling the value.
+     */
+    private static String numStr(double v) {
+        if (!Double.isNaN(v) && !Double.isInfinite(v) && v == Math.rint(v))
+            return Long.toString((long) v);
+        return java.math.BigDecimal.valueOf(v).stripTrailingZeros().toPlainString();
     }
 }

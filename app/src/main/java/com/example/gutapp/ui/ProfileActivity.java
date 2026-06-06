@@ -24,6 +24,7 @@ import com.example.gutapp.data.indicators.Indicator;
 import com.example.gutapp.data.indicators.IndicatorRegistry;
 import com.example.gutapp.data.indicators.IndicatorSession;
 import com.example.gutapp.data.indicators.PresetRepository;
+import com.example.gutapp.session.ChartSyncManager;
 import com.example.gutapp.session.DataType;
 import com.example.gutapp.ui.dialogue.IndicatorsPanel;
 
@@ -320,6 +321,27 @@ public class ProfileActivity extends SessionActivity implements IndicatorsPanel.
 
     private int dp(int val) {
         return Math.round(val * getResources().getDisplayMetrics().density);
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        // Presets menu: manually fetch the latest presets from the server on entry, and
+        // refresh the cards in place if the pull brings anything newer.
+        ChartSyncManager sync = ChartSyncManager.init(this);
+        sync.setRemoteChangeListener(this::renderPresets);
+        sync.pullAll();
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        // Push any just-saved preset edits right away; stop reload callbacks while hidden.
+        ChartSyncManager sync = ChartSyncManager.get();
+        if (sync != null) {
+            sync.setRemoteChangeListener(null);
+            sync.flush();
+        }
     }
 
     @Override protected void networkReconnect() {}

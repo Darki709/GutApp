@@ -232,8 +232,10 @@ public class HomeActivity extends SessionActivity implements OrdersList.Listener
     protected void onResume(){
         super.onResume();
         networkReconnect();
-        // Pull the user's drawings/indicators/presets so they're fresh across devices.
-        ChartSyncManager.init(this).pullAll();
+        // Home shows no chart state, so don't pull here. Just make sure the sync manager
+        // exists so local edits still push; charts and the presets menu pull on demand
+        // when they open.
+        ChartSyncManager.init(this);
     }
 
     private void updateAlertsBadge() {

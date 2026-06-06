@@ -97,4 +97,10 @@ public class RSICondition extends Condition {
                 crossDirection == CrossDirection.BELOW ? "≤" : "≥",
                 level, timeframe.value);
     }
+
+    // Accessors for the edit UI — read the exact stored values (never re-parse getSummary()).
+    public StockDataHelper.Timeframe getTimeframe()      { return timeframe; }
+    public int                       getPeriod()         { return period; }
+    public double                    getLevel()          { return level; }
+    public CrossDirection            getCrossDirection() { return crossDirection; }
 }

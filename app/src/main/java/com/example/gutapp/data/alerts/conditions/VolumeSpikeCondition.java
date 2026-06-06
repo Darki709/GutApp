@@ -79,4 +79,9 @@ public class VolumeSpikeCondition extends Condition {
         return String.format(Locale.US, "Volume ≥ %.1f× avg(%d) — %s",
                 multiplier, lookback, timeframe.value);
     }
+
+    // Accessors for the edit UI — read the exact stored values (never re-parse getSummary()).
+    public StockDataHelper.Timeframe getTimeframe()  { return timeframe; }
+    public int                       getLookback()   { return lookback; }
+    public double                    getMultiplier() { return multiplier; }
 }

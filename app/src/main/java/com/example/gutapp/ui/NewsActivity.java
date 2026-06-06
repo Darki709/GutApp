@@ -1,9 +1,7 @@
 package com.example.gutapp.ui;
 
-import android.content.ActivityNotFoundException;
 import android.content.Intent;
 import android.graphics.Color;
-import android.net.Uri;
 import android.os.Bundle;
 import android.text.TextUtils;
 import android.text.format.DateUtils;
@@ -211,11 +209,15 @@ public class NewsActivity extends SessionActivity {
             Toast.makeText(this, "No link for this article", Toast.LENGTH_SHORT).show();
             return;
         }
-        try {
-            startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(a.url.trim())));
-        } catch (ActivityNotFoundException e) {
-            Toast.makeText(this, "No app can open this link", Toast.LENGTH_SHORT).show();
-        }
+        // Open inside the app (WebView reader + on-demand Gemini analysis) rather
+        // than handing the URL off to an external browser.
+        Intent intent = new Intent(this, ArticleActivity.class);
+        intent.putExtra(ArticleActivity.EXTRA_URL,      a.url.trim());
+        intent.putExtra(ArticleActivity.EXTRA_HEADLINE, a.headline);
+        intent.putExtra(ArticleActivity.EXTRA_SUMMARY,  a.summary);
+        intent.putExtra(ArticleActivity.EXTRA_RELATED,  a.related);
+        intent.putExtra(ArticleActivity.EXTRA_SOURCE,   a.source);
+        startActivity(intent);
     }
 
     // ── State helpers ───────────────────────────────────────────────────

@@ -329,6 +329,8 @@ public class ChartActivity extends SessionActivity implements
         presetRepo.autoLoad(symbol, indicatorSession);
         refreshIndicatorChip();
         chartContainer.applyIndicators();
+        // If the presets menu is open, refresh its list with the freshly-pulled presets.
+        refreshPresetListUI();
     }
     @Override protected void networkReconnect() { onResume(); NetworkClient.getInstance(null).getSessionManager()
             .pushRequest(new FetchOrders(symbol, FetchOrders.OrderView.ACTIVE, 0, this));}
@@ -536,10 +538,17 @@ public class ChartActivity extends SessionActivity implements
      *  - Tap "Clear" → clear the current session
      */
     private void openPresetPicker() {
+        // Manually fetch the latest presets from the server on open. The list below shows
+        // the cached copy immediately; reloadChartStateFromCache() refreshes it in place
+        // if the pull brings anything newer.
+        ChartSyncManager.init(this).pullAll();
+
         List<PresetRepository.Preset> presets = presetRepo.getAllPresets();
         View root = buildPresetPickerView(presets);
         BottomSheetDialog dialog = new BottomSheetDialog(this);
         dialog.setContentView(root);
+        // Drop the reference when the sheet closes so a later pull doesn't touch a stale view.
+        dialog.setOnDismissListener(d -> presetListContainer = null);
         dialog.show();
     }
 

@@ -82,4 +82,9 @@ public class PriceChangePercentCondition extends Condition {
         return String.format(Locale.US, "%s move ≥ %.1f%% (%s)",
                 direction.name().toLowerCase(), percentThreshold, timeframe.value);
     }
+
+    // Accessors for the edit UI — read the exact stored values (never re-parse getSummary()).
+    public StockDataHelper.Timeframe getTimeframe()        { return timeframe; }
+    public double                    getPercentThreshold() { return percentThreshold; }
+    public Direction                 getDirection()        { return direction; }
 }

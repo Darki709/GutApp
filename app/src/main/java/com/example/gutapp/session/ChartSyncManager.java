@@ -16,12 +16,16 @@ import java.util.List;
 
 /**
  * ChartSyncManager — keeps the local {@link ChartStateDao} cache (drawings, indicators,
- * presets) in sync with the per-user server copy. Automatic, per-symbol last-write-wins:
+ * presets) in sync with the per-user server copy. Per-symbol last-write-wins. The server
+ * is passive: the client pushes on every change and pulls only when it needs fresh data.
  *
- *  - {@link #pullAll()}   : download the user's server rows, merge LWW into the cache,
- *                           then push anything still locally newer.
- *  - {@link #schedulePush()} : debounced upload of dirty rows; wired to every local DAO
- *                           write via {@link ChartStateDao#setLocalChangeListener}.
+ *  - {@link #pullAll()}   : ON-DEMAND download of the user's server rows (call when opening
+ *                           a chart or the presets menu), merged LWW into the cache, then
+ *                           push anything still locally newer. Never runs on a timer.
+ *  - {@link #schedulePush()} : EVENT-DRIVEN upload of dirty rows; wired to every local DAO
+ *                           write via {@link ChartStateDao#setLocalChangeListener}, so a
+ *                           change is uploaded as soon as it happens (a short debounce only
+ *                           coalesces a rapid edit burst).
  *  - {@link #flush()}     : push immediately (e.g. when leaving a chart).
  *
  * It acts as the per-request {@link SessionCallback} so responses route back here.
@@ -31,7 +35,10 @@ import java.util.List;
 public class ChartSyncManager implements SessionCallback {
 
     private static final String TAG = "ChartSync";
-    private static final long PUSH_DEBOUNCE_MS = 1500;
+    // Push is event-driven: every local edit schedules an upload. The short debounce only
+    // coalesces a rapid burst (a drawing drag, a seek-bar sweep) into one upload — a
+    // finished edit still reaches the server right away. There is NO periodic/background push.
+    private static final long PUSH_DEBOUNCE_MS = 250;
 
     private static ChartSyncManager instance;
 
@@ -61,8 +68,12 @@ public class ChartSyncManager implements SessionCallback {
      */
     public void setRemoteChangeListener(@Nullable Runnable r) { this.remoteChangeListener = r; }
 
-    // ── Pull ──────────────────────────────────────────────────────────
-    /** Request all of the user's chart-state rows from the server. */
+    // ── Pull (manual / on-demand) ──────────────────────────────────────
+    /**
+     * Request all of the user's chart-state rows from the server. Call this exactly when
+     * fresh data might be needed — opening a chart, opening the presets menu — not on a
+     * timer. The server is passive; the client pulls only when it needs to.
+     */
     public void pullAll() {
         try {
             NetworkClient.getInstance(appCtx).getSessionManager()

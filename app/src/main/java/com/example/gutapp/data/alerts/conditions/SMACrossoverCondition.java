@@ -97,4 +97,9 @@ public class SMACrossoverCondition extends Condition {
                 crossDirection == CrossDirection.ABOVE ? "↑" : "↓",
                 timeframe.value);
     }
+
+    // Accessors for the edit UI — read the exact stored values (never re-parse getSummary()).
+    public StockDataHelper.Timeframe getTimeframe()      { return timeframe; }
+    public int                       getPeriod()         { return period; }
+    public CrossDirection            getCrossDirection() { return crossDirection; }
 }

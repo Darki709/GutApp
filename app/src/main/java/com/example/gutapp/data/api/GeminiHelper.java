@@ -24,6 +24,7 @@ import java.util.concurrent.Executors;
 
 public class GeminiHelper {
     private final GenerativeModelFutures model;
+    private final GenerativeModelFutures articleModel;
     private final Executor backgroundExecutor = Executors.newSingleThreadExecutor();
 
     static final String requestFormat =
@@ -53,6 +54,34 @@ public class GeminiHelper {
                     "HISTORY/DESCRIPTION: Nvidia is a leading manufacturer of computer chips, mainly graphics cards for ai, professionals and gamers..." +
 
                     "Now, analyze %s and provide the response in the same structure.";
+
+    /**
+     * Prompt for the per-article sentiment analysis. The article text is supplied
+     * inline (headline + summary + related tickers) so the model does not need web
+     * search — it reasons over what we already fetched from the news provider.
+     * Output is forced to the {@code articleModel} JSON schema below.
+     */
+    static final String articleRequestFormat =
+            "You are a professional financial analyst for GutApp. Analyze the following "
+                    + "financial news article and determine which tradable symbols (stocks, "
+                    + "crypto, forex, futures) are most likely to be affected by it and how.\n\n"
+                    + "ARTICLE HEADLINE: %s\n"
+                    + "ARTICLE SUMMARY: %s\n"
+                    + "RELATED TICKER(S) (may be empty): %s\n\n"
+                    + "TASK:\n"
+                    + "1. Decide the OVERALL market sentiment of the article: Bullish, Bearish, or Neutral.\n"
+                    + "2. Write a concise 2-3 sentence professional summary of the article's market significance.\n"
+                    + "3. Identify up to 5 specific tradable symbols most likely to be affected. For each give:\n"
+                    + "   - symbol:     the ticker the user can chart (e.g. AAPL, BTC-USD, EUR/USD)\n"
+                    + "   - company:    the company / asset name\n"
+                    + "   - sentiment:  Bullish, Bearish, or Neutral for THAT symbol specifically\n"
+                    + "   - impact:     ONE concise sentence on how and why it is affected by this article\n"
+                    + "   - confidence: an integer 0-100 of how confident you are in this call\n\n"
+                    + "RULES:\n"
+                    + "- Only include symbols with a real, defensible connection to the article.\n"
+                    + "- 'sentiment' and 'overall_sentiment' MUST be exactly one of: Bullish, Bearish, Neutral.\n"
+                    + "- Prefer widely recognized tickers; never invent a symbol.\n"
+                    + "- If no symbol is clearly affected, return an empty affected_symbols array.";
 
     public GeminiHelper() {
         // 1. Define the JSON Schema for the output
@@ -91,6 +120,81 @@ public class GeminiHelper {
                 systemInstruction);
 
         this.model = GenerativeModelFutures.from(gm);
+
+        // ── Article-analysis model ───────────────────────────────────────
+        // Distinct schema: an overall verdict plus an array of affected symbols.
+        Schema affectedSymbol = Schema.obj(
+                Map.of(
+                        "symbol",     Schema.str(),     // tradable ticker
+                        "company",    Schema.str(),     // human-readable name
+                        "sentiment",  Schema.str(),     // Bullish / Bearish / Neutral
+                        "impact",     Schema.str(),     // one sentence: how/why affected
+                        "confidence", Schema.numInt()   // 0-100
+                ),
+                Collections.emptyList()
+        );
+        Schema articleSchema = Schema.obj(
+                Map.of(
+                        "overall_sentiment", Schema.str(),
+                        "summary",           Schema.str(),
+                        "affected_symbols",  Schema.array(affectedSymbol)
+                ),
+                Collections.emptyList()
+        );
+
+        GenerationConfig articleConfig = new GenerationConfig.Builder()
+                .setTemperature(0.2f)
+                .setResponseMimeType("application/json")
+                .setResponseSchema(articleSchema)
+                .build();
+
+        GenerativeModel am = ai.generativeModel(
+                "gemini-2.5-flash",
+                articleConfig,
+                null,
+                null,
+                null,
+                systemInstruction);
+
+        this.articleModel = GenerativeModelFutures.from(am);
+    }
+
+    /**
+     * Analyze a single news article and return — as raw JSON matching the
+     * {@code articleModel} schema — the overall sentiment plus the list of
+     * tradable symbols the article is likely to move and why.
+     *
+     * @param headline  article headline (required)
+     * @param summary   article summary / body snippet (may be empty)
+     * @param related   related ticker(s) from the news feed (may be empty)
+     */
+    public void getArticleAnalysis(String headline, String summary, String related,
+                                   final AnalysisCallback callback) {
+        String promptText = String.format(
+                articleRequestFormat,
+                headline == null ? "" : headline,
+                summary  == null ? "" : summary,
+                related  == null ? "" : related);
+
+        Content content = new Content.Builder()
+                .addText(promptText)
+                .build();
+
+        ListenableFuture<GenerateContentResponse> response =
+                this.articleModel.generateContent(content);
+
+        Futures.addCallback(response, new FutureCallback<GenerateContentResponse>() {
+            @Override
+            public void onSuccess(GenerateContentResponse result) {
+                callback.onSuccess(result.getText());
+            }
+
+            @Override
+            public void onFailure(Throwable t) {
+                Log.e(CHART_LOG_TAG, "Error getting article analysis: " + t.getMessage());
+                callback.onError(t.getMessage());
+            }
+        }, backgroundExecutor);
     }
 
     public void getAiAnalysis(String ticker, final AnalysisCallback callback) {
