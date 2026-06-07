@@ -24,6 +24,18 @@ public class Alert {
     @Setter
     private long id = -1;
 
+    /**
+     * Stable, device-independent identity used for server sync (last-write-wins key).
+     * The local {@code id} is a per-device autoincrement and is NOT portable; this UUID is.
+     * Assigned by the DB layer on first persist; null until then.
+     */
+    @Setter
+    private String uuid;
+
+    /** Epoch millis of the last local OR remote write that won (drives sync LWW). */
+    @Setter
+    private long updatedAt;
+
     private final String symbol;
     @Setter
     private String label;           // User-defined display name, e.g. "BTC breakout"

@@ -19,7 +19,9 @@ public enum RequestType {
     MODIFY_WATCHLIST_ITEMS((byte) 14),
     GET_WATCHLIST_CONTENT((byte) 15),
     SYNC_CHART_PULL((byte) 16),
-    SYNC_CHART_PUSH((byte) 17);
+    SYNC_CHART_PUSH((byte) 17),
+    SYNC_ALERT_PULL((byte) 18),
+    SYNC_ALERT_PUSH((byte) 19);
 
     public final byte value;
 

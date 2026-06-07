@@ -31,5 +31,10 @@ public enum DataType {
     // Chart-state sync (drawings + indicators + presets)
     CHART_SYNC_PULLED,
     CHART_SYNC_PUSHED,
-    CHART_SYNC_ERROR;
+    CHART_SYNC_ERROR,
+
+    // Alert sync (per-user alert definitions)
+    ALERT_SYNC_PULLED,
+    ALERT_SYNC_PUSHED,
+    ALERT_SYNC_ERROR;
 }

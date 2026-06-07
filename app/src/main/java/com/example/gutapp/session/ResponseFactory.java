@@ -10,6 +10,7 @@ import com.example.gutapp.session.Responses.StreamResponse;
 import com.example.gutapp.session.Responses.TickerInfoResponse;
 import com.example.gutapp.session.Responses.WatchlistResponses;
 import com.example.gutapp.session.Responses.ChartSyncResponses;
+import com.example.gutapp.session.Responses.AlertSyncResponses;
 
 public class ResponseFactory {
     public static AsyncResponse createResponse(byte[] response) {
@@ -41,6 +42,8 @@ public class ResponseFactory {
             case WATCHLIST_CONTENT: return new WatchlistResponses.Content(response);
             case CHART_SYNC_PULL_RESULT: return new ChartSyncResponses.PullResult(response);
             case CHART_SYNC_PUSH_RESULT: return new ChartSyncResponses.PushResult(response);
+            case ALERT_SYNC_PULL_RESULT: return new AlertSyncResponses.PullResult(response);
+            case ALERT_SYNC_PUSH_RESULT: return new AlertSyncResponses.PushResult(response);
             default:
                 throw new RuntimeException("Unknown response type: " + response[0]);
         }

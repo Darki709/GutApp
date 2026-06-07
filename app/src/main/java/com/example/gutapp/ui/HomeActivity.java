@@ -24,6 +24,7 @@ import com.example.gutapp.data.models.Order;
 import com.example.gutapp.data.models.TickerInfo;
 import com.example.gutapp.database.DB_Helper;
 import com.example.gutapp.database.LastFetchCacheHelper;
+import com.example.gutapp.session.AlertSyncManager;
 import com.example.gutapp.session.ChartSyncManager;
 import com.example.gutapp.session.CryptoUtility;
 import com.example.gutapp.session.DataType;
@@ -236,6 +237,21 @@ public class HomeActivity extends SessionActivity implements OrdersList.Listener
         // exists so local edits still push; charts and the presets menu pull on demand
         // when they open.
         ChartSyncManager.init(this);
+
+        // Alerts: pull the user's server-side alerts on demand (covers login on a new
+        // device) and keep the drawer badge live. The badge is refreshed both now and
+        // again when a pull actually lands (remote change listener), so it never goes stale.
+        AlertSyncManager alertSync = AlertSyncManager.init(this);
+        alertSync.setRemoteChangeListener(this::updateAlertsBadge);
+        alertSync.pullAll();
+        updateAlertsBadge();
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        AlertSyncManager alertSync = AlertSyncManager.get();
+        if (alertSync != null) { alertSync.setRemoteChangeListener(null); alertSync.flush(); }
     }
 
     private void updateAlertsBadge() {

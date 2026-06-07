@@ -29,6 +29,7 @@ import com.example.gutapp.R;
 import com.example.gutapp.data.alerts.Alert;
 import com.example.gutapp.data.alerts.AlertManager;
 import com.example.gutapp.data.models.TickerInfo;
+import com.example.gutapp.session.AlertSyncManager;
 import com.example.gutapp.session.DataType;
 import com.example.gutapp.session.NetworkClient;
 import com.example.gutapp.session.Requests.SearchTicker;
@@ -89,7 +90,22 @@ public class AlertsActivity extends SessionActivity {
         refreshList();
     }
 
-    @Override protected void onResume() { super.onResume(); refreshList(); }
+    @Override protected void onResume() {
+        super.onResume();
+        // Pull the user's alerts from the server on open, and refresh the list both now
+        // and again when a pull actually lands (so a change made on another device shows up).
+        AlertSyncManager sync = AlertSyncManager.init(this);
+        sync.setRemoteChangeListener(this::refreshList);
+        sync.pullAll();
+        refreshList();
+    }
+
+    @Override protected void onPause() {
+        super.onPause();
+        AlertSyncManager sync = AlertSyncManager.get();
+        if (sync != null) { sync.setRemoteChangeListener(null); sync.flush(); }
+    }
+
     @Override protected void networkReconnect() {}
 
     @Override

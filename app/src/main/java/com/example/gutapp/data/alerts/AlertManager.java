@@ -164,12 +164,29 @@ public class AlertManager implements PriceResource {
         for (Alert a : alertDb.getAllAlerts()) {
             if (a.getId() == alertId) {
                 a.setStatus(newStatus);
-                alertDb.updateAlertStatus(a);
+                // User-initiated toggle → mark dirty so the change syncs (unlike an
+                // automatic trigger-state write, which stays local).
+                alertDb.updateAlertStatusByUser(a);
                 if (newStatus == Alert.Status.ACTIVE) { addToMemory(a); refreshSubscriptions(); }
                 else { removeFromMemory(alertId); cleanupSubscriptions(); }
                 break;
             }
         }
+    }
+
+    /**
+     * Rebuild the in-memory ACTIVE-alert set from the DB. Called after a sync pull applies
+     * server changes so the background evaluator immediately reflects the new alert set
+     * (added/removed/toggled on another device). Safe to call any time after init().
+     */
+    public synchronized void reloadActiveAlerts() {
+        ensureDb();
+        if (alertDb == null) return;
+        activeAlerts.clear();
+        for (Alert a : alertDb.getActiveAlerts()) addToMemory(a);
+        refreshSubscriptions();
+        cleanupSubscriptions();
+        Log.i(TAG, "Reloaded active alerts after sync");
     }
 
     public List<Alert> getAllAlerts() {
