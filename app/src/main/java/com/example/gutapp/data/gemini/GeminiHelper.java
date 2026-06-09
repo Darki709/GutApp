@@ -1,4 +1,4 @@
-package com.example.gutapp.data.api;
+package com.example.gutapp.data.gemini;
 
 import static com.example.gutapp.ui.ChartActivity.CHART_LOG_TAG;
 

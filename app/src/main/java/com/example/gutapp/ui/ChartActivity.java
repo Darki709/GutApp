@@ -30,7 +30,7 @@ import androidx.core.widget.NestedScrollView;
 import com.example.gutapp.R;
 import com.example.gutapp.data.OrderDialog;
 import com.example.gutapp.data.StockChart;
-import com.example.gutapp.data.api.GeminiHelper;
+import com.example.gutapp.data.gemini.GeminiHelper;
 import com.example.gutapp.data.indicators.CurrentSessionHolder;
 import com.example.gutapp.data.indicators.Indicator;
 import com.example.gutapp.data.indicators.IndicatorRegistry;

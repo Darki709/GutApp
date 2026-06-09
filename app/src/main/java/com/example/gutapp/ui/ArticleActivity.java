@@ -30,7 +30,7 @@ import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
 
 import com.example.gutapp.R;
-import com.example.gutapp.data.api.GeminiHelper;
+import com.example.gutapp.data.gemini.GeminiHelper;
 import com.example.gutapp.session.DataType;
 import com.google.android.material.bottomsheet.BottomSheetDialog;
 
@@ -43,12 +43,10 @@ import java.util.Locale;
 /**
  * ArticleActivity — reads a news article inside the app (no browser hop) and
  * offers an on-demand Gemini "who does this move?" sentiment analysis.
- *
  * Launched by {@link NewsActivity} with the article's url / headline / summary /
  * related-tickers as extras. The page renders in an embedded {@link WebView};
  * the AI button asks Gemini which tradable symbols the article is likely to
  * affect and how, then lists them as tappable rows that jump to the chart.
- *
  * Reliability: every failure (bad url, load error, AI error) lands in a visible
  * state with an "open in browser" escape hatch — never a crash.
  */
