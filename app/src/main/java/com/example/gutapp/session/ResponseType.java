@@ -16,7 +16,17 @@ public enum ResponseType{
     ORDERSLIPPED((byte)11),
     ORDERSBATCH((byte)12),
     ORDEREXITTED((byte)13),
-    ORDERFAILEDEXIT((byte)14);
+    ORDERFAILEDEXIT((byte)14),
+    WATCHLIST_SUMMARY((byte) 15),
+    WATCHLIST_ACTION_STATUS((byte) 16),
+    WATCHLIST_CONTENT((byte) 17),
+    // NOTE: fromByte() indexes by ordinal, so every entry below MUST keep value == ordinal
+    // position (i.e. stay contiguous and in order, before ALERT).
+    CHART_SYNC_PULL_RESULT((byte) 18),
+    CHART_SYNC_PUSH_RESULT((byte) 19),
+    ALERT_SYNC_PULL_RESULT((byte) 20),
+    ALERT_SYNC_PUSH_RESULT((byte) 21),
+    ALERT((byte)255); //alert response may come even if the client didn't directly pushed a request for them they are all handled by the network service, they are mostly used for notifications
 
     public final byte value;
 

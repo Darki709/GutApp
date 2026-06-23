@@ -38,6 +38,10 @@ public class RequestTickerData extends AsyncRequest {
 
     private final boolean isStream;
 
+    private final int limit;
+
+    public static final int CACHE_END = 255;
+
     public RequestTickerData(String symbol, StockDataHelper.Timeframe interval, long startTs , long endTs , boolean isSnapshot, boolean isStream , SessionCallback caller) {
         super(caller);
         this.symbol = symbol;
@@ -51,6 +55,21 @@ public class RequestTickerData extends AsyncRequest {
         if (isSnapshot) f |= 0x01;
         if (isStream) f |= 0x02;
         this.flags = f;
+        this.limit = 0;
+    }
+
+    public RequestTickerData(String symbol, StockDataHelper.Timeframe interval, int limit , boolean isSnapshot, boolean isStream , SessionCallback caller){
+        super(caller);
+        this.symbol = symbol;
+        this.interval = interval;
+        this.startTs = 0;
+        this.endTs = 0;
+        this.isStream = isStream;
+        byte f = 0;
+        if (isSnapshot) f |= 0x01;
+        if (isStream) f |= 0x02;
+        this.flags = f;
+        this.limit = limit;
     }
 
     @Override
@@ -67,8 +86,13 @@ public class RequestTickerData extends AsyncRequest {
         buf.put((byte) symbolBytes.length); // symbolLen (0)
         buf.put(symbolBytes);               // symbol (1)
         buf.putInt(interval.interval);               // interval (?)
-        buf.putLong(startTs);               // start_ts (?)
-        buf.putLong(endTs);                 // end_ts (?)
+        if(limit > 0){
+            buf.putInt(limit);                  // limit
+        }
+        else{
+            buf.putLong(startTs);               // start_ts (?)
+            buf.putLong(endTs);                 // end_ts (?)
+        }
         buf.put(flags);                     // flags (?)
         
         Log.i(NETWORK_LOG_TAG, "RequestTickerData: " + symbol + interval + startTs + endTs + flags);
@@ -112,8 +136,10 @@ public class RequestTickerData extends AsyncRequest {
                 PriceChunk streamChunk = new PriceChunk(streamResponse.getReqId(), streamEntries, false);
                 caller.onDataReceived(DataType.TICKER_STREAM, streamChunk);
                 Log.i(CHART_LOG_TAG, "Received stream data for " + symbol + " : open = " + candle.open + ", high = " + candle.high + ", low = " + candle.low + ", close = " + candle.close + ", volume = " + candle.volume + ", ts = " + candle.timestamp);
-                cacheThread = new Thread( () -> cachePriceData(streamEntries, StockDataHelper.Timeframe.ONE_MIN));
-                cacheThread.start();
+                // Do NOT cache individual stream ticks: they are partial single-tick candles
+                // (open=high=low=close=price) that would appear as white zero-height lines on
+                // the 1-min chart after a reload.  Historical data is already saved by the
+                // snapshot path above.
                 break;
     }
     }
@@ -129,5 +155,6 @@ public class RequestTickerData extends AsyncRequest {
     private void cachePriceData(ArrayList<Candle> entries, StockDataHelper.Timeframe interval) {
         StockDataHelper stockDataHelper = new StockDataHelper(DB_Helper.getInstance(null));
         stockDataHelper.saveStockData(symbol, interval, entries);
+        if(caller != null) caller.onActionRequired(CACHE_END, null);
     }
 }

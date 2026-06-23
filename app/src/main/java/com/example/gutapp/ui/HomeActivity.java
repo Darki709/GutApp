@@ -8,53 +8,44 @@ import android.content.Intent;
 import android.database.Cursor;
 import android.graphics.Color;
 import android.os.Bundle;
-import android.text.Editable;
-import android.text.TextWatcher;
 import android.view.View;
-import android.view.ViewGroup;
-import android.widget.EditText;
-import android.widget.ImageButton;
-import android.widget.LinearLayout;
-import android.widget.Switch;
 import android.widget.TextView;
-import android.widget.Toast;
 
 import androidx.activity.EdgeToEdge;
-import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.graphics.Insets;
+import androidx.core.view.GravityCompat;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
-import androidx.recyclerview.widget.LinearLayoutManager;
-import androidx.recyclerview.widget.RecyclerView;
+import androidx.drawerlayout.widget.DrawerLayout;
 
 import com.example.gutapp.R;
-import com.example.gutapp.data.SearchAdapter;
-import com.example.gutapp.data.StockRow;
 import com.example.gutapp.data.UserGlobals;
 import com.example.gutapp.data.models.Order;
 import com.example.gutapp.data.models.TickerInfo;
-import com.example.gutapp.data.models.TickerInformation;
 import com.example.gutapp.database.DB_Helper;
 import com.example.gutapp.database.LastFetchCacheHelper;
+import com.example.gutapp.session.AlertSyncManager;
+import com.example.gutapp.session.ChartSyncManager;
+import com.example.gutapp.session.CryptoUtility;
 import com.example.gutapp.session.DataType;
 import com.example.gutapp.session.NetworkClient;
 import com.example.gutapp.session.Requests.FetchOrders;
-import com.example.gutapp.session.Requests.SearchTicker;
-import com.example.gutapp.session.Requests.TickerInfoRequest;
 import com.example.gutapp.ui.fragments.OrdersList;
 import com.example.gutapp.ui.fragments.SearchFragment;
 import com.example.gutapp.ui.fragments.StockLiveList;
-
+import com.example.gutapp.data.alerts.AlertManager;
 
 import java.util.ArrayList;
 import java.util.Locale;
 
 public class HomeActivity extends SessionActivity implements OrdersList.Listener {
+
     public static final String HOME_LOG_TAG = "GutHome";
 
-    TextView PL;
-    OrdersList ordersList;
-    StockLiveList stockLiveListFragment;
+    private TextView PL;
+    private OrdersList ordersList;
+    private StockLiveList stockLiveListFragment;
+    private DrawerLayout drawerLayout;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -62,89 +53,139 @@ public class HomeActivity extends SessionActivity implements OrdersList.Listener
         EdgeToEdge.enable(this);
         setContentView(R.layout.activity_home);
         ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main), (v, insets) -> {
-            Insets systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars());
-            v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom);
+            Insets sb = insets.getInsets(WindowInsetsCompat.Type.systemBars());
+            v.setPadding(sb.left, sb.top, sb.right, sb.bottom);
             return insets;
         });
 
+        drawerLayout = findViewById(R.id.drawerLayout);
+
+        // ── Logo → opens drawer ───────────────────────────────────
+        findViewById(R.id.imageView).setOnClickListener(v ->
+                drawerLayout.openDrawer(GravityCompat.START));
+
+        // ── Drawer nav items ──────────────────────────────────────
+        findViewById(R.id.navProfile).setOnClickListener(v -> {
+            drawerLayout.closeDrawers();
+            startActivity(new Intent(this, ProfileActivity.class));
+        });
+
+        findViewById(R.id.navOrdersHistory).setOnClickListener(v -> {
+            drawerLayout.closeDrawers();
+            startActivity(new Intent(this, AllOrdersActivity.class));
+        });
+
+        findViewById(R.id.navHome).setOnClickListener(v ->
+                drawerLayout.closeDrawers());
+
+        findViewById(R.id.navLogout).setOnClickListener( v -> {
+            CryptoUtility.clearAuthCredentials(this.getApplicationContext());
+            Intent intent = new Intent(this, LoginPage.class);
+            UserGlobals.USER_NAME = null;
+            UserGlobals.LOGGED_IN = false;
+            UserGlobals.setBalance(0);
+            UserGlobals.clearUserData(this.getApplicationContext());
+            // This prevents the user from going "back" into the app after logging out
+            intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+            NetworkClient.getInstance(null).stop();
+            startActivity(intent);
+        });
+
+        findViewById(R.id.navWatchlists).setOnClickListener(v -> {
+            drawerLayout.closeDrawers();
+            startActivity(new Intent(this, WatchlistActivity.class));
+        });
+
+        findViewById(R.id.navAlerts).setOnClickListener(v -> {
+            drawerLayout.closeDrawers();
+            startActivity(new Intent(this, AlertsActivity.class));
+        });
+
+        findViewById(R.id.navNews).setOnClickListener(v -> {
+            drawerLayout.closeDrawers();
+            startActivity(new Intent(this, NewsActivity.class));
+        });
+
+        // ── Alerts count badge in drawer ──────────────────────────
+        updateAlertsBadge();
+
+        // ── Drawer username ───────────────────────────────────────
+        TextView drawerName = findViewById(R.id.drawerUserName);
+        if (drawerName != null && UserGlobals.USER_NAME != null)
+            drawerName.setText("Hello " + UserGlobals.USER_NAME + "!");
+
+        // ── Stock list fragment ───────────────────────────────────
         stockLiveListFragment = StockLiveList.newInstance(loadStockList());
-        //initialize stock list fragment
         if (savedInstanceState == null) {
             getSupportFragmentManager().beginTransaction()
                     .replace(R.id.stock_list_container, stockLiveListFragment)
                     .commit();
         }
 
-        //ready the home page for presentation
         setUserTitle();
 
-        //initialize search fragment
+        // ── Search fragment ───────────────────────────────────────
         if (savedInstanceState == null) {
             getSupportFragmentManager().beginTransaction()
                     .replace(R.id.search_container, new SearchFragment())
                     .commit();
         }
+
         PL = findViewById(R.id.totalPLValue);
         PL.setVisibility(INVISIBLE);
-        FetchOrders fetchOrder = new FetchOrders(null, FetchOrders.OrderView.ACTIVE, 0, this);
-        NetworkClient.getInstance(null).getSessionManager().pushRequest(fetchOrder);
 
         TextView balance = findViewById(R.id.totalBalanceValue);
-        UserGlobals.getBalance().observe(this, newBalance -> {
-            balance.setText(String.format(Locale.US, "$%.4f", newBalance));
-        });
+        UserGlobals.getBalance().observe(this, newBalance ->
+                balance.setText(String.format(Locale.US, "$%.4f", newBalance)));
+
         findViewById(R.id.orders_container).setVisibility(GONE);
         findViewById(R.id.ordersTitle).setVisibility(GONE);
     }
 
-    private ArrayList<TickerInfo> loadStockList() {
-        Cursor cursor = (new LastFetchCacheHelper(DB_Helper.getInstance(this)).getStocks());
-        ArrayList<TickerInfo> tickerList = new ArrayList<>();
 
+
+    private ArrayList<TickerInfo> loadStockList() {
+        Cursor cursor = new LastFetchCacheHelper(DB_Helper.getInstance(this)).getStocks();
+        ArrayList<TickerInfo> list = new ArrayList<>();
         if (cursor.moveToFirst()) {
             do {
-                String symbol = cursor.getString(cursor.getColumnIndexOrThrow("symbol"));
-                String name = cursor.getString(cursor.getColumnIndexOrThrow("name"));
-                tickerList.add(new TickerInfo(name, symbol));
+                list.add(new TickerInfo(
+                        cursor.getString(cursor.getColumnIndexOrThrow("name")),
+                        cursor.getString(cursor.getColumnIndexOrThrow("symbol"))));
             } while (cursor.moveToNext());
         }
         cursor.close();
-        return tickerList;
+        return list;
     }
 
     private void setUserTitle() {
-        TextView userTitle = findViewById(R.id.textViewUserTitle);
-        if (UserGlobals.LOGGED_IN)
-            userTitle.setText("Hello " + UserGlobals.USER_NAME + "!");
+        TextView tv = findViewById(R.id.textViewUserTitle);
+        if (UserGlobals.LOGGED_IN && tv != null)
+            tv.setText("Hello " + UserGlobals.USER_NAME + "!");
     }
 
     @Override
     public void onDataReceived(DataType msgType, Object parsedData) {
-        switch (msgType) {
-            case ORDERS_BATCH:
-                ArrayList<Order> orders = (ArrayList<Order>) parsedData;
-                if (orders != null && !orders.isEmpty()) {
-                    updateOrdersList(orders);
-                }
-                else {
-                    // No active orders? Hide the section
-                    findViewById(R.id.orders_container).setVisibility(View.GONE);
-                    PL.setVisibility(View.INVISIBLE);
-                }
-                break;
+        if (msgType != DataType.ORDERS_BATCH) return;
+        ArrayList<Order> orders = (ArrayList<Order>) parsedData;
+        if (orders == null || orders.isEmpty()) {
+            runOnUiThread(() -> {
+                findViewById(R.id.orders_container).setVisibility(View.GONE);
+                findViewById(R.id.ordersTitle).setVisibility(GONE);
+                PL.setVisibility(View.INVISIBLE);
+            });
+        } else {
+            updateOrdersList(orders);
         }
     }
 
     private void updateOrdersList(ArrayList<Order> orders) {
-        runOnUiThread( () -> {
+        runOnUiThread(() -> {
             findViewById(R.id.orders_container).setVisibility(VISIBLE);
             PL.setVisibility(VISIBLE);
             findViewById(R.id.ordersTitle).setVisibility(VISIBLE);
             if (ordersList == null) {
-                // Create new instance of the fragment
-                // Passing null for symbol as we want to see ALL active orders on Home
                 ordersList = OrdersList.newInstance(orders);
-
                 getSupportFragmentManager().beginTransaction()
                         .replace(R.id.orders_container, ordersList)
                         .commit();
@@ -154,40 +195,79 @@ public class HomeActivity extends SessionActivity implements OrdersList.Listener
     }
 
     @Override
-    public void onActionRequired(int actionType, Object data) {
-        //currently not in use
-    }
-
-    @Override
     public void PLUpdate(double totalPL) {
         runOnUiThread(() -> {
-            String PL_format = totalPL > 1 ? "+$%.10f" : "-$%.10f";
-            // 1. Update the Text
-            PL.setText(String.format(Locale.US, PL_format, Math.abs(totalPL)));
-
-            // 2. Change the Color based on value
-            if (totalPL > 0.00001) {
-                // GREEN: Making money
-                PL.setTextColor(Color.parseColor("#00FF88"));
-            } else if (totalPL < -0.00001) {
-                // RED: Losing money
-                PL.setTextColor(Color.parseColor("#FF4444"));
-            } else {
-                // WHITE: Break even or neutral
-                PL.setTextColor(Color.WHITE);
-            }
+            String fmt = totalPL > 0 ? "+$%.10f" : (totalPL == 0 ? "$0" : "-$%.10f");
+            PL.setText(String.format(Locale.US, fmt, Math.abs(totalPL)));
+            if      (totalPL > 0) PL.setTextColor(Color.parseColor("#00FF88"));
+            else if (totalPL < 0) PL.setTextColor(Color.parseColor("#FF4444"));
+            else                   PL.setTextColor(Color.WHITE);
         });
     }
 
     @Override
     public void notifyOrderRemoved(Order order) {
-        if(ordersList.isEmpty()){
+        if (ordersList != null && ordersList.isEmpty()) {
             findViewById(R.id.orders_container).setVisibility(GONE);
             findViewById(R.id.ordersTitle).setVisibility(GONE);
             PL.setVisibility(GONE);
-            if (stockLiveListFragment != null) {
-                stockLiveListFragment.refreshVisibleRows();
-            }
+            if (stockLiveListFragment != null) stockLiveListFragment.refreshVisibleRows();
         }
+    }
+
+    @Override
+    protected void networkReconnect() {
+        ordersList = null;
+        FetchOrders fetchOrder = new FetchOrders(null, FetchOrders.OrderView.ACTIVE, 0, this);
+        NetworkClient.getInstance(null).getSessionManager().pushRequest(fetchOrder);
+        stockLiveListFragment.refreshVisibleRows();
+    }
+
+    @Override
+    protected void networkDisconnect() {
+        ordersList = null;
+        stockLiveListFragment.stop();
+    }
+
+    @Override
+    protected void onResume(){
+        super.onResume();
+        networkReconnect();
+        // Home shows no chart state, so don't pull here. Just make sure the sync manager
+        // exists so local edits still push; charts and the presets menu pull on demand
+        // when they open.
+        ChartSyncManager.init(this);
+
+        // Alerts: pull the user's server-side alerts on demand (covers login on a new
+        // device) and keep the drawer badge live. The badge is refreshed both now and
+        // again when a pull actually lands (remote change listener), so it never goes stale.
+        AlertSyncManager alertSync = AlertSyncManager.init(this);
+        alertSync.setRemoteChangeListener(this::updateAlertsBadge);
+        alertSync.pullAll();
+        updateAlertsBadge();
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        AlertSyncManager alertSync = AlertSyncManager.get();
+        if (alertSync != null) { alertSync.setRemoteChangeListener(null); alertSync.flush(); }
+    }
+
+    private void updateAlertsBadge() {
+        TextView badge = findViewById(R.id.navAlertsCount);
+        if (badge == null) return;
+        try {
+            long active = 0;
+            for (com.example.gutapp.data.alerts.Alert a : AlertManager.getInstance().getAllAlerts()) {
+                if (a.getStatus() == com.example.gutapp.data.alerts.Alert.Status.ACTIVE) active++;
+            }
+            if (active > 0) {
+                badge.setText(String.valueOf(active));
+                badge.setVisibility(android.view.View.VISIBLE);
+            } else {
+                badge.setVisibility(android.view.View.GONE);
+            }
+        } catch (Exception ignored) {}
     }
 }

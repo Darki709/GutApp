@@ -22,5 +22,19 @@ public enum DataType {
     ORDER_SLIP,
     ORDERS_BATCH,
     ORDER_CLOSED_SUCCESS,
-    ORDER_CLOSED_FAILURE;
+    ORDER_CLOSED_FAILURE,
+    WATCHLISTS_LOADED,
+    WATCHLIST_OPERATION_RESULT,
+    WATCHLIST_CONTENT_LOADED,
+    WATCHLIST_ERROR,
+
+    // Chart-state sync (drawings + indicators + presets)
+    CHART_SYNC_PULLED,
+    CHART_SYNC_PUSHED,
+    CHART_SYNC_ERROR,
+
+    // Alert sync (per-user alert definitions)
+    ALERT_SYNC_PULLED,
+    ALERT_SYNC_PUSHED,
+    ALERT_SYNC_ERROR;
 }

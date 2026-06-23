@@ -121,7 +121,7 @@ public class LastFetchCacheHelper{
     //loading all the symbol and name data mainly used for home activity
     public Cursor getStocks(){
         SQLiteDatabase db = db_helper.getReadableDatabase();
-        String sql = "SELECT DISTINCT " + COLUMN_SYMBOL + ", " + COLUMN_NAME + " FROM " + TABLE_NAME + " LIMIT 50";
+        String sql = "SELECT DISTINCT " + COLUMN_SYMBOL + ", " + COLUMN_NAME + " FROM " + TABLE_NAME + " LIMIT 49";
         try{
             Cursor cursor = db.rawQuery(sql, null);
             Log.i(DB_Helper.DB_LOG_TAG, "Successfully fetched symbols and names");

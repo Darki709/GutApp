@@ -1,0 +1,138 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    One row in the drawing panel list.
+    Bound by DrawingPanelFragment for each active user drawing.
+-->
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:background="#1A1818">
+
+    <!-- Main row: color swatch · name · style toggles · delete -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingStart="16dp"
+        android:paddingEnd="12dp">
+
+        <!-- Color swatch — tap to open color picker -->
+        <View
+            android:id="@+id/colorSwatch"
+            android:layout_width="18dp"
+            android:layout_height="18dp"
+            android:layout_marginEnd="12dp"
+            android:background="#FFFFFF" />
+
+        <!-- Drawing name (type + key value) -->
+        <TextView
+            android:id="@+id/drawingName"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="Trend Line"
+            android:textColor="#ECEFF1"
+            android:textSize="13sp" />
+
+        <!-- Dashed toggle -->
+        <TextView
+            android:id="@+id/btnToggleDash"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:text="- -"
+            android:textColor="#78909C"
+            android:textSize="11sp"
+            android:gravity="center"
+            android:background="@drawable/chart_btn_inactive"
+            android:layout_marginEnd="6dp" />
+
+        <!-- Width up button -->
+        <TextView
+            android:id="@+id/btnWidthUp"
+            android:layout_width="28dp"
+            android:layout_height="28dp"
+            android:text="+"
+            android:textColor="#78909C"
+            android:textSize="16sp"
+            android:gravity="center"
+            android:background="@drawable/chart_btn_inactive"
+            android:layout_marginEnd="4dp" />
+
+        <!-- Width down button -->
+        <TextView
+            android:id="@+id/btnWidthDown"
+            android:layout_width="28dp"
+            android:layout_height="28dp"
+            android:text="−"
+            android:textColor="#78909C"
+            android:textSize="16sp"
+            android:gravity="center"
+            android:background="@drawable/chart_btn_inactive"
+            android:layout_marginEnd="10dp" />
+
+        <!-- Delete -->
+        <TextView
+            android:id="@+id/btnDelete"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:text="✕"
+            android:textColor="#EF5350"
+            android:textSize="14sp"
+            android:gravity="center" />
+
+    </LinearLayout>
+
+    <!-- Expand row: extend toggles (shown for line-type drawings) -->
+    <LinearLayout
+        android:id="@+id/extendRow"
+        android:layout_width="match_parent"
+        android:layout_height="32dp"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingStart="46dp"
+        android:paddingEnd="12dp"
+        android:paddingBottom="4dp"
+        android:visibility="gone">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Extend:"
+            android:textColor="#546E7A"
+            android:textSize="11sp"
+            android:layout_marginEnd="8dp" />
+
+        <TextView
+            android:id="@+id/btnExtendLeft"
+            android:layout_width="52dp"
+            android:layout_height="22dp"
+            android:text="← Left"
+            android:textSize="10sp"
+            android:textColor="#78909C"
+            android:gravity="center"
+            android:background="@drawable/chart_btn_inactive"
+            android:layout_marginEnd="6dp" />
+
+        <TextView
+            android:id="@+id/btnExtendRight"
+            android:layout_width="58dp"
+            android:layout_height="22dp"
+            android:text="Right →"
+            android:textSize="10sp"
+            android:textColor="#78909C"
+            android:gravity="center"
+            android:background="@drawable/chart_btn_inactive" />
+
+    </LinearLayout>
+
+    <!-- Divider -->
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:background="#252323"
+        android:layout_marginStart="16dp" />
+
+</LinearLayout>

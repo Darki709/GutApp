@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginVertical="3dp"
+    android:background="#1E1C1C"
+    android:orientation="vertical"
+    android:padding="8dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <View
+            android:id="@+id/colorDot"
+            android:layout_width="14dp"
+            android:layout_height="14dp"
+            android:layout_marginEnd="8dp" />
+
+        <TextView
+            android:id="@+id/indicatorTag"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="8dp"
+            android:background="#252A3D"
+            android:paddingHorizontal="5dp"
+            android:paddingVertical="1dp"
+            android:textColor="#ECEFF1"
+            android:textSize="11sp" />
+
+        <TextView
+            android:id="@+id/indicatorNameSummary"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:textColor="#B0BEC5"
+            android:textSize="12sp" />
+
+        <TextView
+            android:id="@+id/btnEdit"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:paddingHorizontal="8dp"
+            android:text="✎"
+            android:textColor="#78909C"
+            android:textSize="16sp" />
+
+        <TextView
+            android:id="@+id/btnRemove"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:paddingHorizontal="4dp"
+            android:text="✕"
+            android:textColor="#EF5350"
+            android:textSize="14sp" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:id="@+id/paramEditor"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:paddingTop="4dp"
+        android:visibility="gone" />
+
+</LinearLayout>

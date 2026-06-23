@@ -27,4 +27,65 @@
 
         <item name="android:windowLightStatusBar">false</item>
     </style>
+
+    <!-- ── Unified dialog theme ────────────────────────────────────── -->
+    <!--
+        Uses Theme.AppCompat.Dialog.Alert as parent so that the standard
+        AlertDialog.Builder correctly reads android:windowBackground and
+        colorAccent. ThemeOverlay variants only work with MaterialAlertDialogBuilder.
+
+        Material3 note: when the host activity uses Theme.Material3.DayNight,
+        AlertDialog titles/messages are styled via Material3 typography tokens
+        (colorOnSurface) rather than the legacy android:textColor attributes.
+        In system-light mode this resolves to a near-black color — invisible on
+        the dark #1C1B1B dialog surface.  The Material3 color tokens below fix
+        that by pinning the dialog surface to dark and its content to white,
+        regardless of the system light/dark setting.
+    -->
+    <style name="GutDialog" parent="Theme.AppCompat.Dialog.Alert">
+        <item name="android:windowBackground">@drawable/rounded_dialog_background</item>
+        <item name="android:windowIsFloating">true</item>
+        <!-- Legacy / AppCompat text color attributes -->
+        <item name="android:textColor">#FFFFFF</item>
+        <item name="android:textColorPrimary">#FFFFFF</item>
+        <item name="android:textColorSecondary">#FFFFFF</item>
+        <item name="android:textColorHint">#88FFFFFF</item>
+        <item name="android:colorBackground">#1C1B1B</item>
+        <!-- AppCompat accent (button tint for legacy AlertDialog) -->
+        <item name="colorAccent">#26A69A</item>
+        <!-- Material3 tokens: override DayNight light-mode defaults so that
+             the dialog surface is always dark and its text/buttons are always
+             readable, irrespective of the system light/dark setting. -->
+        <item name="colorSurface">#1C1B1B</item>
+        <item name="colorOnSurface">#FFFFFF</item>
+        <item name="colorOnBackground">#FFFFFF</item>
+        <item name="colorOnSurfaceVariant">#AAAAAA</item>
+        <item name="colorPrimary">#26A69A</item>
+        <item name="colorOnPrimary">#FFFFFF</item>
+    </style>
+
+    <style name="IndicatorSectionHeader">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:textColor">#546E7A</item>
+        <item name="android:textSize">10sp</item>
+        <item name="android:letterSpacing">0.12</item>
+        <item name="android:paddingTop">10dp</item>
+        <item name="android:paddingBottom">4dp</item>
+    </style>
+
+    <!-- News category filter chip -->
+    <style name="NewsChip">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">32dp</item>
+        <item name="android:gravity">center</item>
+        <item name="android:paddingStart">16dp</item>
+        <item name="android:paddingEnd">16dp</item>
+        <item name="android:layout_marginEnd">8dp</item>
+        <item name="android:textSize">12sp</item>
+        <item name="android:textColor">@color/colorTextDim</item>
+        <item name="android:background">@drawable/chart_btn_inactive</item>
+        <item name="android:clickable">true</item>
+        <item name="android:focusable">true</item>
+    </style>
 </resources>

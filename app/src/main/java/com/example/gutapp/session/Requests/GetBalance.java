@@ -31,7 +31,7 @@ public class GetBalance extends AsyncRequest {
 
     @Override
     public void handle(Response response) {
-        UserGlobals.updateBalance(((GetBalanceResponse) response).balance);
+        UserGlobals.setBalance(((GetBalanceResponse) response).balance);
         this.isDone = true;
     }
 }

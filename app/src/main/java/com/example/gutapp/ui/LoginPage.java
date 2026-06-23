@@ -1,6 +1,9 @@
 package com.example.gutapp.ui;
 
+import android.Manifest;
 import android.content.Intent;
+import android.content.pm.PackageManager;
+import android.media.MediaPlayer;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.View;
@@ -10,7 +13,10 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.activity.EdgeToEdge;
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.content.ContextCompat;
 import androidx.core.graphics.Insets;
 import androidx.core.splashscreen.SplashScreen;
 import androidx.core.view.ViewCompat;
@@ -18,13 +24,29 @@ import androidx.core.view.WindowInsetsCompat;
 
 import com.example.gutapp.R;
 import com.example.gutapp.data.UserGlobals;
+import com.example.gutapp.data.alerts.AlertManager;
 import com.example.gutapp.database.DB_Helper;
 import com.example.gutapp.session.DataType;
 import com.example.gutapp.session.NetworkClient;
 import com.example.gutapp.session.SessionCallback;
 import com.example.gutapp.session.SessionManager;
+import com.example.gutapp.session.background.NetworkService;
+import com.google.firebase.FirebaseApp;
 
 public class LoginPage extends AppCompatActivity implements View.OnClickListener, SessionCallback {
+
+    private MediaPlayer startupPlayer;
+
+    private Thread mediaThread;
+
+    //ask for permissions
+    private final ActivityResultLauncher<String> requestPermissionLauncher =
+            registerForActivityResult(new ActivityResultContracts.RequestPermission(), isGranted -> {
+                if (!isGranted) {
+                    // Explain to the user that they won't see alert notifications
+                    Toast.makeText(this, "Notification permission is required for alerts", Toast.LENGTH_LONG).show();
+                }
+            });
     
     //declaring global pointer to core elements of the page
     TextView textTitle, textDescription;
@@ -46,8 +68,28 @@ public class LoginPage extends AppCompatActivity implements View.OnClickListener
             v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom);
             return insets;
         });
+        playStartupSound();
 
+        FirebaseApp.initializeApp(this);
         DB_Helper.getInstance(this);//make sure db is ready
+
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) !=
+                PackageManager.PERMISSION_GRANTED) {
+
+            // Trigger the system popup
+            requestPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS);
+        }
+
+        NetworkClient.getInstance(this).getSessionManager().setUiCallback(this);
+        //start background alert listener
+        Intent serviceIntent = new Intent(this, NetworkService.class);
+        startForegroundService(serviceIntent);
+        // Initialise AlertManager with app context so DB is ready
+        // before any Activity or Service calls addAlert().
+        AlertManager.getInstance().init(this);
+        //check if the background service has an active logged in connection
+        NetworkClient.getInstance(this).start();
+        if(UserGlobals.LOGGED_IN) startActivity(new Intent(this, HomeActivity.class));
 
         //bind pointers to elements
         textTitle = findViewById(R.id.textTitle);
@@ -62,8 +104,8 @@ public class LoginPage extends AppCompatActivity implements View.OnClickListener
         buttonRegister.setOnClickListener(this);
         Log.i(APP_LOG_TAG, "Login page loaded");
         setLoading(true);
-        NetworkClient.getInstance(this).start(this); //tell session manager to work with this activity
 
+        //if it's the first time running the app the background process has no active connection so start the network thread
     }
 
     @Override
@@ -75,6 +117,23 @@ public class LoginPage extends AppCompatActivity implements View.OnClickListener
         else if(id == R.id.buttonRegister){
             UserRegister(editTextUsername.getText().toString(), editTextPassword.getText().toString());
         }
+    }
+
+    private void playStartupSound() {
+        mediaThread = new Thread(() -> {
+        try {
+            startupPlayer = MediaPlayer.create(this, R.raw.app_startup);
+            if (startupPlayer != null) {
+                // Set volume if you want it to be a subtle background jingle
+                startupPlayer.setVolume(0.6f, 0.6f);
+                startupPlayer.setLooping(true);
+                startupPlayer.start();
+            }
+        } catch (Exception e) {
+            Log.e("Startup", "Failed to play startup sound", e);
+        }
+        });
+        mediaThread.start();
     }
 
     public void UserLogin(String username, String password){
@@ -128,5 +187,22 @@ public class LoginPage extends AppCompatActivity implements View.OnClickListener
     private void setLoading(boolean loading) {
         if (loading) loadingOverlay.setVisibility(View.VISIBLE);
         else loadingOverlay.setVisibility(View.GONE);
+    }
+
+    @Override
+    protected void onStop(){
+        super.onStop();
+        if (startupPlayer != null && startupPlayer.isPlaying()) {
+            startupPlayer.stop();
+            startupPlayer.release();
+            startupPlayer = null;
+        }
+        if (mediaThread != null) {
+            try {
+                mediaThread.join();
+            } catch (InterruptedException e) {
+                Log.e(APP_LOG_TAG, "Error joining media thread", e);
+            }
+        }
     }
 }

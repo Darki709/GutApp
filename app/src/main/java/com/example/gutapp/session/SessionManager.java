@@ -12,9 +12,7 @@ import android.os.Handler;
 import android.os.Looper;
 import android.util.Log;
 
-import androidx.security.crypto.EncryptedSharedPreferences;
-import androidx.security.crypto.MasterKey;
-
+import com.example.gutapp.data.UserGlobals;
 import com.example.gutapp.session.Requests.GetBalance;
 import com.example.gutapp.session.Requests.HandShakeHello;
 import com.example.gutapp.session.Requests.HandShakeVerify;
@@ -24,6 +22,7 @@ import com.example.gutapp.session.Responses.HandShakeHelloResponse;
 import com.example.gutapp.session.Responses.HandShakeVerifyResponse;
 import com.example.gutapp.session.Responses.LoginResponse;
 import com.example.gutapp.session.Responses.RegisterResponse;
+import com.example.gutapp.ui.LoginPage;
 
 import java.io.IOException;
 import java.math.BigInteger;
@@ -36,7 +35,13 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.function.Consumer;
 
+import javax.annotation.Nullable;
+
+import lombok.Setter;
+
 public class SessionManager implements Runnable {
+
+    private boolean reconnect = false;
     Connection connection; //connection to server, holding the socket
     Queue<Request> outgoinQueue; //this is where the other threads put requests for the server
     private volatile boolean running = true;
@@ -46,13 +51,19 @@ public class SessionManager implements Runnable {
     private Context appContext; //needed for shared preference
 
     private final Object callbackLock = new Object(); // Prevents race conditions
+
+    @Nullable
     private SessionCallback currentCallback;        // The currently active Activity
     private final Handler uiHandler = new Handler(Looper.getMainLooper()); // The UI bridge
 
     private final BlockingQueue<AuthStruct> authQueue = new LinkedBlockingQueue<>();
 
-    private LinkedBlockingQueue<AsyncRequest> requestQueue;
-    private ConcurrentHashMap<Integer, AsyncRequest> pendingRequests;
+    private final LinkedBlockingQueue<AsyncRequest> requestQueue = new LinkedBlockingQueue<>();
+    private final ConcurrentHashMap<Integer, AsyncRequest> pendingRequests = new ConcurrentHashMap<>();
+
+    @Nullable
+    @Setter
+    private SessionCallback pushResponseCallback;
 
     private Thread sendThread = null;
     private Thread recvThread = null;
@@ -78,11 +89,10 @@ public class SessionManager implements Runnable {
     public static final int ACTION_SHOW_LOGIN_UI = 1;
 
 
-    public SessionManager(Context context, SessionCallback cb) {
+    public SessionManager(Context context) {
         this.outgoinQueue = new ArrayDeque<Request>();
         this.ctx = new CryptoUtility.CryptoContext();
         this.appContext = context;
-        this.setCallback(cb);
     }
 
     @Override
@@ -92,14 +102,24 @@ public class SessionManager implements Runnable {
                 try {
                     //make sure that any thread is closed before reconnecting
                     this.working = false;
-                    if (sendThread != null) sendThread.interrupt();
-                    if (recvThread != null) recvThread.interrupt();
+                    // before messing with socket states
+                    if (sendThread != null) {
+                        sendThread.interrupt();
+                        try { sendThread.join(500); } catch (InterruptedException e) { break; }
+                    }
+                    if (recvThread != null) {
+                        recvThread.interrupt();
+                        try { recvThread.join(500); } catch (InterruptedException e) { break; }
+                    }
+
+                    //make sure app is set to not logout
+                    CryptoUtility.logOutFlag.set(false);
 
 
                     Log.i(NETWORK_LOG_TAG, "Connecting to server");
                     //create a tcp connection
-                    if (connection != null) connection.close();
-                    connection = new Connection();
+                    if (connection != null) connection.reconnect();
+                    else connection = new Connection();
 
                     //perform key exchange with the server
                     performHandshake();
@@ -145,11 +165,15 @@ public class SessionManager implements Runnable {
                             notifyUI(cb -> cb.onDataReceived(DataType.LOGIN_ERROR, loginResponse.getState() == LoginResponse.LoginState.INVALIDUSER ? "no such user" : "wrong password"));
                         } else {
                             result = 0;
+                            UserGlobals.LOGGED_IN = true;
+                            UserGlobals.USER_NAME = authStruct.username;
                             saveCredentials(authStruct.username, authStruct.password);
                         }
                     }
-                    //notify login page that login is successful
-                    notifyUI(cb -> cb.onDataReceived(DataType.AUTH_SUCCESS, null));
+                    if(currentCallback instanceof LoginPage){
+                        //notify login page that login is successful
+                        notifyUI(cb -> cb.onDataReceived(DataType.AUTH_SUCCESS, null));
+                    }
 
                     //start sending and receiving messages
                     work();
@@ -162,7 +186,7 @@ public class SessionManager implements Runnable {
                         Thread.currentThread().interrupt();
                     }
                 } catch (RuntimeException e) {
-                    Log.e(NETWORK_LOG_TAG, "Error connecting to server: " + e.getStackTrace());
+                    Log.e(NETWORK_LOG_TAG, "Error connecting to server: " + e.getMessage());
                 } catch (NoSuchAlgorithmException e) {
                     Log.e(NETWORK_LOG_TAG, "cannot find encryption/decryption algorithm: " + e);
                     this.running = false;
@@ -294,8 +318,6 @@ public class SessionManager implements Runnable {
     //the loop where the session manager sends and receives messages
     private void work() throws IOException, RuntimeException{
         Log.i(NETWORK_LOG_TAG, "Starting work loop");
-        this.requestQueue = new LinkedBlockingQueue<>();
-        this.pendingRequests = new ConcurrentHashMap<>();
         this.working = true;
         sendThread = new Thread(this::sendLoop);
         recvThread = new Thread(this::recvLoop);
@@ -303,6 +325,12 @@ public class SessionManager implements Runnable {
         pushRequest(new GetBalance());
         sendThread.start();
         recvThread.start();
+        if(reconnect){
+            if(currentCallback!=null)
+                uiHandler.post( () -> currentCallback.onActionRequired(0,null));
+            if(pushResponseCallback != null)
+                pushResponseCallback.onActionRequired(0, null);
+        }
         while(running && working && !Thread.currentThread().isInterrupted()){
             try {
                 Thread.sleep(100); // Check 10 times per second instead of millions
@@ -312,6 +340,11 @@ public class SessionManager implements Runnable {
         }
         if(sendThread != null) sendThread.interrupt();
         if(recvThread != null) recvThread.interrupt();
+        reconnect = true;
+        if(currentCallback!=null && !CryptoUtility.logOutFlag.get()){
+            currentCallback.onActionRequired(1,null);}
+        if(pushResponseCallback != null && !CryptoUtility.logOutFlag.get())
+            pushResponseCallback.onActionRequired(1,null); //tell background thread that connection is lost, it should resend all requests
     }
 
     private void sendLoop(){
@@ -329,7 +362,7 @@ public class SessionManager implements Runnable {
             }
             catch (Exception e){
                 Log.e(NETWORK_LOG_TAG, "Error sending message: " + e.getMessage());
-                if(request != null) request.getCaller().onDataReceived(DataType.ERROR, e.getMessage());
+                if(request != null && request.getCaller() != null) request.getCaller().onDataReceived(DataType.ERROR, e.getMessage());
                 this.working = false;
                 Thread.currentThread().interrupt();
             }
@@ -359,7 +392,7 @@ public class SessionManager implements Runnable {
                     Log.w(NETWORK_LOG_TAG, "Discarding packet for unknown ReqID: " + (response.getReqId() & 0xffffffffL));
                 }
             }
-             catch (Exception e) {
+             catch (IOException e) {
                 Log.e(NETWORK_LOG_TAG, "Error receiving message: " + e.getMessage());
                 this.working = false;
                 Thread.currentThread().interrupt();
@@ -393,14 +426,14 @@ public class SessionManager implements Runnable {
 
     //callback methods
     // Called when an Activity comes to the foreground
-    public void setCallback(SessionCallback callback) {
+    public void setUiCallback(SessionCallback callback) {
         synchronized (callbackLock) {
             this.currentCallback = callback;
         }
     }
 
     // Called when an Activity goes to the background
-    public void removeCallback() {
+    public void removeUiCallback() {
         synchronized (callbackLock) {
             this.currentCallback = null;
         }

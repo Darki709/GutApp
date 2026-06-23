@@ -82,6 +82,7 @@ public class ExploreActivity extends SessionActivity implements StockLiveList.Lo
     }
 
     private void loadMore() {
+        if(query == null) return;
         SearchTicker searchTicker = new SearchTicker(query, 50, lastTickerId, this);
         NetworkClient.getInstance(this).getSessionManager().pushRequest(searchTicker);
     }
@@ -121,12 +122,22 @@ public class ExploreActivity extends SessionActivity implements StockLiveList.Lo
     }
 
     @Override
-    public void onActionRequired(int actionType, @Nullable Object data) {
-
+    public void onLoadMore() {
+        loadMore();
     }
 
     @Override
-    public void onLoadMore() {
-        loadMore();
+    public void loadingEnd() {
+        //not needed here
+    }
+
+    @Override
+    protected void networkReconnect() {
+        stock_list_fragment.refreshVisibleRows();
+    }
+
+    @Override
+    protected void networkDisconnect() {
+        stock_list_fragment.stop();
     }
 }

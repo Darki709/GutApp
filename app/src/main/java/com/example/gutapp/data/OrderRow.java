@@ -87,7 +87,7 @@ public class OrderRow implements SessionCallback {
     }
 
     public void startStreaming() {
-        if (!order.isActive() || reqId != -1) return;
+        if (!order.isActive() || reqId != -1)  return;
 
         RequestTickerData streamReq = new RequestTickerData(
                 order.getSymbol(),
@@ -232,11 +232,6 @@ public class OrderRow implements SessionCallback {
                     updateUI(lastPrice);
                     if(container != null) container.notifyPLChange();
                 }
-                break;
-            case TICKER_SNAPSHOT:
-                double lastPrice = (Double)parsedData;
-                updateUI(lastPrice);
-                if(container != null) container.notifyPLChange();
                 break;
             case ORDER_CLOSED_SUCCESS:
                 closeOrder();

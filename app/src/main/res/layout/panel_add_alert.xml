@@ -1,0 +1,179 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Alert creation panel — overlaid at the bottom of ChartActivity
+    so the user sees live prices while setting the alert.
+    Visibility is GONE by default; ChartActivity shows/hides it.
+-->
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/addAlertPanel"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:background="@color/light_gray"
+    android:elevation="16dp"
+    android:visibility="gone">
+
+    <!-- ── Drag handle + title row ─────────────────────────────── -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="44dp"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingStart="14dp"
+        android:paddingEnd="8dp"
+        android:background="#1E1C1C">
+
+        <TextView
+            android:id="@+id/alertPanelTitle"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="🔔  New Alert"
+            android:textColor="@color/white"
+            android:textSize="15sp"
+            android:textStyle="bold" />
+
+        <!-- View all alerts -->
+        <TextView
+            android:id="@+id/alertPanelViewAll"
+            android:layout_width="wrap_content"
+            android:layout_height="28dp"
+            android:text="All Alerts"
+            android:textColor="@color/colorPriceLine"
+            android:textSize="12sp"
+            android:gravity="center"
+            android:paddingStart="10dp"
+            android:paddingEnd="10dp"
+            android:background="@drawable/chart_btn_inactive"
+            android:layout_marginEnd="8dp" />
+
+        <ImageButton
+            android:id="@+id/alertPanelClose"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:src="@android:drawable/ic_menu_close_clear_cancel"
+            android:contentDescription="Close" />
+    </LinearLayout>
+
+    <!-- ── Scrollable form ─────────────────────────────────────── -->
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:maxHeight="420dp"
+        android:scrollbars="none">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:paddingStart="14dp"
+            android:paddingEnd="14dp"
+            android:paddingTop="8dp"
+            android:paddingBottom="8dp">
+
+            <!-- Label -->
+            <TextView style="@style/IndicatorSectionHeader" android:text="LABEL" />
+            <EditText
+                android:id="@+id/alertLabelInput"
+                android:layout_width="match_parent"
+                android:layout_height="40dp"
+                android:inputType="text"
+                android:hint="e.g. BTC breakout"
+                android:textSize="13sp"
+                android:textColor="@color/white"
+                android:background="@drawable/chart_btn_inactive"
+                android:paddingStart="10dp"
+                android:paddingEnd="10dp" />
+
+            <!-- Condition type picker -->
+            <TextView style="@style/IndicatorSectionHeader" android:text="CONDITION TYPE" />
+            <Spinner
+                android:id="@+id/alertConditionSpinner"
+                android:layout_width="match_parent"
+                android:layout_height="40dp"
+                android:background="@drawable/chart_btn_inactive" />
+
+            <!-- Dynamic params container -->
+            <LinearLayout
+                android:id="@+id/alertConditionParams"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical" />
+
+            <!-- Repeat mode -->
+            <TextView style="@style/IndicatorSectionHeader" android:text="REPEAT" />
+            <RadioGroup
+                android:id="@+id/alertRepeatGroup"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal">
+
+                <RadioButton android:id="@+id/rbOnce"      android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Once"       android:textColor="@color/white" android:textSize="13sp" android:checked="true"  android:layout_marginEnd="16dp" />
+                <RadioButton android:id="@+id/rbPersist"   android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Repeat"     android:textColor="@color/white" android:textSize="13sp" android:layout_marginEnd="16dp" />
+                <RadioButton android:id="@+id/rbCooldown"  android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Cooldown"   android:textColor="@color/white" android:textSize="13sp" />
+            </RadioGroup>
+
+            <EditText
+                android:id="@+id/alertCooldownInput"
+                android:layout_width="match_parent"
+                android:layout_height="40dp"
+                android:inputType="number"
+                android:hint="Cooldown seconds (e.g. 300)"
+                android:textSize="13sp"
+                android:textColor="@color/white"
+                android:background="@drawable/chart_btn_inactive"
+                android:paddingStart="10dp"
+                android:paddingEnd="10dp"
+                android:visibility="gone"
+                android:layout_marginTop="6dp" />
+
+            <!-- Priority -->
+            <TextView style="@style/IndicatorSectionHeader" android:text="PRIORITY" />
+            <RadioGroup
+                android:id="@+id/alertPriorityGroup"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal">
+
+                <RadioButton android:id="@+id/rbPriLow"    android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Low"    android:textColor="@color/colorTextDim" android:textSize="13sp" android:layout_marginEnd="16dp" />
+                <RadioButton android:id="@+id/rbPriMed"    android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Medium" android:textColor="#FFC107"             android:textSize="13sp" android:checked="true"  android:layout_marginEnd="16dp" />
+                <RadioButton android:id="@+id/rbPriHigh"   android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="High"   android:textColor="#FF4444"             android:textSize="13sp" />
+            </RadioGroup>
+
+            <!-- Expiry -->
+            <TextView style="@style/IndicatorSectionHeader" android:text="EXPIRES IN HOURS (0 = never)" />
+            <EditText
+                android:id="@+id/alertExpiryInput"
+                android:layout_width="match_parent"
+                android:layout_height="40dp"
+                android:inputType="number"
+                android:hint="0"
+                android:text="0"
+                android:textSize="13sp"
+                android:textColor="@color/white"
+                android:background="@drawable/chart_btn_inactive"
+                android:paddingStart="10dp"
+                android:paddingEnd="10dp" />
+
+        </LinearLayout>
+    </ScrollView>
+
+    <!-- ── Save button ─────────────────────────────────────────── -->
+    <TextView
+        android:id="@+id/alertPanelSaveBtn"
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
+        android:text="Create Alert"
+        android:textColor="@color/black"
+        android:textSize="14sp"
+        android:textStyle="bold"
+        android:gravity="center"
+        android:background="@color/colorPriceUp"
+        android:layout_marginStart="12dp"
+        android:layout_marginEnd="12dp"
+        android:layout_marginTop="6dp"
+        android:layout_marginBottom="10dp" />
+
+</LinearLayout>

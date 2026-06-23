@@ -2,34 +2,37 @@ package com.example.gutapp.session;
 
 import android.content.Context;
 
+import com.example.gutapp.GutApp;
+
+import lombok.Getter;
+
 public class NetworkClient {
     private static NetworkClient instance;
+
+    @Getter
     private SessionManager sessionManager;
     private Thread networkThread;
     private Context appContext;
 
-    private NetworkClient(Context context) {
-        this.appContext = context.getApplicationContext();
+
+    private NetworkClient() {
+        this.appContext = GutApp.getInstance().getApplicationContext();
+        sessionManager = new SessionManager(appContext);
     }
 
     public static synchronized NetworkClient getInstance(Context context) {
         if (instance == null) {
-            instance = new NetworkClient(context);
+            instance = new NetworkClient();
         }
         return instance;
     }
 
-    public SessionManager getSessionManager(){
-        return this.sessionManager;
-    }
-
-    public synchronized void start(SessionCallback cb) {
+    public synchronized void start() {
         // SAFETY CHECK: If the thread is already alive, don't start another!
         if (networkThread != null && networkThread.isAlive()) {
             return;
         }
 
-        sessionManager = new SessionManager(appContext, cb);
         networkThread = new Thread(sessionManager);
         networkThread.setName("PrimaryNetworkThread");
         networkThread.start();
@@ -38,9 +41,11 @@ public class NetworkClient {
     public synchronized void stop() {
         if (sessionManager != null) {
             sessionManager.stop(); // Sets volatile running = false
+            instance = null;
         }
         if (networkThread != null) {
             networkThread.interrupt();
+            networkThread = null;
         }
     }
 }

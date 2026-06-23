@@ -1,9 +1,9 @@
 package com.example.gutapp.data;
 
-import static com.example.gutapp.ui.HomeActivity.HOME_LOG_TAG;
 
 import android.app.Activity;
 import android.content.Intent;
+import com.example.gutapp.R;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.os.Handler;
@@ -16,16 +16,35 @@ import android.widget.TextView;
 
 import androidx.annotation.Nullable;
 
+import com.example.gutapp.data.models.Candle;
 import com.example.gutapp.data.models.PriceChunk;
 import com.example.gutapp.data.models.TickerInfo;
+import com.example.gutapp.data.models.TickerInformation;
 import com.example.gutapp.database.DB_Helper;
 import com.example.gutapp.database.LastFetchCacheHelper;
 import com.example.gutapp.database.StockDataHelper;
 import com.example.gutapp.session.DataType;
 import com.example.gutapp.session.NetworkClient;
 import com.example.gutapp.session.Requests.RequestTickerData;
+import com.example.gutapp.session.Requests.TickerInfoRequest;
 import com.example.gutapp.session.SessionCallback;
 import com.example.gutapp.ui.ChartActivity;
+
+import android.app.AlertDialog;
+import android.view.View;
+import android.widget.ArrayAdapter;
+import android.widget.EditText;
+import android.widget.PopupMenu;
+import android.widget.Spinner;
+import android.widget.Toast;
+
+import com.example.gutapp.session.Requests.ManageWatchlist;
+import com.example.gutapp.session.Requests.ModifyWatchlistItems;
+import com.example.gutapp.session.Requests.GetWatchlists;
+import com.example.gutapp.session.Responses.WatchlistResponses;
+
+import java.util.ArrayList;
+import java.util.List;
 
 import java.time.Instant;
 
@@ -39,6 +58,7 @@ public class StockRow implements SessionCallback {
     Handler mainHandler = new Handler(Looper.getMainLooper()); //to change prices live from the background
 
     TextView priceView;
+    TextView nameView;
 
     public StockRow(String symbol, String name, Activity callerActivity){
         this.symbol= symbol;
@@ -78,13 +98,16 @@ public class StockRow implements SessionCallback {
         textGroup.setLayoutParams(new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
 
         //name
-        TextView nameView = new TextView(callerActivity);
+        if(name.isBlank()){
+            TickerInfoRequest getName = new TickerInfoRequest(symbol, this);
+            NetworkClient.getInstance(null).getSessionManager().pushRequest(getName);
+        }
+        nameView = new TextView(callerActivity);
         nameView.setText(name);
         nameView.setTextColor(Color.WHITE);
         nameView.setTextSize(16);
 
         //symbol
-        this.symbol = symbol;
         TextView symbolView = new TextView(callerActivity);
         symbolView.setText(symbol);
         symbolView.setTextColor(Color.GRAY);
@@ -97,12 +120,22 @@ public class StockRow implements SessionCallback {
         this.priceView = new TextView(callerActivity);
         //default price is 0.00 or what ever is on the machine until server responds with live prices
         StockDataHelper stockDataHelper = new StockDataHelper(DB_Helper.getInstance(null));
-        double cachedPrice = stockDataHelper.getLatestPrice(symbol);
-        boolean isUp = cachedPrice > 0;
-        priceView.setText(String.format("%.4f", Math.abs(cachedPrice)));
+        Candle cachedPrice = stockDataHelper.getLatestPrice(symbol);
+        if(cachedPrice== null) {
+            priceView.setText("Price not available");
+            priceView.setTextColor(Color.parseColor("#FF4444"));
+            this.lastPrice = 0;
+        }
+        else {
+            String errMsg = Instant.now().getEpochSecond() - cachedPrice.timestamp > 3600 ? " (outdated)" : "";
+            priceView.setText(String.format("%.4f" + errMsg, cachedPrice.close));
+            this.lastPrice = cachedPrice.close;
+            Candle.Direction direction = cachedPrice.getDirection();
+            boolean isUp = direction == Candle.Direction.UP;
+            priceView.setTextColor(isUp ? Color.parseColor("#00FF88") : Color.parseColor("#FF4444"));
+        }
         priceView.setTypeface(Typeface.MONOSPACE, Typeface.BOLD);
-        this.lastPrice = Math.abs(cachedPrice);
-        priceView.setTextColor(isUp ?  Color.parseColor("#00FF88") : Color.parseColor("#FF4444"));
+
         priceView.setTextSize(17);
         stockRow.addView(textGroup);
         stockRow.addView(priceView);
@@ -114,6 +147,98 @@ public class StockRow implements SessionCallback {
             intent.putExtra("name", name);
             callerActivity.startActivity(intent);
         });
+
+        stockRow.setOnLongClickListener(v -> {
+            showSavePrompt(v);
+            return true; // consumes the click
+        });
+    }
+
+    private void showSavePrompt(View v) {
+        PopupMenu popup = new PopupMenu(callerActivity, v);
+        popup.getMenu().add("Save to Watchlist");
+        popup.setOnMenuItemClickListener(item -> {
+            if (item.getTitle().equals("Save to Watchlist")) {
+                openWatchlistSelectionDialog();
+            }
+            return true;
+        });
+        popup.show();
+    }
+
+    private void openWatchlistSelectionDialog() {
+        // First, we fetch the current lists from the server
+        GetWatchlists fetchTask = new GetWatchlists(new SessionCallback() {
+            @Override
+            public void onDataReceived(DataType msgType, Object parsedData) {
+                if (msgType == DataType.WATCHLISTS_LOADED) {
+                    List<WatchlistResponses.WatchlistInfo> lists = (List<WatchlistResponses.WatchlistInfo>) parsedData;
+                    mainHandler.post(() -> buildListSelectionDialog(lists));
+                }
+            }
+            @Override
+            public void onActionRequired(int actionType, @Nullable Object data) {}
+        });
+        NetworkClient.getInstance(null).getSessionManager().pushRequest(fetchTask);
+    }
+
+    private void buildListSelectionDialog(List<WatchlistResponses.WatchlistInfo> existingLists) {
+        AlertDialog.Builder builder = new AlertDialog.Builder(callerActivity, R.style.GutDialog);
+        builder.setTitle("Add " + symbol + " to List");
+
+        LinearLayout layout = new LinearLayout(callerActivity);
+        layout.setOrientation(LinearLayout.VERTICAL);
+        layout.setPadding(40, 20, 40, 20);
+
+        // Spinner for existing lists
+        final Spinner spinner = new Spinner(callerActivity);
+        List<String> listNames = new ArrayList<>();
+        listNames.add("-- Create New List --");
+        for (WatchlistResponses.WatchlistInfo info : existingLists) listNames.add(info.name);
+
+        ArrayAdapter<String> adapter = new ArrayAdapter<>(callerActivity, android.R.layout.simple_spinner_item, listNames);
+        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        spinner.setAdapter(adapter);
+        layout.addView(spinner);
+
+        // Edit text for new list name (hidden unless "Create New" is selected)
+        final EditText input = new EditText(callerActivity);
+        input.setHint("Enter new list name");
+        input.setTextColor(Color.WHITE);
+        input.setVisibility(View.GONE);
+        layout.addView(input);
+
+        spinner.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener() {
+            @Override
+            public void onItemSelected(android.widget.AdapterView<?> parent, View view, int position, long id) {
+                input.setVisibility(position == 0 ? View.VISIBLE : View.GONE);
+            }
+            @Override
+            public void onNothingSelected(android.widget.AdapterView<?> parent) {}
+        });
+
+        builder.setView(layout);
+
+        builder.setPositiveButton("Save", (dialog, which) -> {
+            String targetList;
+            if (spinner.getSelectedItemPosition() == 0) {
+                targetList = input.getText().toString();
+                if (targetList.isEmpty()) return;
+                // 1. Create the list first
+                ManageWatchlist createReq = new ManageWatchlist(ManageWatchlist.Action.CREATE, targetList, null, this);
+                NetworkClient.getInstance(null).getSessionManager().pushRequest(createReq);
+            } else {
+                targetList = (String) spinner.getSelectedItem();
+            }
+
+            // 2. Add the ticker to the list
+            ModifyWatchlistItems addReq = new ModifyWatchlistItems(ModifyWatchlistItems.Action.ADD, targetList, symbol, this);
+            NetworkClient.getInstance(null).getSessionManager().pushRequest(addReq);
+            Toast.makeText(callerActivity, "Adding to " + targetList, Toast.LENGTH_SHORT).show();
+        });
+
+        builder.setNegativeButton("Cancel", (dialog, which) -> dialog.cancel());
+        builder.show();
     }
 
     public LinearLayout getRow() {
@@ -145,22 +270,49 @@ public class StockRow implements SessionCallback {
 
     @Override
     public void onDataReceived(DataType msgType, Object parsedData) {
-        if(msgType == DataType.TICKER_ERROR){
-            mainHandler.post(() -> {
-                priceView.setText(String.format("%.4f",(this.lastPrice)) + " Price not available");
-                priceView.setTextColor(Color.parseColor("#FF4444"));
-            });
-            return;
-        }
-        if(msgType == DataType.TICKER_REQUEST_DONE){
-            return;
-        }
-        PriceChunk chunk = (PriceChunk) parsedData;
-        if(chunk == null || chunk.reqId != reqId || chunk.chunk.isEmpty()){
-            return;
-        }
-        if(msgType == DataType.TICKER_STREAM || (msgType == DataType.TICKER_SNAPSHOT && chunk.isLast)){
-            updatePrice(chunk);
+        switch (msgType) {
+            case TICKER_ERROR:
+                mainHandler.post(() -> {
+                    priceView.setText(String.format("%.4f", (this.lastPrice)) + " Price not available");
+                    priceView.setTextColor(Color.parseColor("#FF4444"));
+                });
+                break;
+
+            case TICKER_STREAM:
+            case TICKER_SNAPSHOT:
+                PriceChunk chunk = (PriceChunk) parsedData;
+                // Validate the chunk belongs to this specific row request
+                if (chunk != null && chunk.reqId == reqId && !chunk.chunk.isEmpty()) {
+                    // For snapshots, only update if it's the final piece of data
+                    if (msgType == DataType.TICKER_STREAM || chunk.isLast) {
+                        updatePrice(chunk);
+                    }
+                }
+                break;
+
+            case WATCHLIST_OPERATION_RESULT:
+                if (parsedData instanceof Byte) {
+                    byte status = (byte) parsedData;
+                    mainHandler.post(() -> {
+                        if (status == 0) {
+                            Toast.makeText(callerActivity, "Success!", Toast.LENGTH_SHORT).show();
+                        } else {
+                            Toast.makeText(callerActivity, "Operation failed: Code " + WatchlistResponses.translate(status), Toast.LENGTH_SHORT).show();
+                        }
+                    });
+                }
+                break;
+            case TICKER_INFORMATION:
+                mainHandler.post( ()-> {
+                    TickerInformation info = (TickerInformation) parsedData;
+                    this.name = info.name;
+                    nameView.setText(name);
+                });
+                break;
+
+            case TICKER_REQUEST_DONE:
+            default:
+                break;
         }
     }
 

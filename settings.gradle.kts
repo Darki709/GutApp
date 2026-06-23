@@ -20,7 +20,6 @@ dependencyResolutionManagement {
         //including the charting library repository
         mavenCentral()
         maven("https://jitpack.io")
-        google()
         mavenCentral() // This is where the library lives
     }
 }
