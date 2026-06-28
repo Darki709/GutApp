@@ -1,0 +1,168 @@
+@startuml
+class com.example.gutapp.database.StockDataHelper {
+- {static} String TABLE_NAME
++ {static} String COLUMN_SYMBOL
++ {static} String COLUMN_DATE
++ {static} String COLUMN_TIMEFRAME
++ {static} String COLUMN_OPEN
++ {static} String COLUMN_HIGH
++ {static} String COLUMN_LOW
++ {static} String COLUMN_CLOSE
++ {static} String COLUMN_VOLUME
+- DB_Helper db_helper
++ ArrayList<Candle> getCachedStockData(String,Timeframe)
++ void saveStockData(String,Timeframe,ArrayList<Candle>)
++ {static} String createTable()
++ {static} String getName()
++ ArrayList<Candle> getStockData(String,Timeframe,int)
++ Cursor readFromDB(String[],String,String[],String,Integer)
++ Candle getLatestPrice(String)
+}
+
+
+enum com.example.gutapp.database.Timeframe {
++  ONE_MIN
++  FIVE_MIN
++  FIFTEEN_MIN
++  HOURLY
++  DAILY
++ String value
++ int interval
+}
+
+class com.example.gutapp.database.ChartStateDao {
++ {static} String KIND_DRAWINGS
++ {static} String KIND_INDICATORS
++ {static} String KIND_PRESET
++ {static} String TABLE
++ {static} String COL_KIND
++ {static} String COL_KEY
++ {static} String COL_PAYLOAD
++ {static} String COL_UPDATED
++ {static} String COL_DIRTY
++ {static} String COL_DELETED
+- DB_Helper db
+- {static} Runnable localChangeListener
++ {static} void setLocalChangeListener(Runnable)
+- {static} void fireLocalChange()
++ void clearAll()
++ {static} String createTable()
++ String get(String,String)
++ List<String> listKeys(String)
++ void upsertLocal(String,String,String)
++ void softDelete(String,String)
++ List<Row> getDirty()
++ void markSynced(String,String,long)
++ boolean applyRemote(String,String,String,long,boolean)
+}
+
+
+class com.example.gutapp.database.ChartStateDao$Row {
++ String kind
++ String key
++ String payload
++ long updatedAt
++ boolean deleted
+}
+
+class com.example.gutapp.database.DB_Helper {
+- {static} String DB_NAME
+- {static} int DB_VERSION
+- {static} DB_Helper instance
++ {static} String DB_LOG_TAG
+- String[] table_initialize_query
++ {static} DB_Helper getInstance(Context)
++ void onCreate(SQLiteDatabase)
++ void onUpgrade(SQLiteDatabase,int,int)
+}
+
+
+class com.example.gutapp.database.ChartStateMigration {
+- {static} String META_PREFS
+- {static} String FLAG
+- {static} String DRAW_PREFS
+- {static} String DRAW_PREFIX
+- {static} String IND_PREFS
+- {static} String IND_AUTO
+- {static} String IND_PRESETS
++ {static} void migrateIfNeeded(Context)
++ {static} void clearLegacyPrefs(Context)
+- {static} void migrateDrawings(Context,ChartStateDao)
+- {static} void migrateIndicators(Context,ChartStateDao)
+}
+
+
+class com.example.gutapp.database.LastFetchCacheHelper {
++ {static} String TABLE_NAME
++ {static} String COLUMN_SYMBOL
++ {static} String COLUMN_NAME
++ {static} String COLUMN_INTERVAL
++ {static} String COLUMN_LAST_FETCH
+- DB_Helper db_helper
++ void insertSymbol(String,String)
++ String getSymbolName(String)
++ void loadDefaultSymbols(SQLiteDatabase)
++ {static} String createTable()
++ String getName()
++ Cursor getStocks()
++ long getLastFetchTime(String,StockDataHelper.Timeframe)
+}
+
+
+class com.example.gutapp.database.AlertDBHelper {
++ {static} String TABLE_ALERTS
++ {static} String COL_ID
++ {static} String COL_SYMBOL
++ {static} String COL_LABEL
++ {static} String COL_STATUS
++ {static} String COL_REPEAT_MODE
++ {static} String COL_COOLDOWN_SECS
++ {static} String COL_LAST_TRIGGERED
++ {static} String COL_EXPIRES_AT
++ {static} String COL_PRIORITY
++ {static} String COL_CONDITION_TYPE
++ {static} String COL_CONDITION_JSON
++ {static} String COL_UUID
++ {static} String COL_UPDATED_AT
++ {static} String COL_DIRTY
++ {static} String COL_DELETED
+- DB_Helper db
+- {static} Runnable localChangeListener
++ {static} void setLocalChangeListener(Runnable)
+- {static} void fireLocalChange()
++ {static} String createTable()
++ void insertAlert(Alert)
++ List<Alert> getActiveAlerts()
++ List<Alert> getAlertsForSymbol(String)
++ List<Alert> getAllAlerts()
++ void updateAlert(Alert)
++ void updateAlertStatus(Alert)
++ void updateAlertStatusByUser(Alert)
++ void deleteAlert(Alert)
++ void deleteAllForSymbol(String)
++ List<SyncRow> getDirty()
++ void markSynced(String,long)
++ boolean applyRemote(String,String,long,boolean)
+- List<Alert> queryAlerts(String,String[])
+- ContentValues toValues(Alert)
+- Alert fromCursor(Cursor)
+- String payloadFromCursor(Cursor)
+- ContentValues valuesFromPayload(String)
+- {static} String getStr(Cursor,String)
++ void clear()
+}
+
+
+class com.example.gutapp.database.AlertDBHelper$SyncRow {
++ String uuid
++ String payload
++ long updatedAt
++ boolean deleted
+}
+
+
+
+com.example.gutapp.database.ChartStateDao +.. com.example.gutapp.database.ChartStateDao$Row
+android.database.sqlite.SQLiteOpenHelper <|-- com.example.gutapp.database.DB_Helper
+com.example.gutapp.database.AlertDBHelper +.. com.example.gutapp.database.AlertDBHelper$SyncRow
+@enduml

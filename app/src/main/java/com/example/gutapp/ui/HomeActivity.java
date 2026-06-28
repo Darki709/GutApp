@@ -181,6 +181,8 @@ public class HomeActivity extends SessionActivity implements OrdersList.Listener
 
     private void updateOrdersList(ArrayList<Order> orders) {
         runOnUiThread(() -> {
+            if (isFinishing() || isDestroyed()) return; // Activity is gone — bail out
+
             findViewById(R.id.orders_container).setVisibility(VISIBLE);
             PL.setVisibility(VISIBLE);
             findViewById(R.id.ordersTitle).setVisibility(VISIBLE);

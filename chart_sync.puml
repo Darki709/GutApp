@@ -1,0 +1,26 @@
+@startuml
+class com.example.gutapp.session.ChartSyncManager {
+- {static} String TAG
+- {static} long PUSH_DEBOUNCE_MS
+- {static} ChartSyncManager instance
+- Context appCtx
+- ChartStateDao dao
+- Handler main
+- Runnable pushTask
+- Runnable remoteChangeListener
++ {static} ChartSyncManager init(Context)
++ {static} ChartSyncManager get()
++ void setRemoteChangeListener(Runnable)
++ void pullAll()
++ void schedulePush()
++ void flush()
+- void pushNow()
++ void onDataReceived(DataType,Object)
++ void onActionRequired(int,Object)
+}
+
+
+
+
+com.example.gutapp.session.SessionCallback <|.. com.example.gutapp.session.ChartSyncManager
+@enduml

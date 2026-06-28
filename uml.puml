@@ -1,0 +1,25 @@
+@startuml
+class com.example.gutapp.data.OrderDialog {
+- AlertDialog dialog
+- TextView txtPrice
+- EditText editQty
+- double currentPrice
+- OrderDialogListener listener
+~ Order.OrderType type
+- TextView txtBalance
++ void show()
++ boolean isShowing()
++ void updateLivePrice(double)
+- void updatePriceDisplay(double)
+- void updateTotal()
+}
+
+
+interface com.example.gutapp.data.OrderDialog$OrderDialogListener {
+~ void onConfirmOrder(int,double,Order.OrderType)
+}
+
+
+
+com.example.gutapp.data.OrderDialog +.. com.example.gutapp.data.OrderDialog$OrderDialogListener
+@enduml

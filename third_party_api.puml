@@ -1,0 +1,59 @@
+@startuml
+interface com.example.gutapp.session.news.FinnhubNewsService {
+~ Call<List<NewsArticle>> getMarketNews(String,String)
+~ Call<List<NewsArticle>> getCompanyNews(String,String,String,String)
+}
+
+class com.example.gutapp.data.news.NewsArticle {
++ String category
++ long datetime
++ String headline
++ long id
++ String image
++ String related
++ String source
++ String summary
++ String url
++ boolean hasImage()
+}
+
+
+class com.example.gutapp.data.gemini.GeminiHelper {
+- GenerativeModelFutures model
+- GenerativeModelFutures articleModel
+- Executor backgroundExecutor
+~ {static} String requestFormat
+~ {static} String articleRequestFormat
++ void getArticleAnalysis(String,String,String,AnalysisCallback)
++ void getAiAnalysis(String,AnalysisCallback)
+}
+
+
+interface com.example.gutapp.data.gemini.GeminiHelper$AnalysisCallback {
+~ void onSuccess(String)
+~ void onError(String)
+}
+
+class com.example.gutapp.session.news.NewsRepository {
+- {static} String BASE_URL
+- {static} NewsRepository instance
+- FinnhubNewsService service
++ {static} NewsRepository getInstance()
+- String token()
+- boolean hasKey()
++ void fetchMarketNews(String,Callback)
++ void fetchCompanyNews(String,Callback)
+- retrofit2.Callback<List<NewsArticle>> wrap(Callback)
+}
+
+
+interface com.example.gutapp.session.news.NewsRepository$Callback {
+~ void onNews(List<NewsArticle>)
+~ void onError(String)
+}
+
+
+
+com.example.gutapp.data.gemini.GeminiHelper +.. com.example.gutapp.data.gemini.GeminiHelper$AnalysisCallback
+com.example.gutapp.session.news.NewsRepository +.. com.example.gutapp.session.news.NewsRepository$Callback
+@enduml

@@ -1,0 +1,271 @@
+@startuml
+class com.example.gutapp.data.alerts.Alert {
+- long id
+- String uuid
+- long updatedAt
+- String symbol
+- String label
+- Condition condition
+- Status status
+- RepeatMode repeatMode
+- int cooldownSeconds
+- long lastTriggeredAt
+- long expiresAt
+- Priority priority
++ boolean isEvaluatable()
++ void onTriggered()
++ String getNotification()
+}
+
+
+enum com.example.gutapp.data.alerts.Status {
++  ACTIVE
++  INACTIVE
++  TRIGGERED
++ {static} Status fromInt(int)
+}
+
+
+enum com.example.gutapp.data.alerts.RepeatMode {
++  ONCE
++  PERSISTENT
++  COOLDOWN
+}
+
+enum com.example.gutapp.data.alerts.Priority {
++  LOW
++  MEDIUM
++  HIGH
+}
+
+class com.example.gutapp.data.alerts.AlertManager {
+- {static} String TAG
+- {static} AlertManager instance
+- BlockingQueue<CandleUpdate> updateQueue
+- ConcurrentHashMap<String,CopyOnWriteArrayList<Alert>> activeAlerts
+- Set<String> subscriptions
+- ConcurrentHashMap<String,Candle> latestPrices
+- AlertDBHelper alertDb
+- StockDataHelper stockDb
+- ServiceRequestInterface networkInterface
+- TriggerListener triggerListener
+- Context appContext
+- boolean isRunning
+- Thread workerThread
+- {static} long RECONNECT_COOLDOWN_MS
+- long lastReconnectTimestamp
+- Handler debounceHandler
+- Runnable pendingReconnectRunnable
++ {static} AlertManager getInstance()
+- void ensureDb()
++ void init(Context)
++ void start(DB_Helper)
++ void stop()
++ void setNetworkInterface(ServiceRequestInterface)
++ void setTriggerListener(TriggerListener)
++ void addAlert(Alert)
++ void removeAlert(long)
++ void setAlertStatus(long,Alert.Status)
++ void reloadActiveAlerts()
++ List<Alert> getAllAlerts()
++ List<Alert> getAlertsForSymbol(String)
++ void onNewPrice(String,Candle)
+- void processLoop()
+- void evaluateAlerts(String)
++ Candle getLatestPrice(String)
++ List<Candle> getCachedStockData(String,StockDataHelper.Timeframe,int)
+- void refreshSubscriptions()
++ void networkReconnect()
+- void executeRefresh()
++ void networkLost()
+- void cleanupSubscriptions()
+- void addToMemory(Alert)
+- void removeFromMemory(long)
+}
+
+
+interface com.example.gutapp.data.alerts.AlertManager$ServiceRequestInterface {
+~ void requestPriceData(String)
+~ void stopPriceData(String)
+}
+
+interface com.example.gutapp.data.alerts.AlertManager$TriggerListener {
+~ void onAlertTriggered(Alert)
+}
+
+class com.example.gutapp.data.alerts.AlertManager$CandleUpdate {
+~ String symbol
+~ Candle candle
+}
+
+abstract class com.example.gutapp.data.alerts.Condition {
++ {abstract}boolean check(PriceResource)
++ {abstract}String getNotification()
++ {abstract}String getTypeName()
++ {abstract}String serialize()
++ String getDisplayName()
++ {abstract}String getSummary()
+}
+
+class com.example.gutapp.data.alerts.conditions.PriceChangePercentCondition {
++ {static} String TYPE
+- {static} Gson GSON
+- String symbol
+- double percentThreshold
+- Direction direction
+- StockDataHelper.Timeframe timeframe
++ boolean check(PriceResource)
++ String getTypeName()
++ String serialize()
++ {static} Condition fromJson(String)
++ String getNotification()
++ String getSummary()
++ StockDataHelper.Timeframe getTimeframe()
++ double getPercentThreshold()
++ Direction getDirection()
+}
+
+
+enum com.example.gutapp.data.alerts.conditions.Direction {
++  UP
++  DOWN
++  EITHER
+}
+
+class com.example.gutapp.data.alerts.conditions.PriceThresholdCondition {
++ {static} String TYPE
+- {static} Gson GSON
+- String symbol
+- double targetPrice
+- boolean lookForAbove
++ boolean check(PriceResource)
++ String getTypeName()
++ String serialize()
++ {static} Condition fromJson(String)
++ String getNotification()
++ String getSummary()
++ String getSymbol()
++ double getTargetPrice()
++ boolean isLookForAbove()
+}
+
+
+class com.example.gutapp.data.alerts.conditions.VolumeSpikeCondition {
++ {static} String TYPE
+- {static} Gson GSON
+- String symbol
+- StockDataHelper.Timeframe timeframe
+- int lookback
+- double multiplier
++ boolean check(PriceResource)
++ String getTypeName()
++ String serialize()
++ {static} Condition fromJson(String)
++ String getNotification()
++ String getSummary()
++ StockDataHelper.Timeframe getTimeframe()
++ int getLookback()
++ double getMultiplier()
+}
+
+
+class com.example.gutapp.data.alerts.conditions.RSICondition {
++ {static} String TYPE
+- {static} Gson GSON
+- String symbol
+- StockDataHelper.Timeframe timeframe
+- int period
+- double level
+- CrossDirection crossDirection
++ boolean check(PriceResource)
+- double computeRsi(List<Candle>)
++ String getTypeName()
++ String serialize()
++ {static} Condition fromJson(String)
++ String getNotification()
++ String getSummary()
++ StockDataHelper.Timeframe getTimeframe()
++ int getPeriod()
++ double getLevel()
++ CrossDirection getCrossDirection()
+}
+
+
+enum com.example.gutapp.data.alerts.conditions.CrossDirection {
++  ABOVE
++  BELOW
+}
+
+class com.example.gutapp.data.alerts.ConditionRegistry {
+- {static} String TAG
+- {static} Map<String,ConditionDeserializer> registry
+- {static} void registerAll()
++ {static} void register(String,ConditionDeserializer)
++ {static} Condition deserialize(String,String)
+}
+
+
+interface com.example.gutapp.data.alerts.ConditionRegistry$ConditionDeserializer {
+~ Condition deserialize(String)
+}
+
+class com.example.gutapp.data.alerts.conditions.SMACrossoverCondition {
++ {static} String TYPE
+- {static} Gson GSON
+- String symbol
+- StockDataHelper.Timeframe timeframe
+- int period
+- CrossDirection crossDirection
++ boolean check(PriceResource)
++ String getTypeName()
++ String serialize()
++ {static} Condition fromJson(String)
++ String getNotification()
++ String getSummary()
++ StockDataHelper.Timeframe getTimeframe()
++ int getPeriod()
++ CrossDirection getCrossDirection()
+}
+
+
+enum com.example.gutapp.data.alerts.conditions.CrossDirection {
++  ABOVE
++  BELOW
+}
+
+class com.example.gutapp.data.alerts.conditions.VolatilityCondition {
++ {static} String TYPE
+- {static} Gson GSON
+- String symbol
+- double percentThreshold
+- StockDataHelper.Timeframe timeframe
++ boolean check(PriceResource)
++ String getTypeName()
++ String serialize()
++ {static} Condition fromJson(String)
++ String getNotification()
++ String getSummary()
++ StockDataHelper.Timeframe getTimeframe()
++ double getPercentThreshold()
+}
+
+
+interface com.example.gutapp.data.alerts.PriceResource {
+~ Candle getLatestPrice(String)
+~ List<Candle> getCachedStockData(String,StockDataHelper.Timeframe,int)
+}
+
+
+
+com.example.gutapp.data.alerts.PriceResource <|.. com.example.gutapp.data.alerts.AlertManager
+com.example.gutapp.data.alerts.AlertManager +.. com.example.gutapp.data.alerts.AlertManager$ServiceRequestInterface
+com.example.gutapp.data.alerts.AlertManager +.. com.example.gutapp.data.alerts.AlertManager$TriggerListener
+com.example.gutapp.data.alerts.AlertManager +.. com.example.gutapp.data.alerts.AlertManager$CandleUpdate
+com.example.gutapp.data.alerts.Condition <|-- com.example.gutapp.data.alerts.conditions.PriceChangePercentCondition
+com.example.gutapp.data.alerts.Condition <|-- com.example.gutapp.data.alerts.conditions.PriceThresholdCondition
+com.example.gutapp.data.alerts.Condition <|-- com.example.gutapp.data.alerts.conditions.VolumeSpikeCondition
+com.example.gutapp.data.alerts.Condition <|-- com.example.gutapp.data.alerts.conditions.RSICondition
+com.example.gutapp.data.alerts.ConditionRegistry +.. com.example.gutapp.data.alerts.ConditionRegistry$ConditionDeserializer
+com.example.gutapp.data.alerts.Condition <|-- com.example.gutapp.data.alerts.conditions.SMACrossoverCondition
+com.example.gutapp.data.alerts.Condition <|-- com.example.gutapp.data.alerts.conditions.VolatilityCondition
+@enduml

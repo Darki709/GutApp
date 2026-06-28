@@ -1,0 +1,221 @@
+@startuml
+class com.example.gutapp.data.UserGlobals {
++ {static} String USER_NAME
++ {static} boolean LOGGED_IN
+- {static} MutableLiveData<Double> BALANCE
++ {static} LiveData<Double> getBalance()
++ {static} void updateBalance(double)
++ {static} void setBalance(double)
++ {static} void clearUserData(Context)
+}
+
+
+class com.example.gutapp.data.StockChart {
+- {static} int COLOR_UP
+- {static} int COLOR_DOWN
+- {static} int COLOR_LINE
+- {static} int COLOR_LINE_FILL
+- {static} int COLOR_VOL_UP
+- {static} int COLOR_VOL_DOWN
+- {static} int COLOR_VOL_NEUTRAL
+- {static} int COLOR_BACKGROUND
+- {static} int COLOR_AXIS_TEXT
+- {static} int COLOR_GRID
+- {static} int COLOR_HIGHLIGHT
+- {static} int COLOR_PRICE_LINE
+- DrawingChart chart
+- Context activityContext
+- LinearLayout subChartsContainer
+- NestedScrollView subChartsScroller
+- LinkedHashMap<String,LineChart> subChartViews
+- CopyOnWriteArrayList<Candle> allCandles
+- Set<Integer> reqIds
+- IndicatorSession indicatorSession
+- LinkedHashMap<String,List<LineDataSet>> overlayLinesByInstance
+- String selectedIndicatorId
+- {static} float INDICATOR_HIT_PX
+- StockDataHelper.Timeframe interval
+- ChartType currentChartType
+- AtomicBoolean isUpdatePending
+- boolean done
+- Handler mainHandler
+- List<Candle> streamBuffer
+- SessionCallback chainedListener
+- MutableLiveData<Double> currentPrice
+- LimitLine currentPriceLine
+- Runnable candlesReadyCallback
+- boolean isPinnedToRight
+- float savedLowestX
+- float savedHighestX
+- boolean initialViewApplied
++ void setCandlesReadyCallback(Runnable)
++ void setChartType(ChartType)
++ ChartType getChartType()
++ void applyIndicators()
++ DrawingChart getDrawingChart()
++ String pickIndicatorAt(float,float)
++ void setSelectedIndicator(String)
++ String getSelectedIndicator()
+- {static} float ptSeg(float,float,float,float,float,float)
++ void zoomIn()
++ void zoomOut()
++ void zoomReset()
++ ArrayList<Candle> getAllCandles()
++ void setupChart(TextView)
+- void updatePinState()
++ void addChunk(List<Candle>)
+- void triggerChartUpdate(boolean)
+- void updateChartData(boolean)
+- void applyInitialView(int)
+- void updateSubCharts(ArrayList<Candle>,ValueFormatter)
+- LineChart createSubChartView(Indicator,ValueFormatter)
+- void configureSubChartXAxis(LineChart,ValueFormatter)
+- void populateSubChart(LineChart,Indicator,ArrayList<Candle>,boolean)
+- void syncSubChartsToMain()
+- void syncSubChartToMain(LineChart)
+- void syncMainChartFromSub(LineChart)
+- void setScrollerWeight(float)
+- void updateCurrentPriceLine(Candle)
+- ValueFormatter buildXFormatter(ArrayList<Candle>)
+- CandleData generateCandleData(ArrayList<Candle>)
+- CandleData generateOhlcBarData(ArrayList<Candle>)
+- LineDataSet generateLineData(ArrayList<Candle>)
+- BarData generateVolumeData(ArrayList<Candle>)
+- int dpToPx(int)
+- String formatVolume(long)
+- void streamUpdate(List<Candle>)
++ void onDataReceived(DataType,Object)
++ void onActionRequired(int,Object)
++ void clearChart()
++ void addToCurrentRequest(int)
++ void flushRequests()
++ void bindListener(SessionCallback)
++ boolean isDone()
++ void setInterval(StockDataHelper.Timeframe)
+}
+
+
+enum com.example.gutapp.data.ChartType {
++  CANDLE
++  BAR
++  LINE
+}
+
+class com.example.gutapp.data.StockRow {
+~ LinearLayout stockRow
+~ double lastPrice
+~ String symbol
+~ String name
+~ Activity callerActivity
+~ int reqId
+~ Handler mainHandler
+~ TextView priceView
+~ TextView nameView
++ void loadPrice()
+- void setUpRow()
+- void showSavePrompt(View)
+- void openWatchlistSelectionDialog()
+- void buildListSelectionDialog(List<WatchlistResponses.WatchlistInfo>)
++ LinearLayout getRow()
++ void discard()
+- void updatePrice(PriceChunk)
++ boolean isActive()
++ void onDataReceived(DataType,Object)
++ void onActionRequired(int,Object)
+}
+
+
+class com.example.gutapp.data.OrderRow {
+- LinearLayout rowLayout
+- Order order
+- Activity context
+- Handler mainHandler
+- TextView priceView
+- TextView plView
+- int reqId
+- double currentPrice
+- double totalPL
+- android.widget.Button closeButton
+- boolean isClosing
+- java.text.SimpleDateFormat dateFormat
+- OrderRowContainer container
+- void renderInactiveState()
++ void startStreaming()
+- LinearLayout createLayout()
+- void updateUI(double)
++ void stop()
++ boolean isActive()
++ LinearLayout getView()
++ void onDataReceived(DataType,Object)
+- void handleCloseInitiated()
++ void onActionRequired(int,Object)
++ double getPL()
+- void closeOrder()
+}
+
+
+interface com.example.gutapp.data.OrderRow$OrderRowContainer {
+~ void notifyPLChange()
+~ void notifyClosed(Order)
+}
+
+class com.example.gutapp.data.SearchAdapter {
+- List<TickerInfo> mData
+- OnItemClickListener listener
++ void setOnItemClickListener(OnItemClickListener)
++ void updateData(List<TickerInfo>)
++ ViewHolder onCreateViewHolder(ViewGroup,int)
++ void onBindViewHolder(ViewHolder,int)
++ int getItemCount()
+}
+
+
+interface com.example.gutapp.data.SearchAdapter$OnItemClickListener {
+~ void onItemClick(TickerInfo)
+}
+
+class com.example.gutapp.data.SearchAdapter$ViewHolder {
+~ TextView symbolTv
+}
+
+class com.example.gutapp.data.WatchlistStockRow {
+- String currentListName
+- void overrideLongClick()
+- void showRemoveConfirmation()
++ void onDataReceived(DataType,Object)
+}
+
+
+class com.example.gutapp.data.OrderDialog {
+- AlertDialog dialog
+- TextView txtPrice
+- EditText editQty
+- double currentPrice
+- OrderDialogListener listener
+~ Order.OrderType type
+- TextView txtBalance
++ void show()
++ boolean isShowing()
++ void updateLivePrice(double)
+- void updatePriceDisplay(double)
+- void updateTotal()
+}
+
+
+interface com.example.gutapp.data.OrderDialog$OrderDialogListener {
+~ void onConfirmOrder(int,double,Order.OrderType)
+}
+
+
+
+com.example.gutapp.session.SessionCallback <|.. com.example.gutapp.data.StockChart
+com.example.gutapp.session.SessionCallback <|.. com.example.gutapp.data.StockRow
+com.example.gutapp.session.SessionCallback <|.. com.example.gutapp.data.OrderRow
+com.example.gutapp.data.OrderRow +.. com.example.gutapp.data.OrderRow$OrderRowContainer
+com.example.gutapp.data.Adapter <|-- com.example.gutapp.data.SearchAdapter
+com.example.gutapp.data.SearchAdapter +.. com.example.gutapp.data.SearchAdapter$OnItemClickListener
+com.example.gutapp.data.SearchAdapter +.. com.example.gutapp.data.SearchAdapter$ViewHolder
+com.example.gutapp.data.ViewHolder <|-- com.example.gutapp.data.SearchAdapter$ViewHolder
+com.example.gutapp.data.StockRow <|-- com.example.gutapp.data.WatchlistStockRow
+com.example.gutapp.data.OrderDialog +.. com.example.gutapp.data.OrderDialog$OrderDialogListener
+@enduml

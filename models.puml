@@ -1,0 +1,87 @@
+@startuml
+class com.example.gutapp.data.models.PriceChunk {
++ int reqId
++ ArrayList<Candle> chunk
++ boolean isLast
+}
+
+class com.example.gutapp.data.models.Candle {
++ long timestamp
++ double open
++ double high
++ double low
++ double close
++ long volume
+- Direction direction
++ Direction getDirection()
++ String toString()
+}
+
+
+enum com.example.gutapp.data.models.Direction {
++  UP
++  DOWN
+}
+
+class com.example.gutapp.data.models.TickerInfo {
++ String symbol
++ String name
++ int tickerId
++ {static} Creator<TickerInfo> CREATOR
++ int describeContents()
++ void writeToParcel(Parcel,int)
+}
+
+
+class com.example.gutapp.data.models.TickerInformation {
++ String name
++ String exchange
++ AssetType type
++ String sector
++ String toString()
+}
+
+
+enum com.example.gutapp.data.models.AssetType {
++  STOCK
++  CRYPTO
++  ETF
++  FOREX
++  OTHER
++ String type
++ {static} AssetType fromByte(byte)
+}
+
+
+class com.example.gutapp.data.models.Order {
+- {static} long serialVersionUID
+~ String symbol
+~ OrderType type
+~ long entry_ts
+~ double entry_price
+~ int quantity
+~ int order_id
+~ boolean active
+- Long end_ts_internal
+- Double end_price_internal
++ Optional<Long> getEnd_ts()
++ Optional<Double> getEnd_price()
++ double paidPrice()
++ double endValue()
++ double priceDelta()
++ void setInactive(double,long)
++ {static} Order fromBuffer(ByteBuffer)
+}
+
+
+enum com.example.gutapp.data.models.OrderType {
++  Long
++  Short
++ byte value
+}
+
+
+
+android.os.Parcelable <|.. com.example.gutapp.data.models.TickerInfo
+java.io.Serializable <|.. com.example.gutapp.data.models.Order
+@enduml

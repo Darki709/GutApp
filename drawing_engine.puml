@@ -1,0 +1,509 @@
+@startuml
+class com.example.gutapp.data.drawing.DrawingManager {
+- {static} int MAX_HISTORY
+- LinkedHashMap<String,ChartDrawing> drawings
+- Deque<List<ChartDrawing>> undoStack
+- Deque<List<ChartDrawing>> redoStack
+- DrawingTool activeTool
+- String selectedId
+- int activeColor
+- float activeWidth
+- boolean activeDashed
++ void setActiveTool(DrawingTool)
++ DrawingTool getActiveTool()
++ boolean hasActiveTool()
++ void setActiveColor(int)
++ int getActiveColor()
++ void setActiveWidth(float)
++ float getActiveWidth()
++ void setActiveDashed(boolean)
++ boolean isActiveDashed()
++ ChartDrawing.DrawingStyle buildActiveStyle()
++ void select(String)
++ void clearSelection()
++ String getSelectedId()
++ ChartDrawing getSelected()
++ void bringSelectedToFront()
++ void sendSelectedToBack()
++ ChartDrawing.Layer toggleSelectedLayer()
++ T add(T)
++ void remove(String)
++ void removeSelected()
++ void clearUserDrawings()
++ void clearUserDrawingsSilent()
++ void clearIndicatorDrawings()
++ void clearAll()
++ List<ChartDrawing> getAll()
++ List<ChartDrawing> getUserDrawings()
++ List<ChartDrawing> getByLayer(ChartDrawing.Layer)
++ ChartDrawing get(String)
++ boolean isEmpty()
++ int size()
+- void pushUndoCheckpoint()
++ boolean undo()
++ boolean redo()
++ boolean canUndo()
++ boolean canRedo()
+- void clearIndicatorless()
++ ChartDrawing.HorizontalLine addHorizontalLine(double)
++ ChartDrawing.TrendLine addTrendLine(long,double,long,double)
++ ChartDrawing.RayLine addRayLine(long,double,long,double)
++ ChartDrawing.ExtendedLine addExtendedLine(long,double,long,double)
++ ChartDrawing.VerticalLine addVerticalLine(long)
++ ChartDrawing.LinearRegression addLinearRegression(long,long)
++ ChartDrawing.FibRetracement addFibRetracement(long,double,long,double)
++ ChartDrawing.PriceRange addPriceRange(double,double)
++ ChartDrawing.Rectangle addRectangle(long,double,long,double)
++ ChartDrawing.Ellipse addEllipse(long,double,long,double)
++ ChartDrawing.TextAnnotation addTextAnnotation(long,double,String)
++ ChartDrawing.Arrow addArrow(long,double,long,double)
++ ChartDrawing.ParallelChannel addParallelChannel(long,double,long,double,double)
++ ChartDrawing.Pitchfork addPitchfork(long,double,long,double,long,double)
++ ChartDrawing.GannFan addGannFan(long,double,long,double)
++ ChartDrawing.RiskReward addRiskReward(long,long,double,double,double,boolean)
++ {static} boolean isTwoPointTool(DrawingTool)
++ {static} boolean isThreePointTool(DrawingTool)
+}
+
+
+enum com.example.gutapp.data.drawing.DrawingTool {
++  HORIZONTAL_LINE
++  TREND_LINE
++  RAY_LINE
++  EXTENDED_LINE
++  VERTICAL_LINE
++  LINEAR_REGRESSION
++  FIB_RETRACEMENT
++  PRICE_RANGE
++  RECTANGLE
++  ELLIPSE
++  TEXT_ANNOTATION
++  ARROW
++  PARALLEL_CHANNEL
++  PITCHFORK
++  GANN_FAN
++  RISK_REWARD
+}
+
+class com.example.gutapp.data.drawing.DrawingRenderer {
+- float[] pointBuffer
+- float[] lineBuffer
+- Paint linePaint
+- Paint fillPaint
+- Paint textPaint
+- Paint handlePaint
+- Paint bgPaint
+- Path path
+- float[] pts2
+- {static} float[] FIB_ALPHAS
+- {static} float[] GANN_SLOPES
+- {static} String[] GANN_LABELS
++ void drawLayer(Canvas,CombinedChart,DrawingManager,List<Candle>,ChartDrawing.Layer)
++ void draw(Canvas,CombinedChart,DrawingManager,List<Candle>)
+- void drawSingle(Canvas,ChartDrawing,Transformer,RectF,List<Candle>)
+- void drawHorizontalLine(Canvas,ChartDrawing.HorizontalLine,Transformer,RectF,List<Candle>)
+- void drawTrendLine(Canvas,ChartDrawing.TrendLine,Transformer,RectF,List<Candle>)
+- void drawRayLine(Canvas,ChartDrawing.RayLine,Transformer,RectF,List<Candle>)
+- void drawExtendedLine(Canvas,ChartDrawing.ExtendedLine,Transformer,RectF,List<Candle>)
+- void drawVerticalLine(Canvas,ChartDrawing.VerticalLine,Transformer,RectF,List<Candle>)
+- void drawLinearRegression(Canvas,ChartDrawing.LinearRegression,Transformer,RectF,List<Candle>)
+- void drawFibRetracement(Canvas,ChartDrawing.FibRetracement,Transformer,RectF,List<Candle>)
+- void drawPriceRange(Canvas,ChartDrawing.PriceRange,Transformer,RectF)
+- void drawRectangle(Canvas,ChartDrawing.Rectangle,Transformer,RectF,List<Candle>)
+- void drawEllipse(Canvas,ChartDrawing.Ellipse,Transformer,RectF,List<Candle>)
+- void drawTextAnnotation(Canvas,ChartDrawing.TextAnnotation,Transformer,RectF,List<Candle>)
+- void drawArrow(Canvas,ChartDrawing.Arrow,Transformer,RectF,List<Candle>)
+- void drawParallelChannel(Canvas,ChartDrawing.ParallelChannel,Transformer,RectF,List<Candle>)
+- void drawPitchfork(Canvas,ChartDrawing.Pitchfork,Transformer,RectF,List<Candle>)
+- void drawGannFan(Canvas,ChartDrawing.GannFan,Transformer,RectF,List<Candle>)
+- void drawRiskReward(Canvas,ChartDrawing.RiskReward,Transformer,RectF,List<Candle>)
+- void drawHandle(Canvas,float,float,int,boolean)
+- void drawSelectionHandle(Canvas,float,float)
+- void drawYLabel(Canvas,String,int,float,float)
+- float indexToX(float,Transformer)
+- float priceToY(double,Transformer)
+- float tsToX(long,List<Candle>,Transformer)
+- void applyLine(ChartDrawing.DrawingStyle)
+- float clamp(float,float,float)
+- float[] extendLine(float,float,float,float,RectF,boolean,boolean)
+- float[] extendLineRight(float,float,float,float,RectF)
+}
+
+
+class com.example.gutapp.ui.chart.DrawingChart {
+- DrawingManager drawingManager
+- DrawingRenderer drawingRenderer
+- List<Candle> candles
+- float tapAnchorX
+- long anchor1Ts
+- double anchor1Price
+- long anchor2Ts
+- double anchor2Price
+- int pitchforkState
+- ChartDrawing previewDrawing
+- int dragHandleIdx
+- float dragLastX
+- ChartDrawing dragTarget
+- boolean snapEnabled
+- {static} float HIT_BODY_PX
+- {static} float HIT_HANDLE_PX
+- Paint crosshairPaint
+- GestureDetector gestureDetector
+- DrawingEventListener drawingEventListener
+- IndicatorPicker indicatorPicker
++ void setIndicatorPicker(IndicatorPicker)
+- void initDrawingLayer()
++ DrawingManager getDrawingManager()
++ void setCandles(List<Candle>)
++ void setDrawingEventListener(DrawingEventListener)
++ void setSnapEnabled(boolean)
++ boolean isSnapEnabled()
++ void setActiveTool(DrawingManager.DrawingTool)
++ void replaceIndicatorDrawings(List<ChartDrawing>)
++ void cancelCurrentDrawing()
++ boolean undo()
++ boolean redo()
++ void clearAllUserDrawings()
++ void removeDrawing(String)
+- void notifyChanged()
++ void notifyDrawingsChanged()
+# void onDraw(Canvas)
+- void prepareCanvas(Canvas)
+- void drawLayerPass(Canvas,ChartDrawing.Layer)
++ boolean onTouchEvent(MotionEvent)
+- boolean handleEditTouch(MotionEvent)
+- boolean handlePlacementTouch(MotionEvent)
+- void handlePlacementTap(DrawingManager.DrawingTool,long,double,boolean,long,double)
+- int nearestHandle(ChartDrawing,float,float)
+- float[][] getHandles(ChartDrawing)
+- float pixelToFractionalIndex(float)
+- long fractionalIndexToTimestamp(float)
+- float timestampToFractionalIndex(long)
+- void moveHandle(ChartDrawing,int,float,float)
+- void moveDrawing(ChartDrawing,float,float)
+- boolean hitBody(ChartDrawing,float,float)
+- void trySelect(float,float)
+- float hitDistance(ChartDrawing,float,float)
+- float ptSeg(float,float,float,float,float,float)
+- double snapToOHLC(float,long)
+- long pixelToTimestamp(float)
+- double timestampToPixelX(long)
+- double pixelToPrice(float)
+- float priceToPixelY(double)
+- ChartDrawing placeOnePoint(DrawingManager.DrawingTool,long,double)
+- ChartDrawing buildDrawing(DrawingManager.DrawingTool,long,double,long,double)
+- void finalizeDrawing(ChartDrawing)
+}
+
+
+interface com.example.gutapp.ui.chart.DrawingChart$DrawingEventListener {
+~ void onDrawingCreated(ChartDrawing)
+~ void onDrawingRemoved(ChartDrawing)
+~ void onDrawingSelected(ChartDrawing)
+~ void onDrawingsChanged()
+~ void onToolChanged(DrawingManager.DrawingTool)
+~ void onIndicatorSelected(String)
+}
+
+interface com.example.gutapp.ui.chart.DrawingChart$IndicatorPicker {
+~ String pickIndicatorAt(float,float)
+}
+
+class com.example.gutapp.data.drawing.DrawingPersistence {
+- {static} String TAG
+- {static} String F_TYPE
+- {static} String F_COLOR
+- {static} String F_WIDTH
+- {static} String F_DASHED
+- {static} String F_FILLED
+- {static} String F_FILL_COLOR
+- {static} String F_LAYER
+- {static} String F_PRICE
+- {static} String F_LABEL
+- {static} String F_START_TS
+- {static} String F_START_PX
+- {static} String F_END_TS
+- {static} String F_END_PX
+- {static} String F_ANCHOR_TS
+- {static} String F_ANCHOR_PX
+- {static} String F_CANDLE_TS
+- {static} String F_DRAW_CH
+- {static} String F_DRAW_CH_DEV
+- {static} String F_LEVELS
+- {static} String F_PRICE_HI
+- {static} String F_PRICE_LO
+- {static} String F_TEXT
+- {static} String F_MID_PRICE
+- {static} String F_P0_TS
+- {static} String F_P0_PX
+- {static} String F_P1_TS
+- {static} String F_P1_PX
+- {static} String F_P2_TS
+- {static} String F_P2_PX
+- {static} String F_EXT_LEFT
+- {static} String F_EXT_RIGHT
+- {static} String F_ENTRY_PX
+- {static} String F_TARGET_PX
+- {static} String F_STOP_PX
+- {static} String F_IS_LONG
+- ChartStateDao dao
+- {static} String keyFor(String)
++ void save(String,DrawingManager)
++ void load(String,DrawingManager)
++ void clear(String)
++ int savedCount(String)
+- JSONObject serialize(ChartDrawing)
+- void serializeStyle(JSONObject,ChartDrawing.DrawingStyle)
+- ChartDrawing deserialize(JSONObject)
+- ChartDrawing.DrawingStyle deserializeStyle(JSONObject)
+}
+
+
+abstract class com.example.gutapp.data.drawing.ChartDrawing {
+- String instanceId
++ Source source
++ DrawingStyle style
++ boolean locked
++ boolean selected
++ Layer layer
++ String getInstanceId()
++ {abstract}DrawingType getType()
++ {static} int resolveIndex(long,List<Candle>)
+}
+
+
+class com.example.gutapp.data.drawing.ChartDrawing$DrawingStyle {
++ int color
++ float strokeWidth
++ boolean dashed
++ float dashOn
++ float dashOff
++ boolean filled
++ int fillColor
++ float opacity
++ {static} DrawingStyle solid(int)
++ {static} DrawingStyle solid(int,float)
++ {static} DrawingStyle dashed(int)
++ DrawingStyle withFill(boolean)
++ void applyTo(Paint)
++ DrawingStyle copy()
+}
+
+
+enum com.example.gutapp.data.drawing.Source {
++  USER
++  INDICATOR
+}
+
+enum com.example.gutapp.data.drawing.DrawingType {
++  HORIZONTAL_LINE
++  TREND_LINE
++  RAY_LINE
++  EXTENDED_LINE
++  VERTICAL_LINE
++  LINEAR_REGRESSION
++  FIB_RETRACEMENT
++  PRICE_RANGE
++  RECTANGLE
++  ELLIPSE
++  TEXT_ANNOTATION
++  ARROW
++  PARALLEL_CHANNEL
++  PITCHFORK
++  GANN_FAN
++  RISK_REWARD
+}
+
+enum com.example.gutapp.data.drawing.Layer {
++  BEHIND_CANDLES
++  ABOVE_CANDLES
+}
+
+class com.example.gutapp.data.drawing.ChartDrawing$HorizontalLine {
++ double price
++ String label
++ DrawingType getType()
+}
+
+
+class com.example.gutapp.data.drawing.ChartDrawing$TrendLine {
++ long startTs
++ double startPrice
++ long endTs
++ double endPrice
++ boolean extendLeft
++ DrawingType getType()
+}
+
+
+class com.example.gutapp.data.drawing.ChartDrawing$RayLine {
++ long startTs
++ double startPrice
++ long anchorTs
++ double anchorPrice
++ DrawingType getType()
+}
+
+
+class com.example.gutapp.data.drawing.ChartDrawing$ExtendedLine {
++ long startTs
++ double startPrice
++ long endTs
++ double endPrice
++ DrawingType getType()
+}
+
+
+class com.example.gutapp.data.drawing.ChartDrawing$VerticalLine {
++ long candleTs
++ String label
++ DrawingType getType()
+}
+
+
+class com.example.gutapp.data.drawing.ChartDrawing$LinearRegression {
++ long startTs
++ long endTs
++ boolean drawChannel
++ int channelDeviation
++ DrawingType getType()
+}
+
+
+class com.example.gutapp.data.drawing.ChartDrawing$FibRetracement {
++ long startTs
++ double highPrice
++ long endTs
++ double lowPrice
++ float[] levels
++ DrawingType getType()
+}
+
+
+class com.example.gutapp.data.drawing.ChartDrawing$PriceRange {
++ double priceHigh
++ double priceLow
++ DrawingType getType()
+}
+
+
+class com.example.gutapp.data.drawing.ChartDrawing$Rectangle {
++ long startTs
++ double startPrice
++ long endTs
++ double endPrice
++ DrawingType getType()
+}
+
+
+class com.example.gutapp.data.drawing.ChartDrawing$Ellipse {
++ long startTs
++ double startPrice
++ long endTs
++ double endPrice
++ DrawingType getType()
+}
+
+
+class com.example.gutapp.data.drawing.ChartDrawing$TextAnnotation {
++ long candleTs
++ double price
++ String text
++ float textSizeSp
++ DrawingType getType()
+}
+
+
+class com.example.gutapp.data.drawing.ChartDrawing$Arrow {
++ long startTs
++ double startPrice
++ long endTs
++ double endPrice
++ DrawingType getType()
+}
+
+
+class com.example.gutapp.data.drawing.ChartDrawing$ParallelChannel {
++ long startTs
++ double startPrice
++ long endTs
++ double endPrice
++ double midPrice
++ DrawingType getType()
+}
+
+
+class com.example.gutapp.data.drawing.ChartDrawing$Pitchfork {
++ long p0Ts
++ double p0Price
++ long p1Ts
++ double p1Price
++ long p2Ts
++ double p2Price
++ DrawingType getType()
+}
+
+
+class com.example.gutapp.data.drawing.ChartDrawing$GannFan {
++ long startTs
++ double startPrice
++ long endTs
++ double endPrice
++ DrawingType getType()
+}
+
+
+class com.example.gutapp.data.drawing.ChartDrawing$RiskReward {
++ long startTs
++ long endTs
++ double entryPrice
++ double targetPrice
++ double stopPrice
++ boolean isLong
++ double tickSize
++ DrawingType getType()
++ double getRiskRewardRatio()
++ int getTargetTicks()
++ int getStopTicks()
+}
+
+
+
+
+com.github.mikephil.charting.charts.CombinedChart <|-- com.example.gutapp.ui.chart.DrawingChart
+com.example.gutapp.ui.chart.DrawingChart +.. com.example.gutapp.ui.chart.DrawingChart$DrawingEventListener
+com.example.gutapp.ui.chart.DrawingChart +.. com.example.gutapp.ui.chart.DrawingChart$IndicatorPicker
+com.example.gutapp.data.drawing.ChartDrawing +.. com.example.gutapp.data.drawing.ChartDrawing$DrawingStyle
+com.example.gutapp.data.drawing.ChartDrawing +.. com.example.gutapp.data.drawing.ChartDrawing$HorizontalLine
+com.example.gutapp.data.drawing.ChartDrawing <|-- com.example.gutapp.data.drawing.ChartDrawing$HorizontalLine
+com.example.gutapp.data.drawing.ChartDrawing +.. com.example.gutapp.data.drawing.ChartDrawing$TrendLine
+com.example.gutapp.data.drawing.ChartDrawing <|-- com.example.gutapp.data.drawing.ChartDrawing$TrendLine
+com.example.gutapp.data.drawing.ChartDrawing +.. com.example.gutapp.data.drawing.ChartDrawing$RayLine
+com.example.gutapp.data.drawing.ChartDrawing <|-- com.example.gutapp.data.drawing.ChartDrawing$RayLine
+com.example.gutapp.data.drawing.ChartDrawing +.. com.example.gutapp.data.drawing.ChartDrawing$ExtendedLine
+com.example.gutapp.data.drawing.ChartDrawing <|-- com.example.gutapp.data.drawing.ChartDrawing$ExtendedLine
+com.example.gutapp.data.drawing.ChartDrawing +.. com.example.gutapp.data.drawing.ChartDrawing$VerticalLine
+com.example.gutapp.data.drawing.ChartDrawing <|-- com.example.gutapp.data.drawing.ChartDrawing$VerticalLine
+com.example.gutapp.data.drawing.ChartDrawing +.. com.example.gutapp.data.drawing.ChartDrawing$LinearRegression
+com.example.gutapp.data.drawing.ChartDrawing <|-- com.example.gutapp.data.drawing.ChartDrawing$LinearRegression
+com.example.gutapp.data.drawing.ChartDrawing +.. com.example.gutapp.data.drawing.ChartDrawing$FibRetracement
+com.example.gutapp.data.drawing.ChartDrawing <|-- com.example.gutapp.data.drawing.ChartDrawing$FibRetracement
+com.example.gutapp.data.drawing.ChartDrawing +.. com.example.gutapp.data.drawing.ChartDrawing$PriceRange
+com.example.gutapp.data.drawing.ChartDrawing <|-- com.example.gutapp.data.drawing.ChartDrawing$PriceRange
+com.example.gutapp.data.drawing.ChartDrawing +.. com.example.gutapp.data.drawing.ChartDrawing$Rectangle
+com.example.gutapp.data.drawing.ChartDrawing <|-- com.example.gutapp.data.drawing.ChartDrawing$Rectangle
+com.example.gutapp.data.drawing.ChartDrawing +.. com.example.gutapp.data.drawing.ChartDrawing$Ellipse
+com.example.gutapp.data.drawing.ChartDrawing <|-- com.example.gutapp.data.drawing.ChartDrawing$Ellipse
+com.example.gutapp.data.drawing.ChartDrawing +.. com.example.gutapp.data.drawing.ChartDrawing$TextAnnotation
+com.example.gutapp.data.drawing.ChartDrawing <|-- com.example.gutapp.data.drawing.ChartDrawing$TextAnnotation
+com.example.gutapp.data.drawing.ChartDrawing +.. com.example.gutapp.data.drawing.ChartDrawing$Arrow
+com.example.gutapp.data.drawing.ChartDrawing <|-- com.example.gutapp.data.drawing.ChartDrawing$Arrow
+com.example.gutapp.data.drawing.ChartDrawing +.. com.example.gutapp.data.drawing.ChartDrawing$ParallelChannel
+com.example.gutapp.data.drawing.ChartDrawing <|-- com.example.gutapp.data.drawing.ChartDrawing$ParallelChannel
+com.example.gutapp.data.drawing.ChartDrawing +.. com.example.gutapp.data.drawing.ChartDrawing$Pitchfork
+com.example.gutapp.data.drawing.ChartDrawing <|-- com.example.gutapp.data.drawing.ChartDrawing$Pitchfork
+com.example.gutapp.data.drawing.ChartDrawing +.. com.example.gutapp.data.drawing.ChartDrawing$GannFan
+com.example.gutapp.data.drawing.ChartDrawing <|-- com.example.gutapp.data.drawing.ChartDrawing$GannFan
+com.example.gutapp.data.drawing.ChartDrawing +.. com.example.gutapp.data.drawing.ChartDrawing$RiskReward
+com.example.gutapp.data.drawing.ChartDrawing <|-- com.example.gutapp.data.drawing.ChartDrawing$RiskReward
+@enduml

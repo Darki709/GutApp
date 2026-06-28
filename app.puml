@@ -1,0 +1,3385 @@
+@startuml
+class com.example.gutapp.data.indicators.impl.TrixIndicator {
++ String getId()
++ String getDisplayName()
++ String getTag()
++ boolean isSubChart()
++ Indicator newInstance()
++ Result compute(ArrayList<Candle>)
+- double[] extractCloses(ArrayList<Candle>)
+- double[] calculateEma(double[],int,double)
++ int calculateBias(ArrayList<Candle>)
+}
+
+class com.example.gutapp.data.indicators.impl.WilliamsRIndicator {
++ String getId()
++ String getDisplayName()
++ String getTag()
++ boolean isSubChart()
++ Indicator newInstance()
++ Result compute(ArrayList<Candle>)
++ int calculateBias(ArrayList<Candle>)
+}
+
+class com.example.gutapp.data.alerts.AlertManager {
+- {static} String TAG
+- {static} AlertManager instance
+- BlockingQueue<CandleUpdate> updateQueue
+- ConcurrentHashMap<String,CopyOnWriteArrayList<Alert>> activeAlerts
+- Set<String> subscriptions
+- ConcurrentHashMap<String,Candle> latestPrices
+- AlertDBHelper alertDb
+- StockDataHelper stockDb
+- ServiceRequestInterface networkInterface
+- TriggerListener triggerListener
+- Context appContext
+- boolean isRunning
+- Thread workerThread
+- {static} long RECONNECT_COOLDOWN_MS
+- long lastReconnectTimestamp
+- Handler debounceHandler
+- Runnable pendingReconnectRunnable
++ {static} AlertManager getInstance()
+- void ensureDb()
++ void init(Context)
++ void start(DB_Helper)
++ void stop()
++ void setNetworkInterface(ServiceRequestInterface)
++ void setTriggerListener(TriggerListener)
++ void addAlert(Alert)
++ void removeAlert(long)
++ void setAlertStatus(long,Alert.Status)
++ void reloadActiveAlerts()
++ List<Alert> getAllAlerts()
++ List<Alert> getAlertsForSymbol(String)
++ void onNewPrice(String,Candle)
+- void processLoop()
+- void evaluateAlerts(String)
++ Candle getLatestPrice(String)
++ List<Candle> getCachedStockData(String,StockDataHelper.Timeframe,int)
+- void refreshSubscriptions()
++ void networkReconnect()
+- void executeRefresh()
++ void networkLost()
+- void cleanupSubscriptions()
+- void addToMemory(Alert)
+- void removeFromMemory(long)
+}
+
+
+interface com.example.gutapp.data.alerts.AlertManager$ServiceRequestInterface {
+~ void requestPriceData(String)
+~ void stopPriceData(String)
+}
+
+interface com.example.gutapp.data.alerts.AlertManager$TriggerListener {
+~ void onAlertTriggered(Alert)
+}
+
+class com.example.gutapp.data.alerts.AlertManager$CandleUpdate {
+~ String symbol
+~ Candle candle
+}
+
+class com.example.gutapp.session.Responses.EndOrderResponses {
+}
+class com.example.gutapp.session.Responses.EndOrderResponses$Success {
+~ double end_price
+~ long end_ts
+}
+
+class com.example.gutapp.session.Responses.EndOrderResponses$Failure {
+~ String error
+}
+
+class com.example.gutapp.session.Requests.ModifyWatchlistItems {
+- Action action
+- String listName
+- String symbol
++ byte[] getBytes()
++ void handle(Response)
+}
+
+
+enum com.example.gutapp.session.Requests.Action {
++  ADD
++  REMOVE
++ byte v
+}
+
+class com.example.gutapp.session.Responses.FetchOrdersResponse {
+- ArrayList<Order> orders
++ {static} void debugPrintOrders(List<Order>)
+}
+
+
+class com.example.gutapp.session.Requests.ManageWatchlist {
+- Action action
+- String name
+- String newName
++ byte[] getBytes()
++ void handle(Response)
+}
+
+
+enum com.example.gutapp.session.Requests.Action {
++  CREATE
++  RENAME
++  DELETE
++ byte v
+}
+
+class com.example.gutapp.ui.dialogue.AddAlertBottomSheet {
+- {static} List<String> COND_NAMES
+- {static} String[] TF_LABELS
+- {static} StockDataHelper.Timeframe[] TF_VALUES
++ {static} void show(Activity,String,Alert,Runnable)
++ {static} void hide(Activity)
+- {static} void bind(Activity,View,String,Alert,Runnable)
+- {static} void renderCondParams(Context,LinearLayout,int,Alert)
+- {static} void buildPriceThreshold(Context,LinearLayout,Alert)
+- {static} void buildPriceChangePct(Context,LinearLayout,Alert)
+- {static} void buildSma(Context,LinearLayout,Alert)
+- {static} void buildVolatility(Context,LinearLayout,Alert)
+- {static} void buildRsi(Context,LinearLayout,Alert)
+- {static} void buildVolumeSpike(Context,LinearLayout,Alert)
+- {static} Condition buildCondition(Context,int,String,LinearLayout)
+- {static} TextView sectionLabel(Context,String)
+- {static} EditText numField(Context,String)
+- {static} RadioButton radio(Context,String)
+- {static} Spinner spinner(Context,List<String>)
+- {static} int dp(Context,int)
+- {static} int tfIndex(StockDataHelper.Timeframe)
+- {static} String numStr(double)
+}
+
+
+class com.example.gutapp.data.indicators.PresetRepository {
+- ChartStateDao dao
++ List<Preset> getAllPresets()
++ void savePreset(Preset)
++ void deletePreset(String)
++ void renamePreset(String,String)
++ void autoSave(String,IndicatorSession)
++ void autoLoad(String,IndicatorSession)
+- String snapshotsToJson(List<Indicator.IndicatorSnapshot>)
+- JSONObject serializeSnapshot(Indicator.IndicatorSnapshot)
+- List<Indicator.IndicatorSnapshot> parseSnapshots(JSONArray)
+}
+
+
+class com.example.gutapp.data.indicators.PresetRepository$Preset {
++ String name
++ List<Indicator.IndicatorSnapshot> snapshots
+}
+
+class com.example.gutapp.data.drawing.DrawingManager {
+- {static} int MAX_HISTORY
+- LinkedHashMap<String,ChartDrawing> drawings
+- Deque<List<ChartDrawing>> undoStack
+- Deque<List<ChartDrawing>> redoStack
+- DrawingTool activeTool
+- String selectedId
+- int activeColor
+- float activeWidth
+- boolean activeDashed
++ void setActiveTool(DrawingTool)
++ DrawingTool getActiveTool()
++ boolean hasActiveTool()
++ void setActiveColor(int)
++ int getActiveColor()
++ void setActiveWidth(float)
++ float getActiveWidth()
++ void setActiveDashed(boolean)
++ boolean isActiveDashed()
++ ChartDrawing.DrawingStyle buildActiveStyle()
++ void select(String)
++ void clearSelection()
++ String getSelectedId()
++ ChartDrawing getSelected()
++ void bringSelectedToFront()
++ void sendSelectedToBack()
++ ChartDrawing.Layer toggleSelectedLayer()
++ T add(T)
++ void remove(String)
++ void removeSelected()
++ void clearUserDrawings()
++ void clearUserDrawingsSilent()
++ void clearIndicatorDrawings()
++ void clearAll()
++ List<ChartDrawing> getAll()
++ List<ChartDrawing> getUserDrawings()
++ List<ChartDrawing> getByLayer(ChartDrawing.Layer)
++ ChartDrawing get(String)
++ boolean isEmpty()
++ int size()
+- void pushUndoCheckpoint()
++ boolean undo()
++ boolean redo()
++ boolean canUndo()
++ boolean canRedo()
+- void clearIndicatorless()
++ ChartDrawing.HorizontalLine addHorizontalLine(double)
++ ChartDrawing.TrendLine addTrendLine(long,double,long,double)
++ ChartDrawing.RayLine addRayLine(long,double,long,double)
++ ChartDrawing.ExtendedLine addExtendedLine(long,double,long,double)
++ ChartDrawing.VerticalLine addVerticalLine(long)
++ ChartDrawing.LinearRegression addLinearRegression(long,long)
++ ChartDrawing.FibRetracement addFibRetracement(long,double,long,double)
++ ChartDrawing.PriceRange addPriceRange(double,double)
++ ChartDrawing.Rectangle addRectangle(long,double,long,double)
++ ChartDrawing.Ellipse addEllipse(long,double,long,double)
++ ChartDrawing.TextAnnotation addTextAnnotation(long,double,String)
++ ChartDrawing.Arrow addArrow(long,double,long,double)
++ ChartDrawing.ParallelChannel addParallelChannel(long,double,long,double,double)
++ ChartDrawing.Pitchfork addPitchfork(long,double,long,double,long,double)
++ ChartDrawing.GannFan addGannFan(long,double,long,double)
++ ChartDrawing.RiskReward addRiskReward(long,long,double,double,double,boolean)
++ {static} boolean isTwoPointTool(DrawingTool)
++ {static} boolean isThreePointTool(DrawingTool)
+}
+
+
+enum com.example.gutapp.data.drawing.DrawingTool {
++  HORIZONTAL_LINE
++  TREND_LINE
++  RAY_LINE
++  EXTENDED_LINE
++  VERTICAL_LINE
++  LINEAR_REGRESSION
++  FIB_RETRACEMENT
++  PRICE_RANGE
++  RECTANGLE
++  ELLIPSE
++  TEXT_ANNOTATION
++  ARROW
++  PARALLEL_CHANNEL
++  PITCHFORK
++  GANN_FAN
++  RISK_REWARD
+}
+
+class com.example.gutapp.session.Responses.RegisterResponse {
++ {static} int SUCCESS
++ {static} int USERNAME_TAKEN
++ {static} int INSECURE_PASSWORD
+- int state
+- String feedback
++ int getState()
++ String getFeedback()
+}
+
+
+class com.example.gutapp.data.indicators.impl.MoneyFlowIndexIndicator {
++ String getId()
++ String getDisplayName()
++ String getTag()
++ boolean isSubChart()
++ Indicator newInstance()
++ Result compute(ArrayList<Candle>)
++ int calculateBias(ArrayList<Candle>)
+}
+
+class com.example.gutapp.data.indicators.impl.CmfIndicator {
++ String getId()
++ String getDisplayName()
++ String getTag()
++ boolean isSubChart()
++ Indicator newInstance()
++ Result compute(ArrayList<Candle>)
++ int calculateBias(ArrayList<Candle>)
+}
+
+class com.example.gutapp.data.StockChart {
+- {static} int COLOR_UP
+- {static} int COLOR_DOWN
+- {static} int COLOR_LINE
+- {static} int COLOR_LINE_FILL
+- {static} int COLOR_VOL_UP
+- {static} int COLOR_VOL_DOWN
+- {static} int COLOR_VOL_NEUTRAL
+- {static} int COLOR_BACKGROUND
+- {static} int COLOR_AXIS_TEXT
+- {static} int COLOR_GRID
+- {static} int COLOR_HIGHLIGHT
+- {static} int COLOR_PRICE_LINE
+- DrawingChart chart
+- Context activityContext
+- LinearLayout subChartsContainer
+- NestedScrollView subChartsScroller
+- LinkedHashMap<String,LineChart> subChartViews
+- CopyOnWriteArrayList<Candle> allCandles
+- Set<Integer> reqIds
+- IndicatorSession indicatorSession
+- LinkedHashMap<String,List<LineDataSet>> overlayLinesByInstance
+- String selectedIndicatorId
+- {static} float INDICATOR_HIT_PX
+- StockDataHelper.Timeframe interval
+- ChartType currentChartType
+- AtomicBoolean isUpdatePending
+- boolean done
+- Handler mainHandler
+- List<Candle> streamBuffer
+- SessionCallback chainedListener
+- MutableLiveData<Double> currentPrice
+- LimitLine currentPriceLine
+- Runnable candlesReadyCallback
+- boolean isPinnedToRight
+- float savedLowestX
+- float savedHighestX
+- boolean initialViewApplied
++ void setCandlesReadyCallback(Runnable)
++ void setChartType(ChartType)
++ ChartType getChartType()
++ void applyIndicators()
++ DrawingChart getDrawingChart()
++ String pickIndicatorAt(float,float)
++ void setSelectedIndicator(String)
++ String getSelectedIndicator()
+- {static} float ptSeg(float,float,float,float,float,float)
++ void zoomIn()
++ void zoomOut()
++ void zoomReset()
++ ArrayList<Candle> getAllCandles()
++ void setupChart(TextView)
+- void updatePinState()
++ void addChunk(List<Candle>)
+- void triggerChartUpdate(boolean)
+- void updateChartData(boolean)
+- void applyInitialView(int)
+- void updateSubCharts(ArrayList<Candle>,ValueFormatter)
+- LineChart createSubChartView(Indicator,ValueFormatter)
+- void configureSubChartXAxis(LineChart,ValueFormatter)
+- void populateSubChart(LineChart,Indicator,ArrayList<Candle>,boolean)
+- void syncSubChartsToMain()
+- void syncSubChartToMain(LineChart)
+- void syncMainChartFromSub(LineChart)
+- void setScrollerWeight(float)
+- void updateCurrentPriceLine(Candle)
+- ValueFormatter buildXFormatter(ArrayList<Candle>)
+- CandleData generateCandleData(ArrayList<Candle>)
+- CandleData generateOhlcBarData(ArrayList<Candle>)
+- LineDataSet generateLineData(ArrayList<Candle>)
+- BarData generateVolumeData(ArrayList<Candle>)
+- int dpToPx(int)
+- String formatVolume(long)
+- void streamUpdate(List<Candle>)
++ void onDataReceived(DataType,Object)
++ void onActionRequired(int,Object)
++ void clearChart()
++ void addToCurrentRequest(int)
++ void flushRequests()
++ void bindListener(SessionCallback)
++ boolean isDone()
++ void setInterval(StockDataHelper.Timeframe)
+}
+
+
+enum com.example.gutapp.data.ChartType {
++  CANDLE
++  BAR
++  LINE
+}
+
+class com.example.gutapp.data.alerts.conditions.PriceChangePercentCondition {
++ {static} String TYPE
+- {static} Gson GSON
+- String symbol
+- double percentThreshold
+- Direction direction
+- StockDataHelper.Timeframe timeframe
++ boolean check(PriceResource)
++ String getTypeName()
++ String serialize()
++ {static} Condition fromJson(String)
++ String getNotification()
++ String getSummary()
++ StockDataHelper.Timeframe getTimeframe()
++ double getPercentThreshold()
++ Direction getDirection()
+}
+
+
+enum com.example.gutapp.data.alerts.conditions.Direction {
++  UP
++  DOWN
++  EITHER
+}
+
+class com.example.gutapp.data.indicators.impl.AwesomeOscillatorIndicator {
++ String getId()
++ String getDisplayName()
++ String getTag()
++ boolean isSubChart()
++ Indicator newInstance()
++ Result compute(ArrayList<Candle>)
++ int calculateBias(ArrayList<Candle>)
+- double calculateSingleAO(double[],int)
+}
+
+class com.example.gutapp.ui.fragments.OrdersList {
+- ArrayList<OrderRow> activeOrderRows
+- LinearLayout container
+- ScrollView scrollView
+- Listener listener
++ {static} OrdersList newInstance(ArrayList<Order>)
++ View onCreateView(LayoutInflater,ViewGroup,Bundle)
++ void onViewCreated(View,Bundle)
++ void displayOrders(ArrayList<Order>)
++ void addOrderRow(Order)
+- void updateVisibleOrderSubscriptions()
++ void removeByOrderReference(Order)
++ void removeByOrderId(int)
++ void onResume()
++ void onPause()
++ void onDestroy()
++ boolean isEmpty()
++ void notifyPLChange()
++ void notifyClosed(Order)
++ OrderRow getOrderRow(int)
+}
+
+
+interface com.example.gutapp.ui.fragments.OrdersList$Listener {
+~ void PLUpdate(double)
+~ void notifyOrderRemoved(Order)
+}
+
+class com.example.gutapp.data.alerts.conditions.VolumeSpikeCondition {
++ {static} String TYPE
+- {static} Gson GSON
+- String symbol
+- StockDataHelper.Timeframe timeframe
+- int lookback
+- double multiplier
++ boolean check(PriceResource)
++ String getTypeName()
++ String serialize()
++ {static} Condition fromJson(String)
++ String getNotification()
++ String getSummary()
++ StockDataHelper.Timeframe getTimeframe()
++ int getLookback()
++ double getMultiplier()
+}
+
+
+class com.example.gutapp.session.Requests.SyncAlertPull {
++ byte[] getBytes()
++ void handle(Response)
+}
+
+class com.example.gutapp.data.WatchlistStockRow {
+- String currentListName
+- void overrideLongClick()
+- void showRemoveConfirmation()
++ void onDataReceived(DataType,Object)
+}
+
+
+class com.example.gutapp.session.news.NewsRepository {
+- {static} String BASE_URL
+- {static} NewsRepository instance
+- FinnhubNewsService service
++ {static} NewsRepository getInstance()
+- String token()
+- boolean hasKey()
++ void fetchMarketNews(String,Callback)
++ void fetchCompanyNews(String,Callback)
+- retrofit2.Callback<List<NewsArticle>> wrap(Callback)
+}
+
+
+interface com.example.gutapp.session.news.NewsRepository$Callback {
+~ void onNews(List<NewsArticle>)
+~ void onError(String)
+}
+
+class com.example.gutapp.data.alerts.ConditionRegistry {
+- {static} String TAG
+- {static} Map<String,ConditionDeserializer> registry
+- {static} void registerAll()
++ {static} void register(String,ConditionDeserializer)
++ {static} Condition deserialize(String,String)
+}
+
+
+interface com.example.gutapp.data.alerts.ConditionRegistry$ConditionDeserializer {
+~ Condition deserialize(String)
+}
+
+class com.example.gutapp.session.Responses.GetBalanceResponse {
++ double balance
+}
+
+class com.example.gutapp.data.indicators.impl.MaCrossoverStrategyIndicator {
++ String getId()
++ String getDisplayName()
++ String getTag()
++ boolean isSubChart()
++ Indicator newInstance()
++ Result compute(ArrayList<Candle>)
+- double[] calculateSMA(ArrayList<Candle>,int)
++ int calculateBias(ArrayList<Candle>)
+}
+
+class com.example.gutapp.data.indicators.impl.EomIndicator {
++ String getId()
++ String getDisplayName()
++ String getTag()
++ boolean isSubChart()
++ Indicator newInstance()
++ Result compute(ArrayList<Candle>)
++ int calculateBias(ArrayList<Candle>)
+}
+
+class com.example.gutapp.data.indicators.impl.DpoIndicator {
++ String getId()
++ String getDisplayName()
++ String getTag()
++ boolean isSubChart()
++ Indicator newInstance()
++ Result compute(ArrayList<Candle>)
++ int calculateBias(ArrayList<Candle>)
+}
+
+class com.example.gutapp.data.indicators.impl.VwmaIndicator {
++ String getId()
++ String getDisplayName()
++ String getTag()
++ boolean isSubChart()
++ Indicator newInstance()
++ Result compute(ArrayList<Candle>)
++ int calculateBias(ArrayList<Candle>)
+}
+
+class com.example.gutapp.data.indicators.impl.WmaIndicator {
++ String getId()
++ String getDisplayName()
++ String getTag()
++ boolean isSubChart()
++ Indicator newInstance()
++ Result compute(ArrayList<Candle>)
++ int calculateBias(ArrayList<Candle>)
+}
+
+class com.example.gutapp.data.indicators.impl.ApoIndicator {
++ String getId()
++ String getDisplayName()
++ String getTag()
++ boolean isSubChart()
++ Indicator newInstance()
++ Result compute(ArrayList<Candle>)
++ int calculateBias(ArrayList<Candle>)
+}
+
+class com.example.gutapp.GutApp {
+- {static} GutApp instance
++ void onCreate()
+}
+
+
+class com.example.gutapp.data.indicators.impl.TsiIndicator {
++ String getId()
++ String getDisplayName()
++ String getTag()
++ boolean isSubChart()
++ Indicator newInstance()
++ Result compute(ArrayList<Candle>)
++ int calculateBias(ArrayList<Candle>)
+- double[] applyEmaFilter(double[],int)
+}
+
+abstract class com.example.gutapp.session.AsyncRequest {
+# SessionCallback caller
+# boolean isDone
++ SessionCallback getCaller()
++ boolean isDone()
+}
+
+
+class com.example.gutapp.session.Responses.SearchTickerResponse {
+- ArrayList<TickerInfo> tickers
+- boolean found
++ boolean isFound()
++ ArrayList<TickerInfo> getTickers()
+}
+
+
+abstract class com.example.gutapp.session.Response {
+~ ResponseType type
++ ResponseType getType()
+}
+
+
+class com.example.gutapp.data.indicators.CurrentSessionHolder {
+- {static} IndicatorSession current
++ {static} void set(IndicatorSession)
++ {static} IndicatorSession getSession()
+}
+
+
+class com.example.gutapp.data.drawing.DrawingRenderer {
+- float[] pointBuffer
+- float[] lineBuffer
+- Paint linePaint
+- Paint fillPaint
+- Paint textPaint
+- Paint handlePaint
+- Paint bgPaint
+- Path path
+- float[] pts2
+- {static} float[] FIB_ALPHAS
+- {static} float[] GANN_SLOPES
+- {static} String[] GANN_LABELS
++ void drawLayer(Canvas,CombinedChart,DrawingManager,List<Candle>,ChartDrawing.Layer)
++ void draw(Canvas,CombinedChart,DrawingManager,List<Candle>)
+- void drawSingle(Canvas,ChartDrawing,Transformer,RectF,List<Candle>)
+- void drawHorizontalLine(Canvas,ChartDrawing.HorizontalLine,Transformer,RectF,List<Candle>)
+- void drawTrendLine(Canvas,ChartDrawing.TrendLine,Transformer,RectF,List<Candle>)
+- void drawRayLine(Canvas,ChartDrawing.RayLine,Transformer,RectF,List<Candle>)
+- void drawExtendedLine(Canvas,ChartDrawing.ExtendedLine,Transformer,RectF,List<Candle>)
+- void drawVerticalLine(Canvas,ChartDrawing.VerticalLine,Transformer,RectF,List<Candle>)
+- void drawLinearRegression(Canvas,ChartDrawing.LinearRegression,Transformer,RectF,List<Candle>)
+- void drawFibRetracement(Canvas,ChartDrawing.FibRetracement,Transformer,RectF,List<Candle>)
+- void drawPriceRange(Canvas,ChartDrawing.PriceRange,Transformer,RectF)
+- void drawRectangle(Canvas,ChartDrawing.Rectangle,Transformer,RectF,List<Candle>)
+- void drawEllipse(Canvas,ChartDrawing.Ellipse,Transformer,RectF,List<Candle>)
+- void drawTextAnnotation(Canvas,ChartDrawing.TextAnnotation,Transformer,RectF,List<Candle>)
+- void drawArrow(Canvas,ChartDrawing.Arrow,Transformer,RectF,List<Candle>)
+- void drawParallelChannel(Canvas,ChartDrawing.ParallelChannel,Transformer,RectF,List<Candle>)
+- void drawPitchfork(Canvas,ChartDrawing.Pitchfork,Transformer,RectF,List<Candle>)
+- void drawGannFan(Canvas,ChartDrawing.GannFan,Transformer,RectF,List<Candle>)
+- void drawRiskReward(Canvas,ChartDrawing.RiskReward,Transformer,RectF,List<Candle>)
+- void drawHandle(Canvas,float,float,int,boolean)
+- void drawSelectionHandle(Canvas,float,float)
+- void drawYLabel(Canvas,String,int,float,float)
+- float indexToX(float,Transformer)
+- float priceToY(double,Transformer)
+- float tsToX(long,List<Candle>,Transformer)
+- void applyLine(ChartDrawing.DrawingStyle)
+- float clamp(float,float,float)
+- float[] extendLine(float,float,float,float,RectF,boolean,boolean)
+- float[] extendLineRight(float,float,float,float,RectF)
+}
+
+
+class com.example.gutapp.data.indicators.impl.ObvIndicator {
++ String getId()
++ String getDisplayName()
++ String getTag()
++ boolean isSubChart()
++ Indicator newInstance()
++ Result compute(ArrayList<Candle>)
++ int calculateBias(ArrayList<Candle>)
+}
+
+class com.example.gutapp.data.indicators.impl.TrueRangeIndicator {
++ String getId()
++ String getDisplayName()
++ String getTag()
++ boolean isSubChart()
++ Indicator newInstance()
++ Result compute(ArrayList<Candle>)
++ int calculateBias(ArrayList<Candle>)
+}
+
+class com.example.gutapp.data.indicators.impl.StandardDeviationIndicator {
++ String getId()
++ String getDisplayName()
++ String getTag()
++ boolean isSubChart()
++ Indicator newInstance()
++ Result compute(ArrayList<Candle>)
++ int calculateBias(ArrayList<Candle>)
+}
+
+class com.example.gutapp.data.indicators.impl.AdlIndicator {
++ String getId()
++ String getDisplayName()
++ String getTag()
++ boolean isSubChart()
++ Indicator newInstance()
++ Result compute(ArrayList<Candle>)
++ int calculateBias(ArrayList<Candle>)
+}
+
+class com.example.gutapp.session.Requests.SyncChartPull {
++ byte[] getBytes()
++ void handle(Response)
+}
+
+class com.example.gutapp.session.Requests.GetBalance {
++ byte[] getBytes()
++ void handle(Response)
+}
+
+class com.example.gutapp.data.drawing.DrawingPersistence {
+- {static} String TAG
+- {static} String F_TYPE
+- {static} String F_COLOR
+- {static} String F_WIDTH
+- {static} String F_DASHED
+- {static} String F_FILLED
+- {static} String F_FILL_COLOR
+- {static} String F_LAYER
+- {static} String F_PRICE
+- {static} String F_LABEL
+- {static} String F_START_TS
+- {static} String F_START_PX
+- {static} String F_END_TS
+- {static} String F_END_PX
+- {static} String F_ANCHOR_TS
+- {static} String F_ANCHOR_PX
+- {static} String F_CANDLE_TS
+- {static} String F_DRAW_CH
+- {static} String F_DRAW_CH_DEV
+- {static} String F_LEVELS
+- {static} String F_PRICE_HI
+- {static} String F_PRICE_LO
+- {static} String F_TEXT
+- {static} String F_MID_PRICE
+- {static} String F_P0_TS
+- {static} String F_P0_PX
+- {static} String F_P1_TS
+- {static} String F_P1_PX
+- {static} String F_P2_TS
+- {static} String F_P2_PX
+- {static} String F_EXT_LEFT
+- {static} String F_EXT_RIGHT
+- {static} String F_ENTRY_PX
+- {static} String F_TARGET_PX
+- {static} String F_STOP_PX
+- {static} String F_IS_LONG
+- ChartStateDao dao
+- {static} String keyFor(String)
++ void save(String,DrawingManager)
++ void load(String,DrawingManager)
++ void clear(String)
++ int savedCount(String)
+- JSONObject serialize(ChartDrawing)
+- void serializeStyle(JSONObject,ChartDrawing.DrawingStyle)
+- ChartDrawing deserialize(JSONObject)
+- ChartDrawing.DrawingStyle deserializeStyle(JSONObject)
+}
+
+
+class com.example.gutapp.data.models.TickerInformation {
++ String name
++ String exchange
++ AssetType type
++ String sector
++ String toString()
+}
+
+
+enum com.example.gutapp.data.models.AssetType {
++  STOCK
++  CRYPTO
++  ETF
++  FOREX
++  OTHER
++ String type
++ {static} AssetType fromByte(byte)
+}
+
+
+class com.example.gutapp.data.indicators.IndicatorSession {
+- LinkedHashMap<String,Indicator> instances
++ Indicator addInstance(String)
++ void restoreInstance(Indicator.IndicatorSnapshot)
++ void removeInstance(String)
++ void clearAll()
++ List<Indicator> getAll()
++ List<Indicator> getOverlays()
++ List<Indicator> getSubCharts()
++ Indicator getInstance(String)
++ boolean isEmpty()
++ int size()
++ List<Indicator.IndicatorSnapshot> savePreset()
++ void loadPreset(List<Indicator.IndicatorSnapshot>)
+}
+
+
+class com.example.gutapp.data.OrderDialog {
+- AlertDialog dialog
+- TextView txtPrice
+- EditText editQty
+- double currentPrice
+- OrderDialogListener listener
+~ Order.OrderType type
+- TextView txtBalance
++ void show()
++ boolean isShowing()
++ void updateLivePrice(double)
+- void updatePriceDisplay(double)
+- void updateTotal()
+}
+
+
+interface com.example.gutapp.data.OrderDialog$OrderDialogListener {
+~ void onConfirmOrder(int,double,Order.OrderType)
+}
+
+enum com.example.gutapp.session.RequestType {
++  HANDSHAKEHELLO
++  HANDSHAKEVERIFY
++  LOGIN
++  REGISTER
++  REQUESTTICKERDATA
++  CANCELTICKERSTREAM
++  SEARCHTICKER
++  TICKERINFO
++  GETBALANCE
++  SENDORDER
++  FETCHORDERS
++  ENDORDER
++  FETCH_WATCHLISTS
++  MANAGE_WATCHLIST
++  MODIFY_WATCHLIST_ITEMS
++  GET_WATCHLIST_CONTENT
++  SYNC_CHART_PULL
++  SYNC_CHART_PUSH
++  SYNC_ALERT_PULL
++  SYNC_ALERT_PUSH
++ byte value
+}
+
+class com.example.gutapp.data.indicators.impl.LinearRegressionChannelIndicator {
++ String getId()
++ String getDisplayName()
++ String getTag()
++ boolean isSubChart()
++ Indicator newInstance()
++ Result compute(ArrayList<Candle>)
++ int calculateBias(ArrayList<Candle>)
+}
+
+class com.example.gutapp.ui.dialogue.IndicatorsPanel {
+- {static} int[] PRESET_COLORS
+# IndicatorSession session
+- IndicatorListener listener
+- android.widget.LinearLayout activeContainer
+- android.widget.LinearLayout catalogContainer
+- String searchQuery
++ {static} IndicatorsPanel newInstance(IndicatorSession)
++ void setListener(IndicatorListener)
++ View onCreateView(LayoutInflater,ViewGroup,Bundle)
+- View buildView(android.content.Context)
++ void onStart()
+- View buildTitleRow(android.content.Context)
+- void rebuildActiveList(android.content.Context)
+- View buildActiveRow(android.content.Context,Indicator)
+- String buildParamSummary(Indicator)
+- void rebuildCatalog(android.content.Context)
+- View buildCatalogRow(android.content.Context,Indicator)
+- View buildParamRow(android.content.Context,Indicator.Param,Indicator,TextView,android.widget.LinearLayout)
+- void showColorPicker(android.content.Context,Indicator,View)
+- void updateValLabel(TextView,Indicator.Param)
+- void addSectionHeader(android.content.Context,android.widget.LinearLayout,String)
+- View makeDivider(android.content.Context)
+- View makeSpacing(android.content.Context,int)
+- int dp(android.content.Context,int)
+- void notifyListener()
+}
+
+
+interface com.example.gutapp.ui.dialogue.IndicatorsPanel$IndicatorListener {
+~ void onIndicatorsChanged()
+}
+
+class com.example.gutapp.database.StockDataHelper {
+- {static} String TABLE_NAME
++ {static} String COLUMN_SYMBOL
++ {static} String COLUMN_DATE
++ {static} String COLUMN_TIMEFRAME
++ {static} String COLUMN_OPEN
++ {static} String COLUMN_HIGH
++ {static} String COLUMN_LOW
++ {static} String COLUMN_CLOSE
++ {static} String COLUMN_VOLUME
+- DB_Helper db_helper
++ ArrayList<Candle> getCachedStockData(String,Timeframe)
++ void saveStockData(String,Timeframe,ArrayList<Candle>)
++ {static} String createTable()
++ {static} String getName()
++ ArrayList<Candle> getStockData(String,Timeframe,int)
++ Cursor readFromDB(String[],String,String[],String,Integer)
++ Candle getLatestPrice(String)
+}
+
+
+enum com.example.gutapp.database.Timeframe {
++  ONE_MIN
++  FIVE_MIN
++  FIFTEEN_MIN
++  HOURLY
++  DAILY
++ String value
++ int interval
+}
+
+class com.example.gutapp.session.Responses.AlertSyncResponses {
+}
+class com.example.gutapp.session.Responses.AlertSyncResponses$PushResult {
++ byte status
+}
+
+class com.example.gutapp.session.Responses.AlertSyncResponses$PullResult {
++ byte status
++ List<AlertDBHelper.SyncRow> rows
+}
+
+class com.example.gutapp.data.gemini.GeminiHelper {
+- GenerativeModelFutures model
+- GenerativeModelFutures articleModel
+- Executor backgroundExecutor
+~ {static} String requestFormat
+~ {static} String articleRequestFormat
++ void getArticleAnalysis(String,String,String,AnalysisCallback)
++ void getAiAnalysis(String,AnalysisCallback)
+}
+
+
+interface com.example.gutapp.data.gemini.GeminiHelper$AnalysisCallback {
+~ void onSuccess(String)
+~ void onError(String)
+}
+
+class com.example.gutapp.data.indicators.impl.UltimateOscillatorIndicator {
++ String getId()
++ String getDisplayName()
++ String getTag()
++ boolean isSubChart()
++ Indicator newInstance()
++ Result compute(ArrayList<Candle>)
+- double getPeriodAverage(double[],double[],int,int)
++ int calculateBias(ArrayList<Candle>)
+}
+
+class com.example.gutapp.session.Responses.LoginResponse {
+~ LoginState state
++ LoginState getState()
+}
+
+
+enum com.example.gutapp.session.Responses.LoginState {
++  SUCCESS
++  WRONGPASSWORD
++  INVALIDUSER
+}
+
+class com.example.gutapp.data.indicators.impl.BollingerBandsIndicator {
++ String getId()
++ String getDisplayName()
++ String getTag()
++ boolean isSubChart()
++ Indicator newInstance()
++ Result compute(ArrayList<Candle>)
++ int calculateBias(ArrayList<Candle>)
+}
+
+class com.example.gutapp.session.Requests.SyncAlertPush {
+- List<AlertDBHelper.SyncRow> rows
++ List<AlertDBHelper.SyncRow> getRows()
++ byte[] getBytes()
++ void handle(Response)
+}
+
+
+class com.example.gutapp.data.alerts.conditions.PriceThresholdCondition {
++ {static} String TYPE
+- {static} Gson GSON
+- String symbol
+- double targetPrice
+- boolean lookForAbove
++ boolean check(PriceResource)
++ String getTypeName()
++ String serialize()
++ {static} Condition fromJson(String)
++ String getNotification()
++ String getSummary()
++ String getSymbol()
++ double getTargetPrice()
++ boolean isLookForAbove()
+}
+
+
+class com.example.gutapp.data.models.PriceChunk {
++ int reqId
++ ArrayList<Candle> chunk
++ boolean isLast
+}
+
+class com.example.gutapp.session.Requests.SearchTicker {
+- String searchQuery
+- boolean isFast
+- int limit
+- int lastTickerID
+- SessionCallback caller
++ byte[] getBytes()
++ void handle(Response)
+- void storeNames(ArrayList<TickerInfo>)
+}
+
+
+class com.example.gutapp.data.indicators.impl.DemaIndicator {
++ String getId()
++ String getDisplayName()
++ String getTag()
++ boolean isSubChart()
++ Indicator newInstance()
++ Result compute(ArrayList<Candle>)
+- double[] calculateEma(double[],int)
++ int calculateBias(ArrayList<Candle>)
+}
+
+abstract class com.example.gutapp.data.drawing.ChartDrawing {
+- String instanceId
++ Source source
++ DrawingStyle style
++ boolean locked
++ boolean selected
++ Layer layer
++ String getInstanceId()
++ {abstract}DrawingType getType()
++ {static} int resolveIndex(long,List<Candle>)
+}
+
+
+class com.example.gutapp.data.drawing.ChartDrawing$DrawingStyle {
++ int color
++ float strokeWidth
++ boolean dashed
++ float dashOn
++ float dashOff
++ boolean filled
++ int fillColor
++ float opacity
++ {static} DrawingStyle solid(int)
++ {static} DrawingStyle solid(int,float)
++ {static} DrawingStyle dashed(int)
++ DrawingStyle withFill(boolean)
++ void applyTo(Paint)
++ DrawingStyle copy()
+}
+
+
+enum com.example.gutapp.data.drawing.Source {
++  USER
++  INDICATOR
+}
+
+enum com.example.gutapp.data.drawing.DrawingType {
++  HORIZONTAL_LINE
++  TREND_LINE
++  RAY_LINE
++  EXTENDED_LINE
++  VERTICAL_LINE
++  LINEAR_REGRESSION
++  FIB_RETRACEMENT
++  PRICE_RANGE
++  RECTANGLE
++  ELLIPSE
++  TEXT_ANNOTATION
++  ARROW
++  PARALLEL_CHANNEL
++  PITCHFORK
++  GANN_FAN
++  RISK_REWARD
+}
+
+enum com.example.gutapp.data.drawing.Layer {
++  BEHIND_CANDLES
++  ABOVE_CANDLES
+}
+
+class com.example.gutapp.data.drawing.ChartDrawing$HorizontalLine {
++ double price
++ String label
++ DrawingType getType()
+}
+
+
+class com.example.gutapp.data.drawing.ChartDrawing$TrendLine {
++ long startTs
++ double startPrice
++ long endTs
++ double endPrice
++ boolean extendLeft
++ DrawingType getType()
+}
+
+
+class com.example.gutapp.data.drawing.ChartDrawing$RayLine {
++ long startTs
++ double startPrice
++ long anchorTs
++ double anchorPrice
++ DrawingType getType()
+}
+
+
+class com.example.gutapp.data.drawing.ChartDrawing$ExtendedLine {
++ long startTs
++ double startPrice
++ long endTs
++ double endPrice
++ DrawingType getType()
+}
+
+
+class com.example.gutapp.data.drawing.ChartDrawing$VerticalLine {
++ long candleTs
++ String label
++ DrawingType getType()
+}
+
+
+class com.example.gutapp.data.drawing.ChartDrawing$LinearRegression {
++ long startTs
++ long endTs
++ boolean drawChannel
++ int channelDeviation
++ DrawingType getType()
+}
+
+
+class com.example.gutapp.data.drawing.ChartDrawing$FibRetracement {
++ long startTs
++ double highPrice
++ long endTs
++ double lowPrice
++ float[] levels
++ DrawingType getType()
+}
+
+
+class com.example.gutapp.data.drawing.ChartDrawing$PriceRange {
++ double priceHigh
++ double priceLow
++ DrawingType getType()
+}
+
+
+class com.example.gutapp.data.drawing.ChartDrawing$Rectangle {
++ long startTs
++ double startPrice
++ long endTs
++ double endPrice
++ DrawingType getType()
+}
+
+
+class com.example.gutapp.data.drawing.ChartDrawing$Ellipse {
++ long startTs
++ double startPrice
++ long endTs
++ double endPrice
++ DrawingType getType()
+}
+
+
+class com.example.gutapp.data.drawing.ChartDrawing$TextAnnotation {
++ long candleTs
++ double price
++ String text
++ float textSizeSp
++ DrawingType getType()
+}
+
+
+class com.example.gutapp.data.drawing.ChartDrawing$Arrow {
++ long startTs
++ double startPrice
++ long endTs
++ double endPrice
++ DrawingType getType()
+}
+
+
+class com.example.gutapp.data.drawing.ChartDrawing$ParallelChannel {
++ long startTs
++ double startPrice
++ long endTs
++ double endPrice
++ double midPrice
++ DrawingType getType()
+}
+
+
+class com.example.gutapp.data.drawing.ChartDrawing$Pitchfork {
++ long p0Ts
++ double p0Price
++ long p1Ts
++ double p1Price
++ long p2Ts
++ double p2Price
++ DrawingType getType()
+}
+
+
+class com.example.gutapp.data.drawing.ChartDrawing$GannFan {
++ long startTs
++ double startPrice
++ long endTs
++ double endPrice
++ DrawingType getType()
+}
+
+
+class com.example.gutapp.data.drawing.ChartDrawing$RiskReward {
++ long startTs
++ long endTs
++ double entryPrice
++ double targetPrice
++ double stopPrice
++ boolean isLong
++ double tickSize
++ DrawingType getType()
++ double getRiskRewardRatio()
++ int getTargetTicks()
++ int getStopTicks()
+}
+
+
+class com.example.gutapp.session.Connection {
++ {static} String NETWORK_LOG_TAG
+~ {static} int PORT
+~ {static} String SERVER_IP
+- Socket socket
+- DataInputStream incoming
+- DataOutputStream outgoing
++ void send(byte[])
++ byte[] receive()
++ void reconnect()
++ void close()
+}
+
+
+class com.example.gutapp.session.Responses.StreamResponse {
+~ long ts
+~ double open
+~ double high
+~ double low
+~ double close
+~ long volume
++ Candle getCandle()
+}
+
+
+class com.example.gutapp.data.models.Order {
+- {static} long serialVersionUID
+~ String symbol
+~ OrderType type
+~ long entry_ts
+~ double entry_price
+~ int quantity
+~ int order_id
+~ boolean active
+- Long end_ts_internal
+- Double end_price_internal
++ Optional<Long> getEnd_ts()
++ Optional<Double> getEnd_price()
++ double paidPrice()
++ double endValue()
++ double priceDelta()
++ void setInactive(double,long)
++ {static} Order fromBuffer(ByteBuffer)
+}
+
+
+enum com.example.gutapp.data.models.OrderType {
++  Long
++  Short
++ byte value
+}
+
+class com.example.gutapp.ui.ChartActivity {
++ {static} String CHART_LOG_TAG
+- DB_Helper db_helper
+- StockChart chartContainer
+- String symbol
+- TextView textViewTitle
+- StockDataHelper.Timeframe interval
+- OrderDialog activeDialog
+- double current_price
+- OrdersList ordersFragment
+- ArrayList<Order> allOrders
+- TextView btnChartCandle
+- TextView btn5m
+- IndicatorSession indicatorSession
+- PresetRepository presetRepo
+- boolean isManagerReturned
+- LinearLayout presetListContainer
+- DrawingPersistence drawingPersistence
+- android.widget.LinearLayout drawingModeHud
+- android.widget.TextView hudToolName
+- DrawingEditPanel drawingEditPanel
+- IndicatorEditPanel indicatorEditPanel
+- double lastDisplayedPrice
+- String cachedAiResponse
+# void onCreate(Bundle)
+- String getSentimentString(int)
+# void onResume()
+- void reloadChartStateFromCache()
+# void networkReconnect()
+# void networkDisconnect()
+# void onPause()
+# void onDestroy()
++ void onClick(View)
+- void switchChartType(StockChart.ChartType,TextView)
+- void switchTimeframe(StockDataHelper.Timeframe,TextView)
+- void setChipActive(TextView,boolean)
+- void openIndicatorsPanel()
++ void onIndicatorsChanged()
+- void showIndicatorEditor(String)
+- void clearIndicatorSelection()
+- void refreshIndicatorChip()
+- void openDrawingPanel()
+- void openPresetPicker()
+- View buildPresetPickerView(List<PresetRepository.Preset>)
+- void refreshPresetListUI()
+- View buildPickerPresetRow(android.content.Context,PresetRepository.Preset)
+- void applyPreset(PresetRepository.Preset)
+- void promptSaveCurrentPreset()
+- View makeActionRow(android.content.Context,String,String,String,View.OnClickListener)
+- View makeSectionHeader(android.content.Context,String)
+- View makeDivider(android.content.Context)
+- View makeSpacing(android.content.Context,int)
+- int dpI(int)
++ void formatTitle(String)
+- void updateChartData()
+- RequestTickerData getRequest(String,StockDataHelper.Timeframe,long,long,boolean,boolean,SessionCallback)
++ void onDataReceived(DataType,Object)
+- void updatePriceDisplay(double)
+- void updateOrdersUI()
++ void onConfirmOrder(int,double,Order.OrderType)
++ void PLUpdate(double)
++ void notifyOrderRemoved(Order)
+- void performAiAnalysis()
+- void showAiPopup(String)
++ void onSuccess(String)
++ void onError(String)
+- void setDrawingTool(DrawingManager.DrawingTool)
+- void clearAllUserDrawings()
+- void updateDrawingHud(DrawingManager.DrawingTool)
+- String toolDisplayName(DrawingManager.DrawingTool)
+}
+
+
+class com.example.gutapp.session.ChartSyncManager {
+- {static} String TAG
+- {static} long PUSH_DEBOUNCE_MS
+- {static} ChartSyncManager instance
+- Context appCtx
+- ChartStateDao dao
+- Handler main
+- Runnable pushTask
+- Runnable remoteChangeListener
++ {static} ChartSyncManager init(Context)
++ {static} ChartSyncManager get()
++ void setRemoteChangeListener(Runnable)
++ void pullAll()
++ void schedulePush()
++ void flush()
+- void pushNow()
++ void onDataReceived(DataType,Object)
++ void onActionRequired(int,Object)
+}
+
+
+class com.example.gutapp.ui.dialogue.DrawingEditPanel {
+- {static} int[] COLORS
+- ChartDrawing currentDrawing
+- Runnable onDelete
+- Runnable onDeselect
+- OnChangeListener onChange
+- {static} int MATCH
+- {static} int WRAP
+- void init()
++ void show(ChartDrawing,Runnable,Runnable,OnChangeListener)
++ void hide()
+- void buildPanel(ChartDrawing)
+- View buildHeader(ChartDrawing)
+- View buildColorRow(ChartDrawing)
+- void refreshColorRow(LinearLayout,ChartDrawing)
+- View buildStrokeRow(ChartDrawing)
+- View buildLayerRow(ChartDrawing)
+- View buildSpecific(ChartDrawing)
+- void updateDevButtons(ChartDrawing.LinearRegression,TextView,TextView,TextView)
+- void fire()
+- TextView tv(String,String,float,boolean)
+- TextView chip(String,String)
+- TextView sectionLabel(String)
+- LinearLayout row(int,int,int,int)
+- View div()
+- View sp(int)
+- String levelsStr(float[])
+- String typeName(ChartDrawing)
+- int dp(int)
+}
+
+
+interface com.example.gutapp.ui.dialogue.DrawingEditPanel$OnChangeListener {
+~ void onChange()
+}
+
+class com.example.gutapp.data.indicators.impl.EmaIndicator {
++ String getId()
++ String getDisplayName()
++ String getTag()
++ boolean isSubChart()
++ Indicator newInstance()
++ Result compute(ArrayList<Candle>)
++ int calculateBias(ArrayList<Candle>)
+}
+
+interface com.example.gutapp.session.news.FinnhubNewsService {
+~ Call<List<NewsArticle>> getMarketNews(String,String)
+~ Call<List<NewsArticle>> getCompanyNews(String,String,String,String)
+}
+
+abstract class com.example.gutapp.data.alerts.Condition {
++ {abstract}boolean check(PriceResource)
++ {abstract}String getNotification()
++ {abstract}String getTypeName()
++ {abstract}String serialize()
++ String getDisplayName()
++ {abstract}String getSummary()
+}
+
+class com.example.gutapp.ui.fragments.DrawingToolbarFragment {
+- DrawingChart drawingChart
+- LinearLayout drawingsListContainer
+- TextView snapBtn
+- {static} int[] PRESET_COLORS
+- {static} String[] COLOR_NAMES
+- int selectedColorIndex
+- float selectedWidth
+- boolean selectedDashed
+- {static} Object[][] TOOLS
++ {static} DrawingToolbarFragment newInstance(DrawingChart)
++ View onCreateView(LayoutInflater,ViewGroup,Bundle)
+- View buildView()
+- View buildModeBar()
+- View buildColorRow()
+- void refreshWidthRow(LinearLayout)
+- void refreshColorRow(LinearLayout)
+- void applyActiveStyle()
+- View buildToolGrid()
+- void refreshDrawingsList()
+- View buildDrawingRow(ChartDrawing)
+- String describeDrawing(ChartDrawing)
+- void openColorPicker(ChartDrawing)
+- void openLabelEditor(ChartDrawing)
+- EditText buildNumericField(String,String,LinearLayout)
+- void notifyChanged()
+- void refreshAll()
+- TextView tv(String,String,float,boolean)
+- TextView chipBtn(String,String)
+- View divider()
+- View spacer(int)
+- TextView sectionLabel(String)
+- int dp(int)
+- int mp()
+- int wc()
+}
+
+
+class com.example.gutapp.session.Responses.ChartSyncResponses {
+}
+class com.example.gutapp.session.Responses.ChartSyncResponses$PushResult {
++ byte status
+}
+
+class com.example.gutapp.session.Responses.ChartSyncResponses$PullResult {
++ byte status
++ List<ChartStateDao.Row> rows
+- {static} String kindFromCode(int)
+}
+
+
+class com.example.gutapp.data.indicators.IndicatorRegistry {
+- LinkedHashMap<String,Indicator> types
+- {static} IndicatorRegistry instance
++ {static} IndicatorRegistry getInstance()
+- void register(Indicator)
++ List<Indicator> getAllTypes()
++ Indicator getType(String)
++ boolean hasType(String)
+}
+
+
+enum com.example.gutapp.session.Flag {
++  PLAINTEXT
++  ENCRYPTED
++ byte value
+}
+
+class com.example.gutapp.data.indicators.impl.ParabolicSARIndicator {
++ String getId()
++ String getDisplayName()
++ String getTag()
++ boolean isSubChart()
++ Indicator newInstance()
++ Result compute(ArrayList<Candle>)
++ int calculateBias(ArrayList<Candle>)
+}
+
+class com.example.gutapp.data.indicators.impl.KamaIndicator {
++ String getId()
++ String getDisplayName()
++ String getTag()
++ boolean isSubChart()
++ Indicator newInstance()
++ Result compute(ArrayList<Candle>)
++ int calculateBias(ArrayList<Candle>)
+}
+
+class com.example.gutapp.data.alerts.conditions.SMACrossoverCondition {
++ {static} String TYPE
+- {static} Gson GSON
+- String symbol
+- StockDataHelper.Timeframe timeframe
+- int period
+- CrossDirection crossDirection
++ boolean check(PriceResource)
++ String getTypeName()
++ String serialize()
++ {static} Condition fromJson(String)
++ String getNotification()
++ String getSummary()
++ StockDataHelper.Timeframe getTimeframe()
++ int getPeriod()
++ CrossDirection getCrossDirection()
+}
+
+
+enum com.example.gutapp.data.alerts.conditions.CrossDirection {
++  ABOVE
++  BELOW
+}
+
+class com.example.gutapp.session.Requests.EndOrder {
+- Order order
+- double expectedPrice
+- String password
+- Context appContext
++ byte[] getBytes()
++ void handle(Response)
+- String fetchPassword()
+}
+
+
+interface com.example.gutapp.data.alerts.PriceResource {
+~ Candle getLatestPrice(String)
+~ List<Candle> getCachedStockData(String,StockDataHelper.Timeframe,int)
+}
+
+class com.example.gutapp.session.Requests.TickerInfoRequest {
+~ String symbol
++ byte[] getBytes()
++ void handle(Response)
+}
+
+
+class com.example.gutapp.data.indicators.impl.VolumeOscillatorIndicator {
++ String getId()
++ String getDisplayName()
++ String getTag()
++ boolean isSubChart()
++ Indicator newInstance()
++ Result compute(ArrayList<Candle>)
++ int calculateBias(ArrayList<Candle>)
+}
+
+class com.example.gutapp.data.indicators.impl.BbBreakoutStrategyIndicator {
++ String getId()
++ String getDisplayName()
++ String getTag()
++ boolean isSubChart()
++ Indicator newInstance()
++ Result compute(ArrayList<Candle>)
++ int calculateBias(ArrayList<Candle>)
+}
+
+class com.example.gutapp.data.indicators.impl.ForceIndexIndicator {
++ String getId()
++ String getDisplayName()
++ String getTag()
++ boolean isSubChart()
++ Indicator newInstance()
++ Result compute(ArrayList<Candle>)
++ int calculateBias(ArrayList<Candle>)
+}
+
+enum com.example.gutapp.session.DataType {
++  ERROR
++  REGISTER_ERROR
++  LOGIN_ERROR
++  AUTH_SUCCESS
++  MARKET_DATA
++  TICKER_STREAM
++  TICKER_SNAPSHOT
++  TICKER_REQUEST_DONE
++  TICKER_ERROR
++  SEARCH_RESULT
++  SEARCH_NO_RESULT
++  TICKER_INFORMATION
++  ORDER_RECEIVED
++  ORDER_INVALID
++  ORDER_SLIP
++  ORDERS_BATCH
++  ORDER_CLOSED_SUCCESS
++  ORDER_CLOSED_FAILURE
++  WATCHLISTS_LOADED
++  WATCHLIST_OPERATION_RESULT
++  WATCHLIST_CONTENT_LOADED
++  WATCHLIST_ERROR
++  CHART_SYNC_PULLED
++  CHART_SYNC_PUSHED
++  CHART_SYNC_ERROR
++  ALERT_SYNC_PULLED
++  ALERT_SYNC_PUSHED
++  ALERT_SYNC_ERROR
+}
+
+class com.example.gutapp.data.news.NewsArticle {
++ String category
++ long datetime
++ String headline
++ long id
++ String image
++ String related
++ String source
++ String summary
++ String url
++ boolean hasImage()
+}
+
+
+class com.example.gutapp.session.Requests.RegisterRequest {
+- byte[] payload
++ byte[] getBytes()
++ void handle(Response)
+}
+
+
+class com.example.gutapp.data.models.Candle {
++ long timestamp
++ double open
++ double high
++ double low
++ double close
++ long volume
+- Direction direction
++ Direction getDirection()
++ String toString()
+}
+
+
+enum com.example.gutapp.data.models.Direction {
++  UP
++  DOWN
+}
+
+class com.example.gutapp.session.background.NetworkService {
+- {static} String TAG
+- {static} String CHANNEL_ID
+- {static} int FG_ID
+- ConcurrentHashMap<String,Integer> streamReqIds
++ void onCreate()
++ int onStartCommand(Intent,int,int)
++ void onDestroy()
++ IBinder onBind(Intent)
++ void onDataReceived(DataType,Object)
++ void onActionRequired(int,Object)
++ void requestPriceData(String)
++ void stopPriceData(String)
++ void onAlertTriggered(Alert)
+- Notification buildForegroundNotification()
+- void showAlertNotification(Alert)
+- void createNotificationChannel()
+- String findSymbolByReqId(int)
+}
+
+
+class com.example.gutapp.data.indicators.impl.SuperTrendStrategyIndicator {
++ String getId()
++ String getDisplayName()
++ String getTag()
++ boolean isSubChart()
++ Indicator newInstance()
++ Result compute(ArrayList<Candle>)
+- double[] calculateATR(ArrayList<Candle>,int)
++ int calculateBias(ArrayList<Candle>)
+}
+
+class com.example.gutapp.data.indicators.impl.EnvelopesIndicator {
++ String getId()
++ String getDisplayName()
++ String getTag()
++ boolean isSubChart()
++ Indicator newInstance()
++ Result compute(ArrayList<Candle>)
++ int calculateBias(ArrayList<Candle>)
+}
+
+class com.example.gutapp.session.NetworkClient {
+- {static} NetworkClient instance
+- SessionManager sessionManager
+- Thread networkThread
+- Context appContext
++ {static} NetworkClient getInstance(Context)
++ void start()
++ void stop()
+}
+
+
+class com.example.gutapp.data.indicators.impl.StochasticIndicator {
++ String getId()
++ String getDisplayName()
++ String getTag()
++ boolean isSubChart()
++ Indicator newInstance()
++ Result compute(ArrayList<Candle>)
++ int calculateBias(ArrayList<Candle>)
+}
+
+class com.example.gutapp.session.Responses.TickerInfoResponse {
+~ TickerInformation information
++ TickerInformation getInformation()
+}
+
+
+class com.example.gutapp.session.Responses.HandShakeVerifyResponse {
+- boolean isAccepted
++ boolean isAccepted()
+}
+
+
+abstract class com.example.gutapp.session.Request {
++ byte[] reqId
++ int getReqId()
++ {abstract}byte[] getBytes()
++ {abstract}void handle(Response)
++ void discardRequest()
+}
+
+
+class com.example.gutapp.data.indicators.impl.RsiReversalStrategyIndicator {
++ String getId()
++ String getDisplayName()
++ String getTag()
++ boolean isSubChart()
++ Indicator newInstance()
++ Result compute(ArrayList<Candle>)
+- double[] calculateRSI(ArrayList<Candle>,int)
++ int calculateBias(ArrayList<Candle>)
+}
+
+class com.example.gutapp.session.ResponseFactory {
++ {static} AsyncResponse createResponse(byte[])
+}
+
+interface com.example.gutapp.session.SessionCallback {
+~ void onDataReceived(DataType,Object)
+~ void onActionRequired(int,Object)
+}
+
+class com.example.gutapp.session.Responses.HandShakeHelloResponse {
+- byte[] payload
++ byte[] getPayload()
+}
+
+
+class com.example.gutapp.data.indicators.impl.RocIndicator {
++ String getId()
++ String getDisplayName()
++ String getTag()
++ boolean isSubChart()
++ Indicator newInstance()
++ Result compute(ArrayList<Candle>)
++ int calculateBias(ArrayList<Candle>)
+}
+
+class com.example.gutapp.data.indicators.impl.MaIndicator {
++ String getId()
++ String getDisplayName()
++ String getTag()
++ boolean isSubChart()
++ Indicator newInstance()
++ Result compute(ArrayList<Candle>)
++ int calculateBias(ArrayList<Candle>)
+}
+
+class com.example.gutapp.database.DB_Helper {
+- {static} String DB_NAME
+- {static} int DB_VERSION
+- {static} DB_Helper instance
++ {static} String DB_LOG_TAG
+- String[] table_initialize_query
++ {static} DB_Helper getInstance(Context)
++ void onCreate(SQLiteDatabase)
++ void onUpgrade(SQLiteDatabase,int,int)
+}
+
+
+class com.example.gutapp.data.OrderRow {
+- LinearLayout rowLayout
+- Order order
+- Activity context
+- Handler mainHandler
+- TextView priceView
+- TextView plView
+- int reqId
+- double currentPrice
+- double totalPL
+- android.widget.Button closeButton
+- boolean isClosing
+- java.text.SimpleDateFormat dateFormat
+- OrderRowContainer container
+- void renderInactiveState()
++ void startStreaming()
+- LinearLayout createLayout()
+- void updateUI(double)
++ void stop()
++ boolean isActive()
++ LinearLayout getView()
++ void onDataReceived(DataType,Object)
+- void handleCloseInitiated()
++ void onActionRequired(int,Object)
++ double getPL()
+- void closeOrder()
+}
+
+
+interface com.example.gutapp.data.OrderRow$OrderRowContainer {
+~ void notifyPLChange()
+~ void notifyClosed(Order)
+}
+
+class com.example.gutapp.session.Requests.SendOrder {
+~ String symbol
+~ int quantity
+~ double asking_price
+~ Order.OrderType type
+~ Context appContext
++ byte[] getBytes()
++ void handle(Response)
+- String fetchPassword()
+}
+
+
+class com.example.gutapp.data.indicators.impl.MacdIndicator {
++ String getId()
++ String getDisplayName()
++ String getTag()
++ boolean isSubChart()
++ Indicator newInstance()
++ Result compute(ArrayList<Candle>)
+- double[] computeEma(ArrayList<Candle>,int)
++ int calculateBias(ArrayList<Candle>)
+}
+
+abstract class com.example.gutapp.session.AsyncResponse {
+# int reqId
++ int getReqId()
+}
+
+
+enum com.example.gutapp.session.ResponseType {
++  HANDSHAKEVERIFY
++  HANDSHAKESUCCESS
++  SNAPSHOT
++  STREAM
++  REGISTER
++  LOGIN
++  SEARCHTICKERRESPONSE
++  TICKERINFO
++  GETBALANCE
++  ORDERCOMMITED
++  INVALIDORDER
++  ORDERSLIPPED
++  ORDERSBATCH
++  ORDEREXITTED
++  ORDERFAILEDEXIT
++  WATCHLIST_SUMMARY
++  WATCHLIST_ACTION_STATUS
++  WATCHLIST_CONTENT
++  CHART_SYNC_PULL_RESULT
++  CHART_SYNC_PUSH_RESULT
++  ALERT_SYNC_PULL_RESULT
++  ALERT_SYNC_PUSH_RESULT
++  ALERT
++ byte value
++ {static} ResponseType fromByte(byte)
+}
+
+
+class com.example.gutapp.data.indicators.impl.CmoIndicator {
++ String getId()
++ String getDisplayName()
++ String getTag()
++ boolean isSubChart()
++ Indicator newInstance()
++ Result compute(ArrayList<Candle>)
++ int calculateBias(ArrayList<Candle>)
+}
+
+class com.example.gutapp.session.Requests.LoginRequest {
+- byte[] payload
+- String username
++ byte[] getBytes()
++ void handle(Response)
+}
+
+
+class com.example.gutapp.data.indicators.impl.CoppockIndicator {
++ String getId()
++ String getDisplayName()
++ String getTag()
++ boolean isSubChart()
++ Indicator newInstance()
++ Result compute(ArrayList<Candle>)
++ int calculateBias(ArrayList<Candle>)
+}
+
+class com.example.gutapp.data.indicators.impl.MassIndexIndicator {
++ String getId()
++ String getDisplayName()
++ String getTag()
++ boolean isSubChart()
++ Indicator newInstance()
++ Result compute(ArrayList<Candle>)
+- double[] calculateEma(double[],int)
++ int calculateBias(ArrayList<Candle>)
+}
+
+class com.example.gutapp.data.indicators.impl.MacdStrategyIndicator {
++ String getId()
++ String getDisplayName()
++ String getTag()
++ boolean isSubChart()
++ Indicator newInstance()
++ Result compute(ArrayList<Candle>)
+- double[] calculateEMA(ArrayList<Candle>,int)
+- double[] calculateEMAForSeries(double[],int,int)
++ int calculateBias(ArrayList<Candle>)
+}
+
+class com.example.gutapp.data.StockRow {
+~ LinearLayout stockRow
+~ double lastPrice
+~ String symbol
+~ String name
+~ Activity callerActivity
+~ int reqId
+~ Handler mainHandler
+~ TextView priceView
+~ TextView nameView
++ void loadPrice()
+- void setUpRow()
+- void showSavePrompt(View)
+- void openWatchlistSelectionDialog()
+- void buildListSelectionDialog(List<WatchlistResponses.WatchlistInfo>)
++ LinearLayout getRow()
++ void discard()
+- void updatePrice(PriceChunk)
++ boolean isActive()
++ void onDataReceived(DataType,Object)
++ void onActionRequired(int,Object)
+}
+
+
+class com.example.gutapp.database.ChartStateDao {
++ {static} String KIND_DRAWINGS
++ {static} String KIND_INDICATORS
++ {static} String KIND_PRESET
++ {static} String TABLE
++ {static} String COL_KIND
++ {static} String COL_KEY
++ {static} String COL_PAYLOAD
++ {static} String COL_UPDATED
++ {static} String COL_DIRTY
++ {static} String COL_DELETED
+- DB_Helper db
+- {static} Runnable localChangeListener
++ {static} void setLocalChangeListener(Runnable)
+- {static} void fireLocalChange()
++ void clearAll()
++ {static} String createTable()
++ String get(String,String)
++ List<String> listKeys(String)
++ void upsertLocal(String,String,String)
++ void softDelete(String,String)
++ List<Row> getDirty()
++ void markSynced(String,String,long)
++ boolean applyRemote(String,String,String,long,boolean)
+}
+
+
+class com.example.gutapp.database.ChartStateDao$Row {
++ String kind
++ String key
++ String payload
++ long updatedAt
++ boolean deleted
+}
+
+class com.example.gutapp.data.indicators.impl.DisparityIndexIndicator {
++ String getId()
++ String getDisplayName()
++ String getTag()
++ boolean isSubChart()
++ Indicator newInstance()
++ Result compute(ArrayList<Candle>)
++ int calculateBias(ArrayList<Candle>)
+}
+
+class com.example.gutapp.ui.NewsActivity {
++ {static} String EXTRA_SYMBOL
+- LinearLayout listContainer
+- ProgressBar loading
+- View emptyState
+- TextView emptyText
+- TextView chipGeneral
+- String symbol
+- String category
+# void onCreate(Bundle)
++ void onDataReceived(DataType,Object)
+# void networkReconnect()
+# void networkDisconnect()
+- void selectCategory(String,TextView)
+- void setActiveChip(TextView)
+- void load()
+- void render(List<NewsArticle>)
+- View buildCard(NewsArticle)
+- String buildMeta(NewsArticle)
+- void openArticle(NewsArticle)
+- void showLoading()
+- void showEmpty(String)
+}
+
+
+class com.example.gutapp.ui.fragments.StockLiveList {
+- ArrayList<StockRow> stockList
+- LinearLayout container
+- ScrollView scrollView
+- Button loadBtn
+- ProgressBar loadProgress
+- LoadMoreCallback activityCallback
+- int currentOffset
+- int PAGE_SIZE
+- String currentWatchlistName
+- Handler mainHandler
++ {static} StockLiveList newInstance(ArrayList<TickerInfo>)
++ {static} StockLiveList newInstance(ArrayList<TickerInfo>,String)
++ View onCreateView(LayoutInflater,ViewGroup,Bundle)
++ void onViewCreated(View,Bundle)
+- void requestNextPage()
++ void onDataReceived(DataType,Object)
++ void onActionRequired(int,Object)
++ void loadStockList(ArrayList<TickerInfo>)
+- void addTickersToContainer(ArrayList<String>)
+- View createStockRow(String,String)
+- void updateVisibleTickerSubscriptions()
++ void refreshVisibleRows()
++ void enableBtn()
++ void stopNothingFound()
++ boolean isEmpty()
++ void onAttach(Context)
++ void onDetach()
++ void onResume()
++ void onPause()
++ void stop()
+}
+
+
+interface com.example.gutapp.ui.fragments.StockLiveList$LoadMoreCallback {
+~ void onLoadMore()
+~ void loadingEnd()
+}
+
+class com.example.gutapp.ui.ExploreActivity {
++ {static} String EXPLORE_LOG_TAG
+~ StockLiveList stock_list_fragment
+~ int lastTickerId
+~ String query
+~ LinearLayout loading_layout
+~ FragmentContainerView stock_list_container
+~ TextView nothingFound
+# void onCreate(Bundle)
+- void loadMore()
++ void onDataReceived(DataType,Object)
++ void onLoadMore()
++ void loadingEnd()
+# void networkReconnect()
+# void networkDisconnect()
+}
+
+
+class com.example.gutapp.data.indicators.impl.KeltnerChannelsIndicator {
++ String getId()
++ String getDisplayName()
++ String getTag()
++ boolean isSubChart()
++ Indicator newInstance()
++ Result compute(ArrayList<Candle>)
++ int calculateBias(ArrayList<Candle>)
+}
+
+class com.example.gutapp.ui.dialogue.IndicatorEditPanel {
+- {static} int[] COLORS
+- Indicator current
+- Runnable onDelete
+- Runnable onDeselect
+- OnChangeListener onChange
+- {static} int MATCH
+- {static} int WRAP
+- void init()
++ void show(Indicator,Runnable,Runnable,OnChangeListener)
++ void hide()
++ Indicator getCurrent()
+- void buildPanel(Indicator)
+- View buildHeader(Indicator)
+- View buildColorRow(Indicator)
+- void refreshColorRow(LinearLayout,Indicator)
+- void applySwatch(View,int,boolean)
+- View buildParamRow(Indicator,Indicator.Param)
+- float clamp(float,Indicator.Param)
+- float round(float,Indicator.Param)
+- String fmt(Indicator.Param)
+- void fire()
+- TextView tv(String,String,float,boolean)
+- TextView chip(String,String)
+- TextView sectionLabel(String)
+- LinearLayout row(int,int,int,int)
+- View div()
+- View sp(int)
+- int dp(int)
+}
+
+
+interface com.example.gutapp.ui.dialogue.IndicatorEditPanel$OnChangeListener {
+~ void onChange()
+}
+
+class com.example.gutapp.data.indicators.impl.PivotPointsIndicator {
++ String getId()
++ String getDisplayName()
++ String getTag()
++ boolean isSubChart()
++ Indicator newInstance()
++ Result compute(ArrayList<Candle>)
++ int calculateBias(ArrayList<Candle>)
+- ChartDrawing.HorizontalLine hline(double,String,DrawingStyle)
+}
+
+class com.example.gutapp.ui.AlertsActivity {
+- LinearLayout listContainer
+- View emptyState
+- TextView countBar
+- String filterSymbol
+- AlertDialog tickerPickDialog
+- LinearLayout searchResultsContainer
+# void onCreate(Bundle)
+# void onResume()
+# void onPause()
+# void networkReconnect()
+# void networkDisconnect()
++ void onDataReceived(DataType,Object)
+- void showTickerSearchDialog()
+- View buildSearchResultRow(TickerInfo)
+- void refreshList()
+- View buildSectionHeader(String)
+- View buildAlertRow(Alert)
+- String fmt(long)
+- int dp(int)
+}
+
+
+class com.example.gutapp.session.Requests.GetWatchlists {
++ byte[] getBytes()
++ void handle(Response)
+}
+
+class com.example.gutapp.data.SearchAdapter {
+- List<TickerInfo> mData
+- OnItemClickListener listener
++ void setOnItemClickListener(OnItemClickListener)
++ void updateData(List<TickerInfo>)
++ ViewHolder onCreateViewHolder(ViewGroup,int)
++ void onBindViewHolder(ViewHolder,int)
++ int getItemCount()
+}
+
+
+interface com.example.gutapp.data.SearchAdapter$OnItemClickListener {
+~ void onItemClick(TickerInfo)
+}
+
+class com.example.gutapp.data.SearchAdapter$ViewHolder {
+~ TextView symbolTv
+}
+
+class com.example.gutapp.database.AlertDBHelper {
++ {static} String TABLE_ALERTS
++ {static} String COL_ID
++ {static} String COL_SYMBOL
++ {static} String COL_LABEL
++ {static} String COL_STATUS
++ {static} String COL_REPEAT_MODE
++ {static} String COL_COOLDOWN_SECS
++ {static} String COL_LAST_TRIGGERED
++ {static} String COL_EXPIRES_AT
++ {static} String COL_PRIORITY
++ {static} String COL_CONDITION_TYPE
++ {static} String COL_CONDITION_JSON
++ {static} String COL_UUID
++ {static} String COL_UPDATED_AT
++ {static} String COL_DIRTY
++ {static} String COL_DELETED
+- DB_Helper db
+- {static} Runnable localChangeListener
++ {static} void setLocalChangeListener(Runnable)
+- {static} void fireLocalChange()
++ {static} String createTable()
++ void insertAlert(Alert)
++ List<Alert> getActiveAlerts()
++ List<Alert> getAlertsForSymbol(String)
++ List<Alert> getAllAlerts()
++ void updateAlert(Alert)
++ void updateAlertStatus(Alert)
++ void updateAlertStatusByUser(Alert)
++ void deleteAlert(Alert)
++ void deleteAllForSymbol(String)
++ List<SyncRow> getDirty()
++ void markSynced(String,long)
++ boolean applyRemote(String,String,long,boolean)
+- List<Alert> queryAlerts(String,String[])
+- ContentValues toValues(Alert)
+- Alert fromCursor(Cursor)
+- String payloadFromCursor(Cursor)
+- ContentValues valuesFromPayload(String)
+- {static} String getStr(Cursor,String)
++ void clear()
+}
+
+
+class com.example.gutapp.database.AlertDBHelper$SyncRow {
++ String uuid
++ String payload
++ long updatedAt
++ boolean deleted
+}
+
+class com.example.gutapp.data.alerts.Alert {
+- long id
+- String uuid
+- long updatedAt
+- String symbol
+- String label
+- Condition condition
+- Status status
+- RepeatMode repeatMode
+- int cooldownSeconds
+- long lastTriggeredAt
+- long expiresAt
+- Priority priority
++ boolean isEvaluatable()
++ void onTriggered()
++ String getNotification()
+}
+
+
+enum com.example.gutapp.data.alerts.Status {
++  ACTIVE
++  INACTIVE
++  TRIGGERED
++ {static} Status fromInt(int)
+}
+
+
+enum com.example.gutapp.data.alerts.RepeatMode {
++  ONCE
++  PERSISTENT
++  COOLDOWN
+}
+
+enum com.example.gutapp.data.alerts.Priority {
++  LOW
++  MEDIUM
++  HIGH
+}
+
+class com.example.gutapp.session.Requests.CancelTickerStream {
+- String symbol
+- byte[] previousReqId
++ byte[] getBytes()
++ void handle(Response)
+}
+
+
+class com.example.gutapp.data.UserGlobals {
++ {static} String USER_NAME
++ {static} boolean LOGGED_IN
+- {static} MutableLiveData<Double> BALANCE
++ {static} LiveData<Double> getBalance()
++ {static} void updateBalance(double)
++ {static} void setBalance(double)
++ {static} void clearUserData(Context)
+}
+
+
+class com.example.gutapp.data.indicators.impl.CciIndicator {
++ String getId()
++ String getDisplayName()
++ String getTag()
++ boolean isSubChart()
++ Indicator newInstance()
++ Result compute(ArrayList<Candle>)
++ int calculateBias(ArrayList<Candle>)
+}
+
+class com.example.gutapp.data.indicators.impl.VwapIndicator {
++ String getId()
++ String getDisplayName()
++ String getTag()
++ boolean isSubChart()
++ Indicator newInstance()
++ Result compute(ArrayList<Candle>)
++ int calculateBias(ArrayList<Candle>)
+}
+
+class com.example.gutapp.data.indicators.impl.HistoricalVolatilityIndicator {
++ String getId()
++ String getDisplayName()
++ String getTag()
++ boolean isSubChart()
++ Indicator newInstance()
++ Result compute(ArrayList<Candle>)
++ int calculateBias(ArrayList<Candle>)
+}
+
+class com.example.gutapp.ui.HomeActivity {
++ {static} String HOME_LOG_TAG
+- TextView PL
+- OrdersList ordersList
+- StockLiveList stockLiveListFragment
+- DrawerLayout drawerLayout
+# void onCreate(Bundle)
+- ArrayList<TickerInfo> loadStockList()
+- void setUserTitle()
++ void onDataReceived(DataType,Object)
+- void updateOrdersList(ArrayList<Order>)
++ void PLUpdate(double)
++ void notifyOrderRemoved(Order)
+# void networkReconnect()
+# void networkDisconnect()
+# void onResume()
+# void onPause()
+- void updateAlertsBadge()
+}
+
+
+class com.example.gutapp.database.ChartStateMigration {
+- {static} String META_PREFS
+- {static} String FLAG
+- {static} String DRAW_PREFS
+- {static} String DRAW_PREFIX
+- {static} String IND_PREFS
+- {static} String IND_AUTO
+- {static} String IND_PRESETS
++ {static} void migrateIfNeeded(Context)
++ {static} void clearLegacyPrefs(Context)
+- {static} void migrateDrawings(Context,ChartStateDao)
+- {static} void migrateIndicators(Context,ChartStateDao)
+}
+
+
+class com.example.gutapp.data.indicators.impl.McGinleyDynamicIndicator {
++ String getId()
++ String getDisplayName()
++ String getTag()
++ boolean isSubChart()
++ Indicator newInstance()
++ Result compute(ArrayList<Candle>)
++ int calculateBias(ArrayList<Candle>)
+}
+
+class com.example.gutapp.data.alerts.conditions.RSICondition {
++ {static} String TYPE
+- {static} Gson GSON
+- String symbol
+- StockDataHelper.Timeframe timeframe
+- int period
+- double level
+- CrossDirection crossDirection
++ boolean check(PriceResource)
+- double computeRsi(List<Candle>)
++ String getTypeName()
++ String serialize()
++ {static} Condition fromJson(String)
++ String getNotification()
++ String getSummary()
++ StockDataHelper.Timeframe getTimeframe()
++ int getPeriod()
++ double getLevel()
++ CrossDirection getCrossDirection()
+}
+
+
+enum com.example.gutapp.data.alerts.conditions.CrossDirection {
++  ABOVE
++  BELOW
+}
+
+class com.example.gutapp.ui.fragments.SearchFragment {
+- EditText searchInput
+- RecyclerView searchDropdown
+- SearchAdapter searchAdapter
+- ImageButton micButton
+- ActivityResultLauncher<Intent> speechToTextLauncher
++ View onCreateView(LayoutInflater,ViewGroup,Bundle)
++ void onDataReceived(DataType,Object)
+- void callSearch(String)
++ void onActionRequired(int,Object)
+- void initSpeechRecognizerLauncher()
+- void startVoiceRecognition()
+}
+
+
+class com.example.gutapp.data.indicators.impl.AtrIndicator {
++ String getId()
++ String getDisplayName()
++ String getTag()
++ boolean isSubChart()
++ Indicator newInstance()
++ Result compute(ArrayList<Candle>)
++ int calculateBias(ArrayList<Candle>)
+}
+
+class com.example.gutapp.session.Responses.OrderResponses {
+}
+class com.example.gutapp.session.Responses.OrderResponses$Commited {
++ double paid_price
++ long ts
++ int order_id
+}
+
+class com.example.gutapp.session.Responses.OrderResponses$Invalid {
++ Status status
+}
+
+enum com.example.gutapp.session.Responses.Status {
++  INVALIDBALANCE
++  INVALIDSYMBOL
++ {static} Status fromByte(byte)
+}
+
+
+class com.example.gutapp.session.Responses.OrderResponses$Slip {
+}
+class com.example.gutapp.ui.ProfileActivity {
+- PresetRepository repo
+- LinearLayout presetsContainer
+- IndicatorSession editingSession
+- String editingPresetName
+# void onCreate(Bundle)
+- void promptNewPresetName()
+- void editPreset(PresetRepository.Preset)
+- void openEditorPanel(String,IndicatorSession)
+- void onPresetSaveRequested(String)
++ void onIndicatorsChanged()
+- void renderPresets()
+- View buildPresetCard(PresetRepository.Preset)
+- View makeIndicatorChip(String,Indicator.IndicatorSnapshot)
+- TextView actionChip(String,String)
+- int dp(int)
+# void onResume()
+# void onPause()
+# void networkReconnect()
+# void networkDisconnect()
++ void onDataReceived(DataType,Object)
+}
+
+
+class com.example.gutapp.ui.ProfileActivity$SaveableIndicatorsPanel {
+- SaveListener saveListener
+- String presetName
++ {static} SaveableIndicatorsPanel newSaveable(IndicatorSession,String)
++ void setSaveListener(SaveListener)
++ View onCreateView(android.view.LayoutInflater,android.view.ViewGroup,Bundle)
+- int dpI(android.content.Context,int)
+}
+
+
+interface com.example.gutapp.ui.ProfileActivity$SaveableIndicatorsPanel$SaveListener {
+~ void onSave(String)
+}
+
+class com.example.gutapp.session.AlertSyncManager {
+- {static} String TAG
+- {static} long PUSH_DEBOUNCE_MS
+- {static} AlertSyncManager instance
+- Context appCtx
+- AlertDBHelper dao
+- Handler main
+- Runnable pushTask
+- Runnable remoteChangeListener
++ {static} AlertSyncManager init(Context)
++ {static} AlertSyncManager get()
++ void setRemoteChangeListener(Runnable)
++ void pullAll()
++ void schedulePush()
++ void flush()
+- void pushNow()
++ void onDataReceived(DataType,Object)
++ void onActionRequired(int,Object)
+}
+
+
+class com.example.gutapp.session.Requests.RequestTickerData {
+- String symbol
+- StockDataHelper.Timeframe interval
+- long startTs
+- long endTs
+- byte flags
+- boolean isStream
+- int limit
++ {static} int CACHE_END
++ byte[] getBytes()
++ void handle(Response)
++ void discardRequest()
+- void cachePriceData(ArrayList<Candle>,StockDataHelper.Timeframe)
+}
+
+
+class com.example.gutapp.session.Responses.SnapshotResponse {
+- boolean isDone
+- ArrayList<Candle> entries
++ boolean isFetchError()
++ boolean isDone()
++ ArrayList<Candle> getEntries()
+}
+
+
+class com.example.gutapp.data.indicators.impl.RsiIndicator {
++ String getId()
++ String getDisplayName()
++ String getTag()
++ boolean isSubChart()
++ Indicator newInstance()
++ Result compute(ArrayList<Candle>)
++ int calculateBias(ArrayList<Candle>)
+}
+
+class com.example.gutapp.data.indicators.impl.ChandeKrollStopIndicator {
++ String getId()
++ String getDisplayName()
++ String getTag()
++ boolean isSubChart()
++ Indicator newInstance()
++ Result compute(ArrayList<Candle>)
++ int calculateBias(ArrayList<Candle>)
+- double[] calculateATRInternal(ArrayList<Candle>,int)
+}
+
+class com.example.gutapp.data.indicators.impl.SupplyDemandZoneIndicator {
++ String getId()
++ String getDisplayName()
++ String getTag()
++ boolean isSubChart()
++ Indicator newInstance()
++ Result compute(ArrayList<Candle>)
++ int calculateBias(ArrayList<Candle>)
+}
+
+class com.example.gutapp.data.indicators.impl.ChoppinessIndicator {
++ String getId()
++ String getDisplayName()
++ String getTag()
++ boolean isSubChart()
++ Indicator newInstance()
++ Result compute(ArrayList<Candle>)
++ int calculateBias(ArrayList<Candle>)
+}
+
+class com.example.gutapp.data.indicators.impl.SmmaIndicator {
++ String getId()
++ String getDisplayName()
++ String getTag()
++ boolean isSubChart()
++ Indicator newInstance()
++ Result compute(ArrayList<Candle>)
++ int calculateBias(ArrayList<Candle>)
+}
+
+class com.example.gutapp.data.indicators.impl.LinearRegressionSlopeIndicator {
++ String getId()
++ String getDisplayName()
++ String getTag()
++ boolean isSubChart()
++ Indicator newInstance()
++ Result compute(ArrayList<Candle>)
++ int calculateBias(ArrayList<Candle>)
+}
+
+class com.example.gutapp.data.models.TickerInfo {
++ String symbol
++ String name
++ int tickerId
++ {static} Creator<TickerInfo> CREATOR
++ int describeContents()
++ void writeToParcel(Parcel,int)
+}
+
+
+class com.example.gutapp.data.indicators.impl.HullMovingAverageIndicator {
++ String getId()
++ String getDisplayName()
++ String getTag()
++ boolean isSubChart()
++ Indicator newInstance()
++ Result compute(ArrayList<Candle>)
++ int calculateBias(ArrayList<Candle>)
+- double[] computeWma(double[],int)
+}
+
+class com.example.gutapp.ui.AllOrdersActivity {
+- android.widget.LinearLayout ordersContainer
+- android.widget.ProgressBar loadingBar
+- TextView emptyText
+- List<Order> allOrders
+- List<OrderRow> activeRows
+- String currentSort
+# void onCreate(Bundle)
+- void setupSortButtons()
+- void loadOrders()
+- void clearExistingRows()
++ void onDataReceived(DataType,Object)
+- void renderOrders()
++ void notifyPLChange()
++ void notifyClosed(Order)
+- void sortOrders(List<Order>,String)
+- double getProfit(Order)
+- View makeDateHeader(String)
+- void updateSortButtonsUI()
+- int dp(int)
+# void onDestroy()
+# void networkReconnect()
+# void networkDisconnect()
+}
+
+
+class com.example.gutapp.data.indicators.impl.PriceChannelsIndicator {
++ String getId()
++ String getDisplayName()
++ String getTag()
++ boolean isSubChart()
++ Indicator newInstance()
++ Result compute(ArrayList<Candle>)
++ int calculateBias(ArrayList<Candle>)
+}
+
+class com.example.gutapp.session.Requests.GetWatchlistContent {
+- String listName
+- int offset
+- int limit
++ byte[] getBytes()
++ void handle(Response)
+}
+
+
+abstract class com.example.gutapp.ui.SessionActivity {
+# void onStart()
+# void onResume()
+# {abstract}void networkReconnect()
+# {abstract}void networkDisconnect()
++ void onActionRequired(int,Object)
+}
+
+class com.example.gutapp.session.Requests.SyncChartPush {
+- List<ChartStateDao.Row> rows
++ List<ChartStateDao.Row> getRows()
+- {static} byte kindCode(String)
++ byte[] getBytes()
++ void handle(Response)
+}
+
+
+class com.example.gutapp.ui.ArticleActivity {
++ {static} String EXTRA_URL
++ {static} String EXTRA_HEADLINE
++ {static} String EXTRA_SUMMARY
++ {static} String EXTRA_RELATED
++ {static} String EXTRA_SOURCE
+- {static} String TAG
+- WebView webView
+- ProgressBar progress
+- View errorState
+- TextView errorText
+- String url
+- String headline
+- String summary
+- String related
+- String cachedAnalysis
+- BottomSheetDialog analysisDialog
+- View analysisView
+# void onCreate(Bundle)
+- void setupWebView()
+- void handleBack()
+- void showError(String)
+- void openInBrowser()
+- void showAnalysisSheet()
+- void showAnalysisLoading()
+- void renderAnalysisError()
+- void renderAnalysis(String)
+- View buildSymbolRow(LinearLayout,JSONObject)
+- void openChart(String,String)
+- {static} int sentimentTextColor(String)
+- {static} int sentimentBadgeColor(String)
+- float dp(float)
+# void onPause()
+# void onResume()
+# void onDestroy()
++ void onDataReceived(DataType,Object)
+# void networkReconnect()
+# void networkDisconnect()
+}
+
+
+class com.example.gutapp.session.Responses.WatchlistResponses {
++ {static} String translate(byte)
+}
+
+class com.example.gutapp.session.Responses.WatchlistResponses$Summary {
++ byte status
++ List<WatchlistInfo> lists
+}
+
+class com.example.gutapp.session.Responses.WatchlistResponses$ActionStatus {
++ byte status
+}
+
+class com.example.gutapp.session.Responses.WatchlistResponses$Content {
++ byte status
++ List<String> tickers
+}
+
+class com.example.gutapp.session.Responses.WatchlistResponses$WatchlistInfo {
++ int id
++ String name
+}
+
+class com.example.gutapp.data.indicators.impl.ArnaudLegouxMovingAverageIndicator {
++ String getId()
++ String getDisplayName()
++ String getTag()
++ boolean isSubChart()
++ Indicator newInstance()
++ Result compute(ArrayList<Candle>)
++ int calculateBias(ArrayList<Candle>)
+}
+
+class com.example.gutapp.data.alerts.conditions.VolatilityCondition {
++ {static} String TYPE
+- {static} Gson GSON
+- String symbol
+- double percentThreshold
+- StockDataHelper.Timeframe timeframe
++ boolean check(PriceResource)
++ String getTypeName()
++ String serialize()
++ {static} Condition fromJson(String)
++ String getNotification()
++ String getSummary()
++ StockDataHelper.Timeframe getTimeframe()
++ double getPercentThreshold()
+}
+
+
+class com.example.gutapp.data.indicators.impl.VortexIndicator {
++ String getId()
++ String getDisplayName()
++ String getTag()
++ boolean isSubChart()
++ Indicator newInstance()
++ Result compute(ArrayList<Candle>)
++ int calculateBias(ArrayList<Candle>)
+}
+
+class com.example.gutapp.ui.LoginPage {
+- MediaPlayer startupPlayer
+- Thread mediaThread
+- ActivityResultLauncher<String> requestPermissionLauncher
+~ TextView textTitle
+~ EditText editTextUsername
+~ Button buttonLogin
+- View loadingOverlay
++ {static} String APP_LOG_TAG
+# void onCreate(Bundle)
++ void onClick(View)
+- void playStartupSound()
++ void UserLogin(String,String)
++ void UserRegister(String,String)
++ void onDataReceived(DataType,Object)
++ void onActionRequired(int,Object)
+- void setLoading(boolean)
+# void onStop()
+}
+
+
+class com.example.gutapp.session.Requests.FetchOrders {
+- String symbol
+- OrderView view
+- int limit
+- int offset
++ byte[] getBytes()
++ void handle(Response)
+}
+
+
+enum com.example.gutapp.session.Requests.OrderView {
++  ALL
++  ACTIVE
++  INACTIVE
++ byte value
+}
+
+class com.example.gutapp.ui.WatchlistActivity {
+- Spinner spinner
+- StockLiveList stock_list_fragment
+- LinearLayout loading_layout
+- View stock_list_container
+- TextView nothingFound
+- View management_container
+- List<WatchlistResponses.WatchlistInfo> currentLists
+- String selectedListName
+# void onCreate(Bundle)
+- void initUI()
+- void resetAndLoadFragment()
+- void refreshLists()
++ void onDataReceived(DataType,Object)
+- void handleListsLoaded(List<WatchlistResponses.WatchlistInfo>)
++ void loadingEnd()
++ void onLoadMore()
+# void networkReconnect()
+# void networkDisconnect()
+- void confirmDelete()
+- void showRenameDialog()
+}
+
+
+class com.example.gutapp.session.Requests.HandShakeHello {
+~ byte[] publicKey
+~ CryptoUtility.CryptoContext ctx
++ byte[] getBytes()
++ void handle(Response)
+}
+
+
+class com.example.gutapp.session.Requests.HandShakeVerify {
+~ byte[] payload
++ byte[] getBytes()
++ void handle(Response)
+}
+
+
+class com.example.gutapp.ui.chart.DrawingChart {
+- DrawingManager drawingManager
+- DrawingRenderer drawingRenderer
+- List<Candle> candles
+- float tapAnchorX
+- long anchor1Ts
+- double anchor1Price
+- long anchor2Ts
+- double anchor2Price
+- int pitchforkState
+- ChartDrawing previewDrawing
+- int dragHandleIdx
+- float dragLastX
+- ChartDrawing dragTarget
+- boolean snapEnabled
+- {static} float HIT_BODY_PX
+- {static} float HIT_HANDLE_PX
+- Paint crosshairPaint
+- GestureDetector gestureDetector
+- DrawingEventListener drawingEventListener
+- IndicatorPicker indicatorPicker
++ void setIndicatorPicker(IndicatorPicker)
+- void initDrawingLayer()
++ DrawingManager getDrawingManager()
++ void setCandles(List<Candle>)
++ void setDrawingEventListener(DrawingEventListener)
++ void setSnapEnabled(boolean)
++ boolean isSnapEnabled()
++ void setActiveTool(DrawingManager.DrawingTool)
++ void replaceIndicatorDrawings(List<ChartDrawing>)
++ void cancelCurrentDrawing()
++ boolean undo()
++ boolean redo()
++ void clearAllUserDrawings()
++ void removeDrawing(String)
+- void notifyChanged()
++ void notifyDrawingsChanged()
+# void onDraw(Canvas)
+- void prepareCanvas(Canvas)
+- void drawLayerPass(Canvas,ChartDrawing.Layer)
++ boolean onTouchEvent(MotionEvent)
+- boolean handleEditTouch(MotionEvent)
+- boolean handlePlacementTouch(MotionEvent)
+- void handlePlacementTap(DrawingManager.DrawingTool,long,double,boolean,long,double)
+- int nearestHandle(ChartDrawing,float,float)
+- float[][] getHandles(ChartDrawing)
+- float pixelToFractionalIndex(float)
+- long fractionalIndexToTimestamp(float)
+- float timestampToFractionalIndex(long)
+- void moveHandle(ChartDrawing,int,float,float)
+- void moveDrawing(ChartDrawing,float,float)
+- boolean hitBody(ChartDrawing,float,float)
+- void trySelect(float,float)
+- float hitDistance(ChartDrawing,float,float)
+- float ptSeg(float,float,float,float,float,float)
+- double snapToOHLC(float,long)
+- long pixelToTimestamp(float)
+- double timestampToPixelX(long)
+- double pixelToPrice(float)
+- float priceToPixelY(double)
+- ChartDrawing placeOnePoint(DrawingManager.DrawingTool,long,double)
+- ChartDrawing buildDrawing(DrawingManager.DrawingTool,long,double,long,double)
+- void finalizeDrawing(ChartDrawing)
+}
+
+
+interface com.example.gutapp.ui.chart.DrawingChart$DrawingEventListener {
+~ void onDrawingCreated(ChartDrawing)
+~ void onDrawingRemoved(ChartDrawing)
+~ void onDrawingSelected(ChartDrawing)
+~ void onDrawingsChanged()
+~ void onToolChanged(DrawingManager.DrawingTool)
+~ void onIndicatorSelected(String)
+}
+
+interface com.example.gutapp.ui.chart.DrawingChart$IndicatorPicker {
+~ String pickIndicatorAt(float,float)
+}
+
+class com.example.gutapp.session.CryptoUtility {
++ {static} String PREF_NAME
++ {static} String KEY_USER
++ {static} String KEY_PASS
+- {static} SharedPreferences cachedVault
++ {static} AtomicBoolean logOutFlag
++ {static} KeyPair generateKeyPair()
++ {static} String convertToPEM(byte[])
++ {static} byte[] decryptRSA(byte[],PrivateKey)
++ {static} SecretKey bytesToAESKey(byte[])
++ {static} byte[] encryptAESECB(String,SecretKey)
++ {static} byte[] decryptAESGCM(byte[],CryptoContext)
++ {static} byte[] encryptAESGCM(byte[],CryptoContext)
++ {static} SharedPreferences getVault(Context)
++ {static} void clearAuthCredentials(Context)
+}
+
+
+class com.example.gutapp.session.CryptoUtility$CryptoContext {
++ KeyPair keyPair
++ SecretKey aesKey
++ long sendNonce
++ long recvNonce
++ byte[] getNextSendNonce()
++ byte[] getNextRecvNonce()
+}
+
+
+abstract class com.example.gutapp.data.indicators.Indicator {
+- String instanceId
+- int color
+# List<Param> params
++ String getInstanceId()
++ void setInstanceId(String)
++ int getColor()
++ void setColor(int)
++ {abstract}String getId()
++ {abstract}String getDisplayName()
++ {abstract}String getTag()
++ {abstract}boolean isSubChart()
++ {abstract}Indicator newInstance()
++ List<Param> getParams()
++ float getParam(String)
++ void setParam(String,float)
++ List<Param> copyParams()
++ void restoreParams(List<Param>)
++ {abstract}Result compute(ArrayList<Candle>)
+# LineDataSet makeLineSet(List<com.github.mikephil.charting.data.Entry>,String,int,float)
+# LineDataSet makeDashedLineSet(List<com.github.mikephil.charting.data.Entry>,String,int)
++ IndicatorSnapshot snapshot()
++ {abstract}int calculateBias(ArrayList<Candle>)
+}
+
+
+class com.example.gutapp.data.indicators.Indicator$Param {
++ String key
++ String label
++ Type type
++ float min
++ float max
++ float value
++ int intValue()
++ float floatValue()
++ Param copy()
+}
+
+
+enum com.example.gutapp.data.indicators.Type {
++  INTEGER
++  FLOAT
+}
+
+class com.example.gutapp.data.indicators.Indicator$Result {
++ List<LineDataSet> overlayLines
++ List<LineDataSet> subChartLines
++ List<ChartDrawing> drawings
++ float subChartMin
++ float subChartMax
++ void addHorizontalLine(double,String,ChartDrawing.DrawingStyle)
++ void addTrendLine(int,double,int,double,ChartDrawing.DrawingStyle)
++ void addRegressionChannel(int,int,ChartDrawing.DrawingStyle)
++ void addPriceRange(double,double,ChartDrawing.DrawingStyle)
+}
+
+
+class com.example.gutapp.data.indicators.Indicator$IndicatorSnapshot {
++ String typeId
++ String instanceId
++ int color
++ List<Param> params
+}
+
+class com.example.gutapp.data.indicators.impl.MomentumIndicator {
++ String getId()
++ String getDisplayName()
++ String getTag()
++ boolean isSubChart()
++ Indicator newInstance()
++ Result compute(ArrayList<Candle>)
++ int calculateBias(ArrayList<Candle>)
+}
+
+class com.example.gutapp.database.LastFetchCacheHelper {
++ {static} String TABLE_NAME
++ {static} String COLUMN_SYMBOL
++ {static} String COLUMN_NAME
++ {static} String COLUMN_INTERVAL
++ {static} String COLUMN_LAST_FETCH
+- DB_Helper db_helper
++ void insertSymbol(String,String)
++ String getSymbolName(String)
++ void loadDefaultSymbols(SQLiteDatabase)
++ {static} String createTable()
++ String getName()
++ Cursor getStocks()
++ long getLastFetchTime(String,StockDataHelper.Timeframe)
+}
+
+
+class com.example.gutapp.data.indicators.impl.FisherTransformIndicator {
++ String getId()
++ String getDisplayName()
++ String getTag()
++ boolean isSubChart()
++ Indicator newInstance()
++ Result compute(ArrayList<Candle>)
++ int calculateBias(ArrayList<Candle>)
+}
+
+class com.example.gutapp.session.SessionManager {
+- boolean reconnect
+~ Connection connection
+~ Queue<Request> outgoinQueue
+- boolean running
+- boolean working
+- CryptoUtility.CryptoContext ctx
+- Context appContext
+- Object callbackLock
+- SessionCallback currentCallback
+- Handler uiHandler
+- BlockingQueue<AuthStruct> authQueue
+- LinkedBlockingQueue<AsyncRequest> requestQueue
+- ConcurrentHashMap<Integer,AsyncRequest> pendingRequests
+- SessionCallback pushResponseCallback
+- Thread sendThread
+- Thread recvThread
++ {static} int ACTION_SHOW_LOGIN_UI
++ void run()
+- void performHandshake()
+- byte[] unframe(byte[])
+- byte[] encrypt(byte[])
+- int tryAutoLogin()
+- void work()
+- void sendLoop()
+- void recvLoop()
+- void saveCredentials(String,String)
++ void stop()
++ void setUiCallback(SessionCallback)
++ void removeUiCallback()
+- void notifyUI(Consumer<SessionCallback>)
++ void pushCredentials(String,String,int)
++ void pushRequest(AsyncRequest)
++ void discardRequests(int[])
++ void discardRequest(int)
++ void debugLogMessage(String,byte[])
++ void debugLogResponse(String,byte[])
++ void debugLogResponseDecrypted(String,byte[])
+- String getMsgTypeName(byte)
++ void debugLogEncryptedMessage(String,byte[])
+}
+
+
+class com.example.gutapp.session.SessionManager$AuthStruct {
++ String username
++ String password
++ int mode
+}
+
+
+
+com.example.gutapp.data.indicators.Indicator <|-- com.example.gutapp.data.indicators.impl.TrixIndicator
+com.example.gutapp.data.indicators.Indicator <|-- com.example.gutapp.data.indicators.impl.WilliamsRIndicator
+com.example.gutapp.data.alerts.PriceResource <|.. com.example.gutapp.data.alerts.AlertManager
+com.example.gutapp.data.alerts.AlertManager +.. com.example.gutapp.data.alerts.AlertManager$ServiceRequestInterface
+com.example.gutapp.data.alerts.AlertManager +.. com.example.gutapp.data.alerts.AlertManager$TriggerListener
+com.example.gutapp.data.alerts.AlertManager +.. com.example.gutapp.data.alerts.AlertManager$CandleUpdate
+com.example.gutapp.session.Responses.EndOrderResponses +.. com.example.gutapp.session.Responses.EndOrderResponses$Success
+com.example.gutapp.session.Responses.AsyncResponse <|-- com.example.gutapp.session.Responses.EndOrderResponses$Success
+com.example.gutapp.session.Responses.EndOrderResponses +.. com.example.gutapp.session.Responses.EndOrderResponses$Failure
+com.example.gutapp.session.Responses.AsyncResponse <|-- com.example.gutapp.session.Responses.EndOrderResponses$Failure
+com.example.gutapp.session.AsyncRequest <|-- com.example.gutapp.session.Requests.ModifyWatchlistItems
+com.example.gutapp.session.AsyncResponse <|-- com.example.gutapp.session.Responses.FetchOrdersResponse
+com.example.gutapp.session.AsyncRequest <|-- com.example.gutapp.session.Requests.ManageWatchlist
+com.example.gutapp.data.indicators.PresetRepository +.. com.example.gutapp.data.indicators.PresetRepository$Preset
+com.example.gutapp.session.Response <|-- com.example.gutapp.session.Responses.RegisterResponse
+com.example.gutapp.data.indicators.Indicator <|-- com.example.gutapp.data.indicators.impl.MoneyFlowIndexIndicator
+com.example.gutapp.data.indicators.Indicator <|-- com.example.gutapp.data.indicators.impl.CmfIndicator
+com.example.gutapp.session.SessionCallback <|.. com.example.gutapp.data.StockChart
+com.example.gutapp.data.alerts.Condition <|-- com.example.gutapp.data.alerts.conditions.PriceChangePercentCondition
+com.example.gutapp.data.indicators.Indicator <|-- com.example.gutapp.data.indicators.impl.AwesomeOscillatorIndicator
+com.example.gutapp.ui.fragments.OrderRowContainer <|.. com.example.gutapp.ui.fragments.OrdersList
+androidx.fragment.app.Fragment <|-- com.example.gutapp.ui.fragments.OrdersList
+com.example.gutapp.ui.fragments.OrdersList +.. com.example.gutapp.ui.fragments.OrdersList$Listener
+com.example.gutapp.data.alerts.Condition <|-- com.example.gutapp.data.alerts.conditions.VolumeSpikeCondition
+com.example.gutapp.session.AsyncRequest <|-- com.example.gutapp.session.Requests.SyncAlertPull
+com.example.gutapp.data.StockRow <|-- com.example.gutapp.data.WatchlistStockRow
+com.example.gutapp.session.news.NewsRepository +.. com.example.gutapp.session.news.NewsRepository$Callback
+com.example.gutapp.data.alerts.ConditionRegistry +.. com.example.gutapp.data.alerts.ConditionRegistry$ConditionDeserializer
+com.example.gutapp.session.AsyncResponse <|-- com.example.gutapp.session.Responses.GetBalanceResponse
+com.example.gutapp.data.indicators.Indicator <|-- com.example.gutapp.data.indicators.impl.MaCrossoverStrategyIndicator
+com.example.gutapp.data.indicators.Indicator <|-- com.example.gutapp.data.indicators.impl.EomIndicator
+com.example.gutapp.data.indicators.Indicator <|-- com.example.gutapp.data.indicators.impl.DpoIndicator
+com.example.gutapp.data.indicators.Indicator <|-- com.example.gutapp.data.indicators.impl.VwmaIndicator
+com.example.gutapp.data.indicators.Indicator <|-- com.example.gutapp.data.indicators.impl.WmaIndicator
+com.example.gutapp.data.indicators.Indicator <|-- com.example.gutapp.data.indicators.impl.ApoIndicator
+android.app.Application <|-- com.example.gutapp.GutApp
+com.example.gutapp.data.indicators.Indicator <|-- com.example.gutapp.data.indicators.impl.TsiIndicator
+com.example.gutapp.session.Request <|-- com.example.gutapp.session.AsyncRequest
+com.example.gutapp.session.AsyncResponse <|-- com.example.gutapp.session.Responses.SearchTickerResponse
+com.example.gutapp.data.indicators.Indicator <|-- com.example.gutapp.data.indicators.impl.ObvIndicator
+com.example.gutapp.data.indicators.Indicator <|-- com.example.gutapp.data.indicators.impl.TrueRangeIndicator
+com.example.gutapp.data.indicators.Indicator <|-- com.example.gutapp.data.indicators.impl.StandardDeviationIndicator
+com.example.gutapp.data.indicators.Indicator <|-- com.example.gutapp.data.indicators.impl.AdlIndicator
+com.example.gutapp.session.AsyncRequest <|-- com.example.gutapp.session.Requests.SyncChartPull
+com.example.gutapp.session.AsyncRequest <|-- com.example.gutapp.session.Requests.GetBalance
+com.example.gutapp.data.OrderDialog +.. com.example.gutapp.data.OrderDialog$OrderDialogListener
+com.example.gutapp.data.indicators.Indicator <|-- com.example.gutapp.data.indicators.impl.LinearRegressionChannelIndicator
+com.google.android.material.bottomsheet.BottomSheetDialogFragment <|-- com.example.gutapp.ui.dialogue.IndicatorsPanel
+com.example.gutapp.ui.dialogue.IndicatorsPanel +.. com.example.gutapp.ui.dialogue.IndicatorsPanel$IndicatorListener
+com.example.gutapp.session.Responses.AlertSyncResponses +.. com.example.gutapp.session.Responses.AlertSyncResponses$PushResult
+com.example.gutapp.session.Responses.AsyncResponse <|-- com.example.gutapp.session.Responses.AlertSyncResponses$PushResult
+com.example.gutapp.session.Responses.AlertSyncResponses +.. com.example.gutapp.session.Responses.AlertSyncResponses$PullResult
+com.example.gutapp.session.Responses.AsyncResponse <|-- com.example.gutapp.session.Responses.AlertSyncResponses$PullResult
+com.example.gutapp.data.gemini.GeminiHelper +.. com.example.gutapp.data.gemini.GeminiHelper$AnalysisCallback
+com.example.gutapp.data.indicators.Indicator <|-- com.example.gutapp.data.indicators.impl.UltimateOscillatorIndicator
+com.example.gutapp.session.Response <|-- com.example.gutapp.session.Responses.LoginResponse
+com.example.gutapp.data.indicators.Indicator <|-- com.example.gutapp.data.indicators.impl.BollingerBandsIndicator
+com.example.gutapp.session.AsyncRequest <|-- com.example.gutapp.session.Requests.SyncAlertPush
+com.example.gutapp.data.alerts.Condition <|-- com.example.gutapp.data.alerts.conditions.PriceThresholdCondition
+com.example.gutapp.session.AsyncRequest <|-- com.example.gutapp.session.Requests.SearchTicker
+com.example.gutapp.data.indicators.Indicator <|-- com.example.gutapp.data.indicators.impl.DemaIndicator
+com.example.gutapp.data.drawing.ChartDrawing +.. com.example.gutapp.data.drawing.ChartDrawing$DrawingStyle
+com.example.gutapp.data.drawing.ChartDrawing +.. com.example.gutapp.data.drawing.ChartDrawing$HorizontalLine
+com.example.gutapp.data.drawing.ChartDrawing <|-- com.example.gutapp.data.drawing.ChartDrawing$HorizontalLine
+com.example.gutapp.data.drawing.ChartDrawing +.. com.example.gutapp.data.drawing.ChartDrawing$TrendLine
+com.example.gutapp.data.drawing.ChartDrawing <|-- com.example.gutapp.data.drawing.ChartDrawing$TrendLine
+com.example.gutapp.data.drawing.ChartDrawing +.. com.example.gutapp.data.drawing.ChartDrawing$RayLine
+com.example.gutapp.data.drawing.ChartDrawing <|-- com.example.gutapp.data.drawing.ChartDrawing$RayLine
+com.example.gutapp.data.drawing.ChartDrawing +.. com.example.gutapp.data.drawing.ChartDrawing$ExtendedLine
+com.example.gutapp.data.drawing.ChartDrawing <|-- com.example.gutapp.data.drawing.ChartDrawing$ExtendedLine
+com.example.gutapp.data.drawing.ChartDrawing +.. com.example.gutapp.data.drawing.ChartDrawing$VerticalLine
+com.example.gutapp.data.drawing.ChartDrawing <|-- com.example.gutapp.data.drawing.ChartDrawing$VerticalLine
+com.example.gutapp.data.drawing.ChartDrawing +.. com.example.gutapp.data.drawing.ChartDrawing$LinearRegression
+com.example.gutapp.data.drawing.ChartDrawing <|-- com.example.gutapp.data.drawing.ChartDrawing$LinearRegression
+com.example.gutapp.data.drawing.ChartDrawing +.. com.example.gutapp.data.drawing.ChartDrawing$FibRetracement
+com.example.gutapp.data.drawing.ChartDrawing <|-- com.example.gutapp.data.drawing.ChartDrawing$FibRetracement
+com.example.gutapp.data.drawing.ChartDrawing +.. com.example.gutapp.data.drawing.ChartDrawing$PriceRange
+com.example.gutapp.data.drawing.ChartDrawing <|-- com.example.gutapp.data.drawing.ChartDrawing$PriceRange
+com.example.gutapp.data.drawing.ChartDrawing +.. com.example.gutapp.data.drawing.ChartDrawing$Rectangle
+com.example.gutapp.data.drawing.ChartDrawing <|-- com.example.gutapp.data.drawing.ChartDrawing$Rectangle
+com.example.gutapp.data.drawing.ChartDrawing +.. com.example.gutapp.data.drawing.ChartDrawing$Ellipse
+com.example.gutapp.data.drawing.ChartDrawing <|-- com.example.gutapp.data.drawing.ChartDrawing$Ellipse
+com.example.gutapp.data.drawing.ChartDrawing +.. com.example.gutapp.data.drawing.ChartDrawing$TextAnnotation
+com.example.gutapp.data.drawing.ChartDrawing <|-- com.example.gutapp.data.drawing.ChartDrawing$TextAnnotation
+com.example.gutapp.data.drawing.ChartDrawing +.. com.example.gutapp.data.drawing.ChartDrawing$Arrow
+com.example.gutapp.data.drawing.ChartDrawing <|-- com.example.gutapp.data.drawing.ChartDrawing$Arrow
+com.example.gutapp.data.drawing.ChartDrawing +.. com.example.gutapp.data.drawing.ChartDrawing$ParallelChannel
+com.example.gutapp.data.drawing.ChartDrawing <|-- com.example.gutapp.data.drawing.ChartDrawing$ParallelChannel
+com.example.gutapp.data.drawing.ChartDrawing +.. com.example.gutapp.data.drawing.ChartDrawing$Pitchfork
+com.example.gutapp.data.drawing.ChartDrawing <|-- com.example.gutapp.data.drawing.ChartDrawing$Pitchfork
+com.example.gutapp.data.drawing.ChartDrawing +.. com.example.gutapp.data.drawing.ChartDrawing$GannFan
+com.example.gutapp.data.drawing.ChartDrawing <|-- com.example.gutapp.data.drawing.ChartDrawing$GannFan
+com.example.gutapp.data.drawing.ChartDrawing +.. com.example.gutapp.data.drawing.ChartDrawing$RiskReward
+com.example.gutapp.data.drawing.ChartDrawing <|-- com.example.gutapp.data.drawing.ChartDrawing$RiskReward
+com.example.gutapp.session.AutoCloseable <|.. com.example.gutapp.session.Connection
+com.example.gutapp.session.AsyncResponse <|-- com.example.gutapp.session.Responses.StreamResponse
+java.io.Serializable <|.. com.example.gutapp.data.models.Order
+com.example.gutapp.ui.OnClickListener <|.. com.example.gutapp.ui.ChartActivity
+com.example.gutapp.ui.OrderDialogListener <|.. com.example.gutapp.ui.ChartActivity
+com.example.gutapp.ui.Listener <|.. com.example.gutapp.ui.ChartActivity
+com.example.gutapp.ui.IndicatorListener <|.. com.example.gutapp.ui.ChartActivity
+com.example.gutapp.ui.AnalysisCallback <|.. com.example.gutapp.ui.ChartActivity
+com.example.gutapp.ui.SessionActivity <|-- com.example.gutapp.ui.ChartActivity
+com.example.gutapp.session.SessionCallback <|.. com.example.gutapp.session.ChartSyncManager
+android.widget.LinearLayout <|-- com.example.gutapp.ui.dialogue.DrawingEditPanel
+com.example.gutapp.ui.dialogue.DrawingEditPanel +.. com.example.gutapp.ui.dialogue.DrawingEditPanel$OnChangeListener
+com.example.gutapp.data.indicators.Indicator <|-- com.example.gutapp.data.indicators.impl.EmaIndicator
+com.google.android.material.bottomsheet.BottomSheetDialogFragment <|-- com.example.gutapp.ui.fragments.DrawingToolbarFragment
+com.example.gutapp.session.Responses.ChartSyncResponses +.. com.example.gutapp.session.Responses.ChartSyncResponses$PushResult
+com.example.gutapp.session.Responses.AsyncResponse <|-- com.example.gutapp.session.Responses.ChartSyncResponses$PushResult
+com.example.gutapp.session.Responses.ChartSyncResponses +.. com.example.gutapp.session.Responses.ChartSyncResponses$PullResult
+com.example.gutapp.session.Responses.AsyncResponse <|-- com.example.gutapp.session.Responses.ChartSyncResponses$PullResult
+com.example.gutapp.data.indicators.Indicator <|-- com.example.gutapp.data.indicators.impl.ParabolicSARIndicator
+com.example.gutapp.data.indicators.Indicator <|-- com.example.gutapp.data.indicators.impl.KamaIndicator
+com.example.gutapp.data.alerts.Condition <|-- com.example.gutapp.data.alerts.conditions.SMACrossoverCondition
+com.example.gutapp.session.AsyncRequest <|-- com.example.gutapp.session.Requests.EndOrder
+com.example.gutapp.session.AsyncRequest <|-- com.example.gutapp.session.Requests.TickerInfoRequest
+com.example.gutapp.data.indicators.Indicator <|-- com.example.gutapp.data.indicators.impl.VolumeOscillatorIndicator
+com.example.gutapp.data.indicators.Indicator <|-- com.example.gutapp.data.indicators.impl.BbBreakoutStrategyIndicator
+com.example.gutapp.data.indicators.Indicator <|-- com.example.gutapp.data.indicators.impl.ForceIndexIndicator
+com.example.gutapp.session.Request <|-- com.example.gutapp.session.Requests.RegisterRequest
+com.example.gutapp.session.SessionCallback <|.. com.example.gutapp.session.background.NetworkService
+com.example.gutapp.session.background.ServiceRequestInterface <|.. com.example.gutapp.session.background.NetworkService
+com.example.gutapp.session.background.TriggerListener <|.. com.example.gutapp.session.background.NetworkService
+android.app.Service <|-- com.example.gutapp.session.background.NetworkService
+com.example.gutapp.data.indicators.Indicator <|-- com.example.gutapp.data.indicators.impl.SuperTrendStrategyIndicator
+com.example.gutapp.data.indicators.Indicator <|-- com.example.gutapp.data.indicators.impl.EnvelopesIndicator
+com.example.gutapp.data.indicators.Indicator <|-- com.example.gutapp.data.indicators.impl.StochasticIndicator
+com.example.gutapp.session.AsyncResponse <|-- com.example.gutapp.session.Responses.TickerInfoResponse
+com.example.gutapp.session.Response <|-- com.example.gutapp.session.Responses.HandShakeVerifyResponse
+com.example.gutapp.data.indicators.Indicator <|-- com.example.gutapp.data.indicators.impl.RsiReversalStrategyIndicator
+com.example.gutapp.session.Response <|-- com.example.gutapp.session.Responses.HandShakeHelloResponse
+com.example.gutapp.data.indicators.Indicator <|-- com.example.gutapp.data.indicators.impl.RocIndicator
+com.example.gutapp.data.indicators.Indicator <|-- com.example.gutapp.data.indicators.impl.MaIndicator
+android.database.sqlite.SQLiteOpenHelper <|-- com.example.gutapp.database.DB_Helper
+com.example.gutapp.session.SessionCallback <|.. com.example.gutapp.data.OrderRow
+com.example.gutapp.data.OrderRow +.. com.example.gutapp.data.OrderRow$OrderRowContainer
+com.example.gutapp.session.AsyncRequest <|-- com.example.gutapp.session.Requests.SendOrder
+com.example.gutapp.data.indicators.Indicator <|-- com.example.gutapp.data.indicators.impl.MacdIndicator
+com.example.gutapp.session.Response <|-- com.example.gutapp.session.AsyncResponse
+com.example.gutapp.data.indicators.Indicator <|-- com.example.gutapp.data.indicators.impl.CmoIndicator
+com.example.gutapp.session.Request <|-- com.example.gutapp.session.Requests.LoginRequest
+com.example.gutapp.data.indicators.Indicator <|-- com.example.gutapp.data.indicators.impl.CoppockIndicator
+com.example.gutapp.data.indicators.Indicator <|-- com.example.gutapp.data.indicators.impl.MassIndexIndicator
+com.example.gutapp.data.indicators.Indicator <|-- com.example.gutapp.data.indicators.impl.MacdStrategyIndicator
+com.example.gutapp.session.SessionCallback <|.. com.example.gutapp.data.StockRow
+com.example.gutapp.database.ChartStateDao +.. com.example.gutapp.database.ChartStateDao$Row
+com.example.gutapp.data.indicators.Indicator <|-- com.example.gutapp.data.indicators.impl.DisparityIndexIndicator
+com.example.gutapp.ui.SessionActivity <|-- com.example.gutapp.ui.NewsActivity
+com.example.gutapp.session.SessionCallback <|.. com.example.gutapp.ui.fragments.StockLiveList
+androidx.fragment.app.Fragment <|-- com.example.gutapp.ui.fragments.StockLiveList
+com.example.gutapp.ui.fragments.StockLiveList +.. com.example.gutapp.ui.fragments.StockLiveList$LoadMoreCallback
+com.example.gutapp.ui.LoadMoreCallback <|.. com.example.gutapp.ui.ExploreActivity
+com.example.gutapp.ui.SessionActivity <|-- com.example.gutapp.ui.ExploreActivity
+com.example.gutapp.data.indicators.Indicator <|-- com.example.gutapp.data.indicators.impl.KeltnerChannelsIndicator
+android.widget.LinearLayout <|-- com.example.gutapp.ui.dialogue.IndicatorEditPanel
+com.example.gutapp.ui.dialogue.IndicatorEditPanel +.. com.example.gutapp.ui.dialogue.IndicatorEditPanel$OnChangeListener
+com.example.gutapp.data.indicators.Indicator <|-- com.example.gutapp.data.indicators.impl.PivotPointsIndicator
+com.example.gutapp.ui.SessionActivity <|-- com.example.gutapp.ui.AlertsActivity
+com.example.gutapp.session.AsyncRequest <|-- com.example.gutapp.session.Requests.GetWatchlists
+com.example.gutapp.data.Adapter <|-- com.example.gutapp.data.SearchAdapter
+com.example.gutapp.data.SearchAdapter +.. com.example.gutapp.data.SearchAdapter$OnItemClickListener
+com.example.gutapp.data.SearchAdapter +.. com.example.gutapp.data.SearchAdapter$ViewHolder
+com.example.gutapp.data.ViewHolder <|-- com.example.gutapp.data.SearchAdapter$ViewHolder
+com.example.gutapp.database.AlertDBHelper +.. com.example.gutapp.database.AlertDBHelper$SyncRow
+com.example.gutapp.session.AsyncRequest <|-- com.example.gutapp.session.Requests.CancelTickerStream
+com.example.gutapp.data.indicators.Indicator <|-- com.example.gutapp.data.indicators.impl.CciIndicator
+com.example.gutapp.data.indicators.Indicator <|-- com.example.gutapp.data.indicators.impl.VwapIndicator
+com.example.gutapp.data.indicators.Indicator <|-- com.example.gutapp.data.indicators.impl.HistoricalVolatilityIndicator
+com.example.gutapp.ui.Listener <|.. com.example.gutapp.ui.HomeActivity
+com.example.gutapp.ui.SessionActivity <|-- com.example.gutapp.ui.HomeActivity
+com.example.gutapp.data.indicators.Indicator <|-- com.example.gutapp.data.indicators.impl.McGinleyDynamicIndicator
+com.example.gutapp.data.alerts.Condition <|-- com.example.gutapp.data.alerts.conditions.RSICondition
+com.example.gutapp.session.SessionCallback <|.. com.example.gutapp.ui.fragments.SearchFragment
+androidx.fragment.app.Fragment <|-- com.example.gutapp.ui.fragments.SearchFragment
+com.example.gutapp.data.indicators.Indicator <|-- com.example.gutapp.data.indicators.impl.AtrIndicator
+com.example.gutapp.session.Responses.OrderResponses +.. com.example.gutapp.session.Responses.OrderResponses$Commited
+com.example.gutapp.session.Responses.AsyncResponse <|-- com.example.gutapp.session.Responses.OrderResponses$Commited
+com.example.gutapp.session.Responses.OrderResponses +.. com.example.gutapp.session.Responses.OrderResponses$Invalid
+com.example.gutapp.session.Responses.AsyncResponse <|-- com.example.gutapp.session.Responses.OrderResponses$Invalid
+com.example.gutapp.session.Responses.OrderResponses +.. com.example.gutapp.session.Responses.OrderResponses$Slip
+com.example.gutapp.session.Responses.AsyncResponse <|-- com.example.gutapp.session.Responses.OrderResponses$Slip
+com.example.gutapp.ui.IndicatorListener <|.. com.example.gutapp.ui.ProfileActivity
+com.example.gutapp.ui.SessionActivity <|-- com.example.gutapp.ui.ProfileActivity
+com.example.gutapp.ui.ProfileActivity +.. com.example.gutapp.ui.ProfileActivity$SaveableIndicatorsPanel
+com.example.gutapp.ui.IndicatorsPanel <|-- com.example.gutapp.ui.ProfileActivity$SaveableIndicatorsPanel
+com.example.gutapp.ui.ProfileActivity$SaveableIndicatorsPanel +.. com.example.gutapp.ui.ProfileActivity$SaveableIndicatorsPanel$SaveListener
+com.example.gutapp.session.SessionCallback <|.. com.example.gutapp.session.AlertSyncManager
+com.example.gutapp.session.AsyncRequest <|-- com.example.gutapp.session.Requests.RequestTickerData
+com.example.gutapp.session.AsyncResponse <|-- com.example.gutapp.session.Responses.SnapshotResponse
+com.example.gutapp.data.indicators.Indicator <|-- com.example.gutapp.data.indicators.impl.RsiIndicator
+com.example.gutapp.data.indicators.Indicator <|-- com.example.gutapp.data.indicators.impl.ChandeKrollStopIndicator
+com.example.gutapp.data.indicators.Indicator <|-- com.example.gutapp.data.indicators.impl.SupplyDemandZoneIndicator
+com.example.gutapp.data.indicators.Indicator <|-- com.example.gutapp.data.indicators.impl.ChoppinessIndicator
+com.example.gutapp.data.indicators.Indicator <|-- com.example.gutapp.data.indicators.impl.SmmaIndicator
+com.example.gutapp.data.indicators.Indicator <|-- com.example.gutapp.data.indicators.impl.LinearRegressionSlopeIndicator
+android.os.Parcelable <|.. com.example.gutapp.data.models.TickerInfo
+com.example.gutapp.data.indicators.Indicator <|-- com.example.gutapp.data.indicators.impl.HullMovingAverageIndicator
+com.example.gutapp.ui.OrderRowContainer <|.. com.example.gutapp.ui.AllOrdersActivity
+com.example.gutapp.ui.SessionActivity <|-- com.example.gutapp.ui.AllOrdersActivity
+com.example.gutapp.data.indicators.Indicator <|-- com.example.gutapp.data.indicators.impl.PriceChannelsIndicator
+com.example.gutapp.session.AsyncRequest <|-- com.example.gutapp.session.Requests.GetWatchlistContent
+com.example.gutapp.session.SessionCallback <|.. com.example.gutapp.ui.SessionActivity
+androidx.appcompat.app.AppCompatActivity <|-- com.example.gutapp.ui.SessionActivity
+com.example.gutapp.session.AsyncRequest <|-- com.example.gutapp.session.Requests.SyncChartPush
+com.example.gutapp.ui.SessionActivity <|-- com.example.gutapp.ui.ArticleActivity
+com.example.gutapp.session.Responses.WatchlistResponses +.. com.example.gutapp.session.Responses.WatchlistResponses$Summary
+com.example.gutapp.session.Responses.AsyncResponse <|-- com.example.gutapp.session.Responses.WatchlistResponses$Summary
+com.example.gutapp.session.Responses.WatchlistResponses +.. com.example.gutapp.session.Responses.WatchlistResponses$ActionStatus
+com.example.gutapp.session.Responses.AsyncResponse <|-- com.example.gutapp.session.Responses.WatchlistResponses$ActionStatus
+com.example.gutapp.session.Responses.WatchlistResponses +.. com.example.gutapp.session.Responses.WatchlistResponses$Content
+com.example.gutapp.session.Responses.AsyncResponse <|-- com.example.gutapp.session.Responses.WatchlistResponses$Content
+com.example.gutapp.session.Responses.WatchlistResponses +.. com.example.gutapp.session.Responses.WatchlistResponses$WatchlistInfo
+com.example.gutapp.data.indicators.Indicator <|-- com.example.gutapp.data.indicators.impl.ArnaudLegouxMovingAverageIndicator
+com.example.gutapp.data.alerts.Condition <|-- com.example.gutapp.data.alerts.conditions.VolatilityCondition
+com.example.gutapp.data.indicators.Indicator <|-- com.example.gutapp.data.indicators.impl.VortexIndicator
+com.example.gutapp.ui.OnClickListener <|.. com.example.gutapp.ui.LoginPage
+com.example.gutapp.session.SessionCallback <|.. com.example.gutapp.ui.LoginPage
+androidx.appcompat.app.AppCompatActivity <|-- com.example.gutapp.ui.LoginPage
+com.example.gutapp.session.AsyncRequest <|-- com.example.gutapp.session.Requests.FetchOrders
+com.example.gutapp.ui.LoadMoreCallback <|.. com.example.gutapp.ui.WatchlistActivity
+com.example.gutapp.ui.SessionActivity <|-- com.example.gutapp.ui.WatchlistActivity
+com.example.gutapp.session.Request <|-- com.example.gutapp.session.Requests.HandShakeHello
+com.example.gutapp.session.Request <|-- com.example.gutapp.session.Requests.HandShakeVerify
+com.github.mikephil.charting.charts.CombinedChart <|-- com.example.gutapp.ui.chart.DrawingChart
+com.example.gutapp.ui.chart.DrawingChart +.. com.example.gutapp.ui.chart.DrawingChart$DrawingEventListener
+com.example.gutapp.ui.chart.DrawingChart +.. com.example.gutapp.ui.chart.DrawingChart$IndicatorPicker
+com.example.gutapp.session.CryptoUtility +.. com.example.gutapp.session.CryptoUtility$CryptoContext
+com.example.gutapp.data.indicators.Indicator +.. com.example.gutapp.data.indicators.Indicator$Param
+com.example.gutapp.data.indicators.Indicator +.. com.example.gutapp.data.indicators.Indicator$Result
+com.example.gutapp.data.indicators.Indicator +.. com.example.gutapp.data.indicators.Indicator$IndicatorSnapshot
+com.example.gutapp.data.indicators.Indicator <|-- com.example.gutapp.data.indicators.impl.MomentumIndicator
+com.example.gutapp.data.indicators.Indicator <|-- com.example.gutapp.data.indicators.impl.FisherTransformIndicator
+com.example.gutapp.session.Runnable <|.. com.example.gutapp.session.SessionManager
+com.example.gutapp.session.SessionManager +.. com.example.gutapp.session.SessionManager$AuthStruct
+@enduml
