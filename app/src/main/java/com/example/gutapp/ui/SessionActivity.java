@@ -30,6 +30,13 @@ public abstract class SessionActivity extends AppCompatActivity implements Sessi
         Log.d(HomeActivity.HOME_LOG_TAG, "set callback for activity");
     }
 
+    @Override
+    protected void onStop() {
+        super.onStop();
+        NetworkClient.getInstance(this).getSessionManager().setUiCallback(null);
+        Log.d(HomeActivity.HOME_LOG_TAG, "removed callback for activity");
+    }
+
     // in case of a reconnect to the server this will be called
     abstract protected void networkReconnect();
 
