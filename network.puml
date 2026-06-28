@@ -1,0 +1,115 @@
+@startuml
+interface com.example.gutapp.session.SessionCallback {
+~ void onDataReceived(DataType,Object)
+~ void onActionRequired(int,Object)
+}
+
+class com.example.gutapp.session.NetworkClient {
+- {static} NetworkClient instance
+- SessionManager sessionManager
+- Thread networkThread
+- Context appContext
++ {static} NetworkClient getInstance(Context)
++ void start()
++ void stop()
+}
+
+
+class com.example.gutapp.session.CryptoUtility {
++ {static} String PREF_NAME
++ {static} String KEY_USER
++ {static} String KEY_PASS
+- {static} SharedPreferences cachedVault
++ {static} AtomicBoolean logOutFlag
++ {static} KeyPair generateKeyPair()
++ {static} String convertToPEM(byte[])
++ {static} byte[] decryptRSA(byte[],PrivateKey)
++ {static} SecretKey bytesToAESKey(byte[])
++ {static} byte[] encryptAESECB(String,SecretKey)
++ {static} byte[] decryptAESGCM(byte[],CryptoContext)
++ {static} byte[] encryptAESGCM(byte[],CryptoContext)
++ {static} SharedPreferences getVault(Context)
++ {static} void clearAuthCredentials(Context)
+}
+
+
+class com.example.gutapp.session.CryptoUtility$CryptoContext {
++ KeyPair keyPair
++ SecretKey aesKey
++ long sendNonce
++ long recvNonce
++ byte[] getNextSendNonce()
++ byte[] getNextRecvNonce()
+}
+
+
+class com.example.gutapp.session.Connection {
++ {static} String NETWORK_LOG_TAG
+~ {static} int PORT
+~ {static} String SERVER_IP
+- Socket socket
+- DataInputStream incoming
+- DataOutputStream outgoing
++ void send(byte[])
++ byte[] receive()
++ void reconnect()
++ void close()
+}
+
+
+class com.example.gutapp.session.SessionManager {
+- boolean reconnect
+~ Connection connection
+~ Queue<Request> outgoinQueue
+- boolean running
+- boolean working
+- CryptoUtility.CryptoContext ctx
+- Context appContext
+- Object callbackLock
+- SessionCallback currentCallback
+- Handler uiHandler
+- BlockingQueue<AuthStruct> authQueue
+- LinkedBlockingQueue<AsyncRequest> requestQueue
+- ConcurrentHashMap<Integer,AsyncRequest> pendingRequests
+- SessionCallback pushResponseCallback
+- Thread sendThread
+- Thread recvThread
++ {static} int ACTION_SHOW_LOGIN_UI
++ void run()
+- void performHandshake()
+- byte[] unframe(byte[])
+- byte[] encrypt(byte[])
+- int tryAutoLogin()
+- void work()
+- void sendLoop()
+- void recvLoop()
+- void saveCredentials(String,String)
++ void stop()
++ void setUiCallback(SessionCallback)
++ void removeUiCallback()
+- void notifyUI(Consumer<SessionCallback>)
++ void pushCredentials(String,String,int)
++ void pushRequest(AsyncRequest)
++ void discardRequests(int[])
++ void discardRequest(int)
++ void debugLogMessage(String,byte[])
++ void debugLogResponse(String,byte[])
++ void debugLogResponseDecrypted(String,byte[])
+- String getMsgTypeName(byte)
++ void debugLogEncryptedMessage(String,byte[])
+}
+
+
+class com.example.gutapp.session.SessionManager$AuthStruct {
++ String username
++ String password
++ int mode
+}
+
+
+
+com.example.gutapp.session.CryptoUtility +.. com.example.gutapp.session.CryptoUtility$CryptoContext
+com.example.gutapp.session.AutoCloseable <|.. com.example.gutapp.session.Connection
+com.example.gutapp.session.Runnable <|.. com.example.gutapp.session.SessionManager
+com.example.gutapp.session.SessionManager +.. com.example.gutapp.session.SessionManager$AuthStruct
+@enduml

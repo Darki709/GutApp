@@ -1,0 +1,126 @@
+@startuml
+abstract class com.example.gutapp.data.indicators.Indicator {
+- String instanceId
+- int color
+# List<Param> params
++ String getInstanceId()
++ void setInstanceId(String)
++ int getColor()
++ void setColor(int)
++ {abstract}String getId()
++ {abstract}String getDisplayName()
++ {abstract}String getTag()
++ {abstract}boolean isSubChart()
++ {abstract}Indicator newInstance()
++ List<Param> getParams()
++ float getParam(String)
++ void setParam(String,float)
++ List<Param> copyParams()
++ void restoreParams(List<Param>)
++ {abstract}Result compute(ArrayList<Candle>)
+# LineDataSet makeLineSet(List<com.github.mikephil.charting.data.Entry>,String,int,float)
+# LineDataSet makeDashedLineSet(List<com.github.mikephil.charting.data.Entry>,String,int)
++ IndicatorSnapshot snapshot()
++ {abstract}int calculateBias(ArrayList<Candle>)
+}
+
+
+class com.example.gutapp.data.indicators.Indicator$Param {
++ String key
++ String label
++ Type type
++ float min
++ float max
++ float value
++ int intValue()
++ float floatValue()
++ Param copy()
+}
+
+
+enum com.example.gutapp.data.indicators.Type {
++  INTEGER
++  FLOAT
+}
+
+class com.example.gutapp.data.indicators.Indicator$Result {
++ List<LineDataSet> overlayLines
++ List<LineDataSet> subChartLines
++ List<ChartDrawing> drawings
++ float subChartMin
++ float subChartMax
++ void addHorizontalLine(double,String,ChartDrawing.DrawingStyle)
++ void addTrendLine(int,double,int,double,ChartDrawing.DrawingStyle)
++ void addRegressionChannel(int,int,ChartDrawing.DrawingStyle)
++ void addPriceRange(double,double,ChartDrawing.DrawingStyle)
+}
+
+
+class com.example.gutapp.data.indicators.Indicator$IndicatorSnapshot {
++ String typeId
++ String instanceId
++ int color
++ List<Param> params
+}
+
+class com.example.gutapp.data.indicators.IndicatorRegistry {
+- LinkedHashMap<String,Indicator> types
+- {static} IndicatorRegistry instance
++ {static} IndicatorRegistry getInstance()
+- void register(Indicator)
++ List<Indicator> getAllTypes()
++ Indicator getType(String)
++ boolean hasType(String)
+}
+
+
+class com.example.gutapp.data.indicators.IndicatorSession {
+- LinkedHashMap<String,Indicator> instances
++ Indicator addInstance(String)
++ void restoreInstance(Indicator.IndicatorSnapshot)
++ void removeInstance(String)
++ void clearAll()
++ List<Indicator> getAll()
++ List<Indicator> getOverlays()
++ List<Indicator> getSubCharts()
++ Indicator getInstance(String)
++ boolean isEmpty()
++ int size()
++ List<Indicator.IndicatorSnapshot> savePreset()
++ void loadPreset(List<Indicator.IndicatorSnapshot>)
+}
+
+
+class com.example.gutapp.data.indicators.PresetRepository {
+- ChartStateDao dao
++ List<Preset> getAllPresets()
++ void savePreset(Preset)
++ void deletePreset(String)
++ void renamePreset(String,String)
++ void autoSave(String,IndicatorSession)
++ void autoLoad(String,IndicatorSession)
+- String snapshotsToJson(List<Indicator.IndicatorSnapshot>)
+- JSONObject serializeSnapshot(Indicator.IndicatorSnapshot)
+- List<Indicator.IndicatorSnapshot> parseSnapshots(JSONArray)
+}
+
+
+class com.example.gutapp.data.indicators.PresetRepository$Preset {
++ String name
++ List<Indicator.IndicatorSnapshot> snapshots
+}
+
+class com.example.gutapp.data.indicators.CurrentSessionHolder {
+- {static} IndicatorSession current
++ {static} void set(IndicatorSession)
++ {static} IndicatorSession getSession()
+}
+
+
+
+
+com.example.gutapp.data.indicators.Indicator +.. com.example.gutapp.data.indicators.Indicator$Param
+com.example.gutapp.data.indicators.Indicator +.. com.example.gutapp.data.indicators.Indicator$Result
+com.example.gutapp.data.indicators.Indicator +.. com.example.gutapp.data.indicators.Indicator$IndicatorSnapshot
+com.example.gutapp.data.indicators.PresetRepository +.. com.example.gutapp.data.indicators.PresetRepository$Preset
+@enduml

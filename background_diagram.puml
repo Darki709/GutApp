@@ -1,0 +1,29 @@
+@startuml
+class com.example.gutapp.session.background.NetworkService {
+- {static} String TAG
+- {static} String CHANNEL_ID
+- {static} int FG_ID
+- ConcurrentHashMap<String,Integer> streamReqIds
++ void onCreate()
++ int onStartCommand(Intent,int,int)
++ void onDestroy()
++ IBinder onBind(Intent)
++ void onDataReceived(DataType,Object)
++ void onActionRequired(int,Object)
++ void requestPriceData(String)
++ void stopPriceData(String)
++ void onAlertTriggered(Alert)
+- Notification buildForegroundNotification()
+- void showAlertNotification(Alert)
+- void createNotificationChannel()
+- String findSymbolByReqId(int)
+}
+
+
+
+
+com.example.gutapp.session.SessionCallback <|.. com.example.gutapp.session.background.NetworkService
+com.example.gutapp.session.background.ServiceRequestInterface <|.. com.example.gutapp.session.background.NetworkService
+com.example.gutapp.session.background.TriggerListener <|.. com.example.gutapp.session.background.NetworkService
+android.app.Service <|-- com.example.gutapp.session.background.NetworkService
+@enduml

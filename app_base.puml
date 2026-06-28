@@ -1,0 +1,703 @@
+@startuml
+class com.example.gutapp.ui.dialogue.IndicatorsPanel {
+- {static} int[] PRESET_COLORS
+# IndicatorSession session
+- IndicatorListener listener
+- android.widget.LinearLayout activeContainer
+- android.widget.LinearLayout catalogContainer
+- String searchQuery
++ {static} IndicatorsPanel newInstance(IndicatorSession)
++ void setListener(IndicatorListener)
++ View onCreateView(LayoutInflater,ViewGroup,Bundle)
+- View buildView(android.content.Context)
++ void onStart()
+- View buildTitleRow(android.content.Context)
+- void rebuildActiveList(android.content.Context)
+- View buildActiveRow(android.content.Context,Indicator)
+- String buildParamSummary(Indicator)
+- void rebuildCatalog(android.content.Context)
+- View buildCatalogRow(android.content.Context,Indicator)
+- View buildParamRow(android.content.Context,Indicator.Param,Indicator,TextView,android.widget.LinearLayout)
+- void showColorPicker(android.content.Context,Indicator,View)
+- void updateValLabel(TextView,Indicator.Param)
+- void addSectionHeader(android.content.Context,android.widget.LinearLayout,String)
+- View makeDivider(android.content.Context)
+- View makeSpacing(android.content.Context,int)
+- int dp(android.content.Context,int)
+- void notifyListener()
+}
+
+
+interface com.example.gutapp.ui.dialogue.IndicatorsPanel$IndicatorListener {
+~ void onIndicatorsChanged()
+}
+
+abstract class com.example.gutapp.ui.SessionActivity {
+# void onStart()
+# void onResume()
+# {abstract}void networkReconnect()
+# {abstract}void networkDisconnect()
++ void onActionRequired(int,Object)
+}
+
+class com.example.gutapp.ui.fragments.DrawingToolbarFragment {
+- DrawingChart drawingChart
+- LinearLayout drawingsListContainer
+- TextView snapBtn
+- {static} int[] PRESET_COLORS
+- {static} String[] COLOR_NAMES
+- int selectedColorIndex
+- float selectedWidth
+- boolean selectedDashed
+- {static} Object[][] TOOLS
++ {static} DrawingToolbarFragment newInstance(DrawingChart)
++ View onCreateView(LayoutInflater,ViewGroup,Bundle)
+- View buildView()
+- View buildModeBar()
+- View buildColorRow()
+- void refreshWidthRow(LinearLayout)
+- void refreshColorRow(LinearLayout)
+- void applyActiveStyle()
+- View buildToolGrid()
+- void refreshDrawingsList()
+- View buildDrawingRow(ChartDrawing)
+- String describeDrawing(ChartDrawing)
+- void openColorPicker(ChartDrawing)
+- void openLabelEditor(ChartDrawing)
+- EditText buildNumericField(String,String,LinearLayout)
+- void notifyChanged()
+- void refreshAll()
+- TextView tv(String,String,float,boolean)
+- TextView chipBtn(String,String)
+- View divider()
+- View spacer(int)
+- TextView sectionLabel(String)
+- int dp(int)
+- int mp()
+- int wc()
+}
+
+
+class com.example.gutapp.ui.ArticleActivity {
++ {static} String EXTRA_URL
++ {static} String EXTRA_HEADLINE
++ {static} String EXTRA_SUMMARY
++ {static} String EXTRA_RELATED
++ {static} String EXTRA_SOURCE
+- {static} String TAG
+- WebView webView
+- ProgressBar progress
+- View errorState
+- TextView errorText
+- String url
+- String headline
+- String summary
+- String related
+- String cachedAnalysis
+- BottomSheetDialog analysisDialog
+- View analysisView
+# void onCreate(Bundle)
+- void setupWebView()
+- void handleBack()
+- void showError(String)
+- void openInBrowser()
+- void showAnalysisSheet()
+- void showAnalysisLoading()
+- void renderAnalysisError()
+- void renderAnalysis(String)
+- View buildSymbolRow(LinearLayout,JSONObject)
+- void openChart(String,String)
+- {static} int sentimentTextColor(String)
+- {static} int sentimentBadgeColor(String)
+- float dp(float)
+# void onPause()
+# void onResume()
+# void onDestroy()
++ void onDataReceived(DataType,Object)
+# void networkReconnect()
+# void networkDisconnect()
+}
+
+
+class com.example.gutapp.GutApp {
+- {static} GutApp instance
++ void onCreate()
+}
+
+
+class com.example.gutapp.ui.HomeActivity {
++ {static} String HOME_LOG_TAG
+- TextView PL
+- OrdersList ordersList
+- StockLiveList stockLiveListFragment
+- DrawerLayout drawerLayout
+# void onCreate(Bundle)
+- ArrayList<TickerInfo> loadStockList()
+- void setUserTitle()
++ void onDataReceived(DataType,Object)
+- void updateOrdersList(ArrayList<Order>)
++ void PLUpdate(double)
++ void notifyOrderRemoved(Order)
+# void networkReconnect()
+# void networkDisconnect()
+# void onResume()
+# void onPause()
+- void updateAlertsBadge()
+}
+
+
+class com.example.gutapp.ui.NewsActivity {
++ {static} String EXTRA_SYMBOL
+- LinearLayout listContainer
+- ProgressBar loading
+- View emptyState
+- TextView emptyText
+- TextView chipGeneral
+- String symbol
+- String category
+# void onCreate(Bundle)
++ void onDataReceived(DataType,Object)
+# void networkReconnect()
+# void networkDisconnect()
+- void selectCategory(String,TextView)
+- void setActiveChip(TextView)
+- void load()
+- void render(List<NewsArticle>)
+- View buildCard(NewsArticle)
+- String buildMeta(NewsArticle)
+- void openArticle(NewsArticle)
+- void showLoading()
+- void showEmpty(String)
+}
+
+
+class com.example.gutapp.ui.fragments.StockLiveList {
+- ArrayList<StockRow> stockList
+- LinearLayout container
+- ScrollView scrollView
+- Button loadBtn
+- ProgressBar loadProgress
+- LoadMoreCallback activityCallback
+- int currentOffset
+- int PAGE_SIZE
+- String currentWatchlistName
+- Handler mainHandler
++ {static} StockLiveList newInstance(ArrayList<TickerInfo>)
++ {static} StockLiveList newInstance(ArrayList<TickerInfo>,String)
++ View onCreateView(LayoutInflater,ViewGroup,Bundle)
++ void onViewCreated(View,Bundle)
+- void requestNextPage()
++ void onDataReceived(DataType,Object)
++ void onActionRequired(int,Object)
++ void loadStockList(ArrayList<TickerInfo>)
+- void addTickersToContainer(ArrayList<String>)
+- View createStockRow(String,String)
+- void updateVisibleTickerSubscriptions()
++ void refreshVisibleRows()
++ void enableBtn()
++ void stopNothingFound()
++ boolean isEmpty()
++ void onAttach(Context)
++ void onDetach()
++ void onResume()
++ void onPause()
++ void stop()
+}
+
+
+interface com.example.gutapp.ui.fragments.StockLiveList$LoadMoreCallback {
+~ void onLoadMore()
+~ void loadingEnd()
+}
+
+class com.example.gutapp.ui.dialogue.AddAlertBottomSheet {
+- {static} List<String> COND_NAMES
+- {static} String[] TF_LABELS
+- {static} StockDataHelper.Timeframe[] TF_VALUES
++ {static} void show(Activity,String,Alert,Runnable)
++ {static} void hide(Activity)
+- {static} void bind(Activity,View,String,Alert,Runnable)
+- {static} void renderCondParams(Context,LinearLayout,int,Alert)
+- {static} void buildPriceThreshold(Context,LinearLayout,Alert)
+- {static} void buildPriceChangePct(Context,LinearLayout,Alert)
+- {static} void buildSma(Context,LinearLayout,Alert)
+- {static} void buildVolatility(Context,LinearLayout,Alert)
+- {static} void buildRsi(Context,LinearLayout,Alert)
+- {static} void buildVolumeSpike(Context,LinearLayout,Alert)
+- {static} Condition buildCondition(Context,int,String,LinearLayout)
+- {static} TextView sectionLabel(Context,String)
+- {static} EditText numField(Context,String)
+- {static} RadioButton radio(Context,String)
+- {static} Spinner spinner(Context,List<String>)
+- {static} int dp(Context,int)
+- {static} int tfIndex(StockDataHelper.Timeframe)
+- {static} String numStr(double)
+}
+
+
+class com.example.gutapp.ui.fragments.SearchFragment {
+- EditText searchInput
+- RecyclerView searchDropdown
+- SearchAdapter searchAdapter
+- ImageButton micButton
+- ActivityResultLauncher<Intent> speechToTextLauncher
++ View onCreateView(LayoutInflater,ViewGroup,Bundle)
++ void onDataReceived(DataType,Object)
+- void callSearch(String)
++ void onActionRequired(int,Object)
+- void initSpeechRecognizerLauncher()
+- void startVoiceRecognition()
+}
+
+
+class com.example.gutapp.ui.LoginPage {
+- MediaPlayer startupPlayer
+- Thread mediaThread
+- ActivityResultLauncher<String> requestPermissionLauncher
+~ TextView textTitle
+~ EditText editTextUsername
+~ Button buttonLogin
+- View loadingOverlay
++ {static} String APP_LOG_TAG
+# void onCreate(Bundle)
++ void onClick(View)
+- void playStartupSound()
++ void UserLogin(String,String)
++ void UserRegister(String,String)
++ void onDataReceived(DataType,Object)
++ void onActionRequired(int,Object)
+- void setLoading(boolean)
+# void onStop()
+}
+
+
+class com.example.gutapp.ui.ExploreActivity {
++ {static} String EXPLORE_LOG_TAG
+~ StockLiveList stock_list_fragment
+~ int lastTickerId
+~ String query
+~ LinearLayout loading_layout
+~ FragmentContainerView stock_list_container
+~ TextView nothingFound
+# void onCreate(Bundle)
+- void loadMore()
++ void onDataReceived(DataType,Object)
++ void onLoadMore()
++ void loadingEnd()
+# void networkReconnect()
+# void networkDisconnect()
+}
+
+
+class com.example.gutapp.ui.WatchlistActivity {
+- Spinner spinner
+- StockLiveList stock_list_fragment
+- LinearLayout loading_layout
+- View stock_list_container
+- TextView nothingFound
+- View management_container
+- List<WatchlistResponses.WatchlistInfo> currentLists
+- String selectedListName
+# void onCreate(Bundle)
+- void initUI()
+- void resetAndLoadFragment()
+- void refreshLists()
++ void onDataReceived(DataType,Object)
+- void handleListsLoaded(List<WatchlistResponses.WatchlistInfo>)
++ void loadingEnd()
++ void onLoadMore()
+# void networkReconnect()
+# void networkDisconnect()
+- void confirmDelete()
+- void showRenameDialog()
+}
+
+
+class com.example.gutapp.ui.ProfileActivity {
+- PresetRepository repo
+- LinearLayout presetsContainer
+- IndicatorSession editingSession
+- String editingPresetName
+# void onCreate(Bundle)
+- void promptNewPresetName()
+- void editPreset(PresetRepository.Preset)
+- void openEditorPanel(String,IndicatorSession)
+- void onPresetSaveRequested(String)
++ void onIndicatorsChanged()
+- void renderPresets()
+- View buildPresetCard(PresetRepository.Preset)
+- View makeIndicatorChip(String,Indicator.IndicatorSnapshot)
+- TextView actionChip(String,String)
+- int dp(int)
+# void onResume()
+# void onPause()
+# void networkReconnect()
+# void networkDisconnect()
++ void onDataReceived(DataType,Object)
+}
+
+
+class com.example.gutapp.ui.ProfileActivity$SaveableIndicatorsPanel {
+- SaveListener saveListener
+- String presetName
++ {static} SaveableIndicatorsPanel newSaveable(IndicatorSession,String)
++ void setSaveListener(SaveListener)
++ View onCreateView(android.view.LayoutInflater,android.view.ViewGroup,Bundle)
+- int dpI(android.content.Context,int)
+}
+
+
+interface com.example.gutapp.ui.ProfileActivity$SaveableIndicatorsPanel$SaveListener {
+~ void onSave(String)
+}
+
+class com.example.gutapp.ui.dialogue.IndicatorEditPanel {
+- {static} int[] COLORS
+- Indicator current
+- Runnable onDelete
+- Runnable onDeselect
+- OnChangeListener onChange
+- {static} int MATCH
+- {static} int WRAP
+- void init()
++ void show(Indicator,Runnable,Runnable,OnChangeListener)
++ void hide()
++ Indicator getCurrent()
+- void buildPanel(Indicator)
+- View buildHeader(Indicator)
+- View buildColorRow(Indicator)
+- void refreshColorRow(LinearLayout,Indicator)
+- void applySwatch(View,int,boolean)
+- View buildParamRow(Indicator,Indicator.Param)
+- float clamp(float,Indicator.Param)
+- float round(float,Indicator.Param)
+- String fmt(Indicator.Param)
+- void fire()
+- TextView tv(String,String,float,boolean)
+- TextView chip(String,String)
+- TextView sectionLabel(String)
+- LinearLayout row(int,int,int,int)
+- View div()
+- View sp(int)
+- int dp(int)
+}
+
+
+interface com.example.gutapp.ui.dialogue.IndicatorEditPanel$OnChangeListener {
+~ void onChange()
+}
+
+class com.example.gutapp.ui.chart.DrawingChart {
+- DrawingManager drawingManager
+- DrawingRenderer drawingRenderer
+- List<Candle> candles
+- float tapAnchorX
+- long anchor1Ts
+- double anchor1Price
+- long anchor2Ts
+- double anchor2Price
+- int pitchforkState
+- ChartDrawing previewDrawing
+- int dragHandleIdx
+- float dragLastX
+- ChartDrawing dragTarget
+- boolean snapEnabled
+- {static} float HIT_BODY_PX
+- {static} float HIT_HANDLE_PX
+- Paint crosshairPaint
+- GestureDetector gestureDetector
+- DrawingEventListener drawingEventListener
+- IndicatorPicker indicatorPicker
++ void setIndicatorPicker(IndicatorPicker)
+- void initDrawingLayer()
++ DrawingManager getDrawingManager()
++ void setCandles(List<Candle>)
++ void setDrawingEventListener(DrawingEventListener)
++ void setSnapEnabled(boolean)
++ boolean isSnapEnabled()
++ void setActiveTool(DrawingManager.DrawingTool)
++ void replaceIndicatorDrawings(List<ChartDrawing>)
++ void cancelCurrentDrawing()
++ boolean undo()
++ boolean redo()
++ void clearAllUserDrawings()
++ void removeDrawing(String)
+- void notifyChanged()
++ void notifyDrawingsChanged()
+# void onDraw(Canvas)
+- void prepareCanvas(Canvas)
+- void drawLayerPass(Canvas,ChartDrawing.Layer)
++ boolean onTouchEvent(MotionEvent)
+- boolean handleEditTouch(MotionEvent)
+- boolean handlePlacementTouch(MotionEvent)
+- void handlePlacementTap(DrawingManager.DrawingTool,long,double,boolean,long,double)
+- int nearestHandle(ChartDrawing,float,float)
+- float[][] getHandles(ChartDrawing)
+- float pixelToFractionalIndex(float)
+- long fractionalIndexToTimestamp(float)
+- float timestampToFractionalIndex(long)
+- void moveHandle(ChartDrawing,int,float,float)
+- void moveDrawing(ChartDrawing,float,float)
+- boolean hitBody(ChartDrawing,float,float)
+- void trySelect(float,float)
+- float hitDistance(ChartDrawing,float,float)
+- float ptSeg(float,float,float,float,float,float)
+- double snapToOHLC(float,long)
+- long pixelToTimestamp(float)
+- double timestampToPixelX(long)
+- double pixelToPrice(float)
+- float priceToPixelY(double)
+- ChartDrawing placeOnePoint(DrawingManager.DrawingTool,long,double)
+- ChartDrawing buildDrawing(DrawingManager.DrawingTool,long,double,long,double)
+- void finalizeDrawing(ChartDrawing)
+}
+
+
+interface com.example.gutapp.ui.chart.DrawingChart$DrawingEventListener {
+~ void onDrawingCreated(ChartDrawing)
+~ void onDrawingRemoved(ChartDrawing)
+~ void onDrawingSelected(ChartDrawing)
+~ void onDrawingsChanged()
+~ void onToolChanged(DrawingManager.DrawingTool)
+~ void onIndicatorSelected(String)
+}
+
+interface com.example.gutapp.ui.chart.DrawingChart$IndicatorPicker {
+~ String pickIndicatorAt(float,float)
+}
+
+class com.example.gutapp.ui.AlertsActivity {
+- LinearLayout listContainer
+- View emptyState
+- TextView countBar
+- String filterSymbol
+- AlertDialog tickerPickDialog
+- LinearLayout searchResultsContainer
+# void onCreate(Bundle)
+# void onResume()
+# void onPause()
+# void networkReconnect()
+# void networkDisconnect()
++ void onDataReceived(DataType,Object)
+- void showTickerSearchDialog()
+- View buildSearchResultRow(TickerInfo)
+- void refreshList()
+- View buildSectionHeader(String)
+- View buildAlertRow(Alert)
+- String fmt(long)
+- int dp(int)
+}
+
+
+class com.example.gutapp.ui.fragments.OrdersList {
+- ArrayList<OrderRow> activeOrderRows
+- LinearLayout container
+- ScrollView scrollView
+- Listener listener
++ {static} OrdersList newInstance(ArrayList<Order>)
++ View onCreateView(LayoutInflater,ViewGroup,Bundle)
++ void onViewCreated(View,Bundle)
++ void displayOrders(ArrayList<Order>)
++ void addOrderRow(Order)
+- void updateVisibleOrderSubscriptions()
++ void removeByOrderReference(Order)
++ void removeByOrderId(int)
++ void onResume()
++ void onPause()
++ void onDestroy()
++ boolean isEmpty()
++ void notifyPLChange()
++ void notifyClosed(Order)
++ OrderRow getOrderRow(int)
+}
+
+
+interface com.example.gutapp.ui.fragments.OrdersList$Listener {
+~ void PLUpdate(double)
+~ void notifyOrderRemoved(Order)
+}
+
+class com.example.gutapp.ui.ChartActivity {
++ {static} String CHART_LOG_TAG
+- DB_Helper db_helper
+- StockChart chartContainer
+- String symbol
+- TextView textViewTitle
+- StockDataHelper.Timeframe interval
+- OrderDialog activeDialog
+- double current_price
+- OrdersList ordersFragment
+- ArrayList<Order> allOrders
+- TextView btnChartCandle
+- TextView btn5m
+- IndicatorSession indicatorSession
+- PresetRepository presetRepo
+- boolean isManagerReturned
+- LinearLayout presetListContainer
+- DrawingPersistence drawingPersistence
+- android.widget.LinearLayout drawingModeHud
+- android.widget.TextView hudToolName
+- DrawingEditPanel drawingEditPanel
+- IndicatorEditPanel indicatorEditPanel
+- double lastDisplayedPrice
+- String cachedAiResponse
+# void onCreate(Bundle)
+- String getSentimentString(int)
+# void onResume()
+- void reloadChartStateFromCache()
+# void networkReconnect()
+# void networkDisconnect()
+# void onPause()
+# void onDestroy()
++ void onClick(View)
+- void switchChartType(StockChart.ChartType,TextView)
+- void switchTimeframe(StockDataHelper.Timeframe,TextView)
+- void setChipActive(TextView,boolean)
+- void openIndicatorsPanel()
++ void onIndicatorsChanged()
+- void showIndicatorEditor(String)
+- void clearIndicatorSelection()
+- void refreshIndicatorChip()
+- void openDrawingPanel()
+- void openPresetPicker()
+- View buildPresetPickerView(List<PresetRepository.Preset>)
+- void refreshPresetListUI()
+- View buildPickerPresetRow(android.content.Context,PresetRepository.Preset)
+- void applyPreset(PresetRepository.Preset)
+- void promptSaveCurrentPreset()
+- View makeActionRow(android.content.Context,String,String,String,View.OnClickListener)
+- View makeSectionHeader(android.content.Context,String)
+- View makeDivider(android.content.Context)
+- View makeSpacing(android.content.Context,int)
+- int dpI(int)
++ void formatTitle(String)
+- void updateChartData()
+- RequestTickerData getRequest(String,StockDataHelper.Timeframe,long,long,boolean,boolean,SessionCallback)
++ void onDataReceived(DataType,Object)
+- void updatePriceDisplay(double)
+- void updateOrdersUI()
++ void onConfirmOrder(int,double,Order.OrderType)
++ void PLUpdate(double)
++ void notifyOrderRemoved(Order)
+- void performAiAnalysis()
+- void showAiPopup(String)
++ void onSuccess(String)
++ void onError(String)
+- void setDrawingTool(DrawingManager.DrawingTool)
+- void clearAllUserDrawings()
+- void updateDrawingHud(DrawingManager.DrawingTool)
+- String toolDisplayName(DrawingManager.DrawingTool)
+}
+
+
+class com.example.gutapp.ui.dialogue.DrawingEditPanel {
+- {static} int[] COLORS
+- ChartDrawing currentDrawing
+- Runnable onDelete
+- Runnable onDeselect
+- OnChangeListener onChange
+- {static} int MATCH
+- {static} int WRAP
+- void init()
++ void show(ChartDrawing,Runnable,Runnable,OnChangeListener)
++ void hide()
+- void buildPanel(ChartDrawing)
+- View buildHeader(ChartDrawing)
+- View buildColorRow(ChartDrawing)
+- void refreshColorRow(LinearLayout,ChartDrawing)
+- View buildStrokeRow(ChartDrawing)
+- View buildLayerRow(ChartDrawing)
+- View buildSpecific(ChartDrawing)
+- void updateDevButtons(ChartDrawing.LinearRegression,TextView,TextView,TextView)
+- void fire()
+- TextView tv(String,String,float,boolean)
+- TextView chip(String,String)
+- TextView sectionLabel(String)
+- LinearLayout row(int,int,int,int)
+- View div()
+- View sp(int)
+- String levelsStr(float[])
+- String typeName(ChartDrawing)
+- int dp(int)
+}
+
+
+interface com.example.gutapp.ui.dialogue.DrawingEditPanel$OnChangeListener {
+~ void onChange()
+}
+
+class com.example.gutapp.ui.AllOrdersActivity {
+- android.widget.LinearLayout ordersContainer
+- android.widget.ProgressBar loadingBar
+- TextView emptyText
+- List<Order> allOrders
+- List<OrderRow> activeRows
+- String currentSort
+# void onCreate(Bundle)
+- void setupSortButtons()
+- void loadOrders()
+- void clearExistingRows()
++ void onDataReceived(DataType,Object)
+- void renderOrders()
++ void notifyPLChange()
++ void notifyClosed(Order)
+- void sortOrders(List<Order>,String)
+- double getProfit(Order)
+- View makeDateHeader(String)
+- void updateSortButtonsUI()
+- int dp(int)
+# void onDestroy()
+# void networkReconnect()
+# void networkDisconnect()
+}
+
+
+
+
+com.google.android.material.bottomsheet.BottomSheetDialogFragment <|-- com.example.gutapp.ui.dialogue.IndicatorsPanel
+com.example.gutapp.ui.dialogue.IndicatorsPanel +.. com.example.gutapp.ui.dialogue.IndicatorsPanel$IndicatorListener
+com.example.gutapp.session.SessionCallback <|.. com.example.gutapp.ui.SessionActivity
+androidx.appcompat.app.AppCompatActivity <|-- com.example.gutapp.ui.SessionActivity
+com.google.android.material.bottomsheet.BottomSheetDialogFragment <|-- com.example.gutapp.ui.fragments.DrawingToolbarFragment
+com.example.gutapp.ui.SessionActivity <|-- com.example.gutapp.ui.ArticleActivity
+android.app.Application <|-- com.example.gutapp.GutApp
+com.example.gutapp.ui.Listener <|.. com.example.gutapp.ui.HomeActivity
+com.example.gutapp.ui.SessionActivity <|-- com.example.gutapp.ui.HomeActivity
+com.example.gutapp.ui.SessionActivity <|-- com.example.gutapp.ui.NewsActivity
+com.example.gutapp.session.SessionCallback <|.. com.example.gutapp.ui.fragments.StockLiveList
+androidx.fragment.app.Fragment <|-- com.example.gutapp.ui.fragments.StockLiveList
+com.example.gutapp.ui.fragments.StockLiveList +.. com.example.gutapp.ui.fragments.StockLiveList$LoadMoreCallback
+com.example.gutapp.session.SessionCallback <|.. com.example.gutapp.ui.fragments.SearchFragment
+androidx.fragment.app.Fragment <|-- com.example.gutapp.ui.fragments.SearchFragment
+com.example.gutapp.ui.OnClickListener <|.. com.example.gutapp.ui.LoginPage
+com.example.gutapp.session.SessionCallback <|.. com.example.gutapp.ui.LoginPage
+androidx.appcompat.app.AppCompatActivity <|-- com.example.gutapp.ui.LoginPage
+com.example.gutapp.ui.LoadMoreCallback <|.. com.example.gutapp.ui.ExploreActivity
+com.example.gutapp.ui.SessionActivity <|-- com.example.gutapp.ui.ExploreActivity
+com.example.gutapp.ui.LoadMoreCallback <|.. com.example.gutapp.ui.WatchlistActivity
+com.example.gutapp.ui.SessionActivity <|-- com.example.gutapp.ui.WatchlistActivity
+com.example.gutapp.ui.IndicatorListener <|.. com.example.gutapp.ui.ProfileActivity
+com.example.gutapp.ui.SessionActivity <|-- com.example.gutapp.ui.ProfileActivity
+com.example.gutapp.ui.ProfileActivity +.. com.example.gutapp.ui.ProfileActivity$SaveableIndicatorsPanel
+com.example.gutapp.ui.IndicatorsPanel <|-- com.example.gutapp.ui.ProfileActivity$SaveableIndicatorsPanel
+com.example.gutapp.ui.ProfileActivity$SaveableIndicatorsPanel +.. com.example.gutapp.ui.ProfileActivity$SaveableIndicatorsPanel$SaveListener
+android.widget.LinearLayout <|-- com.example.gutapp.ui.dialogue.IndicatorEditPanel
+com.example.gutapp.ui.dialogue.IndicatorEditPanel +.. com.example.gutapp.ui.dialogue.IndicatorEditPanel$OnChangeListener
+com.github.mikephil.charting.charts.CombinedChart <|-- com.example.gutapp.ui.chart.DrawingChart
+com.example.gutapp.ui.chart.DrawingChart +.. com.example.gutapp.ui.chart.DrawingChart$DrawingEventListener
+com.example.gutapp.ui.chart.DrawingChart +.. com.example.gutapp.ui.chart.DrawingChart$IndicatorPicker
+com.example.gutapp.ui.SessionActivity <|-- com.example.gutapp.ui.AlertsActivity
+com.example.gutapp.ui.fragments.OrderRowContainer <|.. com.example.gutapp.ui.fragments.OrdersList
+androidx.fragment.app.Fragment <|-- com.example.gutapp.ui.fragments.OrdersList
+com.example.gutapp.ui.fragments.OrdersList +.. com.example.gutapp.ui.fragments.OrdersList$Listener
+com.example.gutapp.ui.OnClickListener <|.. com.example.gutapp.ui.ChartActivity
+com.example.gutapp.ui.OrderDialogListener <|.. com.example.gutapp.ui.ChartActivity
+com.example.gutapp.ui.Listener <|.. com.example.gutapp.ui.ChartActivity
+com.example.gutapp.ui.IndicatorListener <|.. com.example.gutapp.ui.ChartActivity
+com.example.gutapp.ui.AnalysisCallback <|.. com.example.gutapp.ui.ChartActivity
+com.example.gutapp.ui.SessionActivity <|-- com.example.gutapp.ui.ChartActivity
+android.widget.LinearLayout <|-- com.example.gutapp.ui.dialogue.DrawingEditPanel
+com.example.gutapp.ui.dialogue.DrawingEditPanel +.. com.example.gutapp.ui.dialogue.DrawingEditPanel$OnChangeListener
+com.example.gutapp.ui.OrderRowContainer <|.. com.example.gutapp.ui.AllOrdersActivity
+com.example.gutapp.ui.SessionActivity <|-- com.example.gutapp.ui.AllOrdersActivity
+@enduml

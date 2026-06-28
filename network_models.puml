@@ -1,0 +1,532 @@
+@startuml
+enum com.example.gutapp.session.RequestType {
++  HANDSHAKEHELLO
++  HANDSHAKEVERIFY
++  LOGIN
++  REGISTER
++  REQUESTTICKERDATA
++  CANCELTICKERSTREAM
++  SEARCHTICKER
++  TICKERINFO
++  GETBALANCE
++  SENDORDER
++  FETCHORDERS
++  ENDORDER
++  FETCH_WATCHLISTS
++  MANAGE_WATCHLIST
++  MODIFY_WATCHLIST_ITEMS
++  GET_WATCHLIST_CONTENT
++  SYNC_CHART_PULL
++  SYNC_CHART_PUSH
++  SYNC_ALERT_PULL
++  SYNC_ALERT_PUSH
++ byte value
+}
+
+class com.example.gutapp.session.Requests.CancelTickerStream {
+- String symbol
+- byte[] previousReqId
++ byte[] getBytes()
++ void handle(Response)
+}
+
+
+class com.example.gutapp.session.Responses.EndOrderResponses {
+}
+class com.example.gutapp.session.Responses.EndOrderResponses$Success {
+~ double end_price
+~ long end_ts
+}
+
+class com.example.gutapp.session.Responses.EndOrderResponses$Failure {
+~ String error
+}
+
+class com.example.gutapp.session.Responses.TickerInfoResponse {
+~ TickerInformation information
++ TickerInformation getInformation()
+}
+
+
+class com.example.gutapp.session.Responses.HandShakeVerifyResponse {
+- boolean isAccepted
++ boolean isAccepted()
+}
+
+
+class com.example.gutapp.session.Requests.ModifyWatchlistItems {
+- Action action
+- String listName
+- String symbol
++ byte[] getBytes()
++ void handle(Response)
+}
+
+
+enum com.example.gutapp.session.Requests.Action {
++  ADD
++  REMOVE
++ byte v
+}
+
+class com.example.gutapp.session.Responses.AlertSyncResponses {
+}
+class com.example.gutapp.session.Responses.AlertSyncResponses$PushResult {
++ byte status
+}
+
+class com.example.gutapp.session.Responses.AlertSyncResponses$PullResult {
++ byte status
++ List<AlertDBHelper.SyncRow> rows
+}
+
+class com.example.gutapp.session.Responses.FetchOrdersResponse {
+- ArrayList<Order> orders
++ {static} void debugPrintOrders(List<Order>)
+}
+
+
+class com.example.gutapp.session.Requests.ManageWatchlist {
+- Action action
+- String name
+- String newName
++ byte[] getBytes()
++ void handle(Response)
+}
+
+
+enum com.example.gutapp.session.Requests.Action {
++  CREATE
++  RENAME
++  DELETE
++ byte v
+}
+
+abstract class com.example.gutapp.session.Request {
++ byte[] reqId
++ int getReqId()
++ {abstract}byte[] getBytes()
++ {abstract}void handle(Response)
++ void discardRequest()
+}
+
+
+class com.example.gutapp.session.Responses.LoginResponse {
+~ LoginState state
++ LoginState getState()
+}
+
+
+enum com.example.gutapp.session.Responses.LoginState {
++  SUCCESS
++  WRONGPASSWORD
++  INVALIDUSER
+}
+
+class com.example.gutapp.session.Responses.OrderResponses {
+}
+class com.example.gutapp.session.Responses.OrderResponses$Commited {
++ double paid_price
++ long ts
++ int order_id
+}
+
+class com.example.gutapp.session.Responses.OrderResponses$Invalid {
++ Status status
+}
+
+enum com.example.gutapp.session.Responses.Status {
++  INVALIDBALANCE
++  INVALIDSYMBOL
++ {static} Status fromByte(byte)
+}
+
+
+class com.example.gutapp.session.Responses.OrderResponses$Slip {
+}
+class com.example.gutapp.session.ResponseFactory {
++ {static} AsyncResponse createResponse(byte[])
+}
+
+class com.example.gutapp.session.Responses.RegisterResponse {
++ {static} int SUCCESS
++ {static} int USERNAME_TAKEN
++ {static} int INSECURE_PASSWORD
+- int state
+- String feedback
++ int getState()
++ String getFeedback()
+}
+
+
+class com.example.gutapp.session.Requests.RequestTickerData {
+- String symbol
+- StockDataHelper.Timeframe interval
+- long startTs
+- long endTs
+- byte flags
+- boolean isStream
+- int limit
++ {static} int CACHE_END
++ byte[] getBytes()
++ void handle(Response)
++ void discardRequest()
+- void cachePriceData(ArrayList<Candle>,StockDataHelper.Timeframe)
+}
+
+
+class com.example.gutapp.session.Responses.SnapshotResponse {
+- boolean isDone
+- ArrayList<Candle> entries
++ boolean isFetchError()
++ boolean isDone()
++ ArrayList<Candle> getEntries()
+}
+
+
+class com.example.gutapp.session.Requests.SyncAlertPush {
+- List<AlertDBHelper.SyncRow> rows
++ List<AlertDBHelper.SyncRow> getRows()
++ byte[] getBytes()
++ void handle(Response)
+}
+
+
+class com.example.gutapp.session.Responses.HandShakeHelloResponse {
+- byte[] payload
++ byte[] getPayload()
+}
+
+
+class com.example.gutapp.session.Requests.SearchTicker {
+- String searchQuery
+- boolean isFast
+- int limit
+- int lastTickerID
+- SessionCallback caller
++ byte[] getBytes()
++ void handle(Response)
+- void storeNames(ArrayList<TickerInfo>)
+}
+
+
+class com.example.gutapp.session.Requests.SendOrder {
+~ String symbol
+~ int quantity
+~ double asking_price
+~ Order.OrderType type
+~ Context appContext
++ byte[] getBytes()
++ void handle(Response)
+- String fetchPassword()
+}
+
+
+class com.example.gutapp.session.Responses.StreamResponse {
+~ long ts
+~ double open
+~ double high
+~ double low
+~ double close
+~ long volume
++ Candle getCandle()
+}
+
+
+class com.example.gutapp.session.Requests.SyncAlertPull {
++ byte[] getBytes()
++ void handle(Response)
+}
+
+class com.example.gutapp.session.Responses.GetBalanceResponse {
++ double balance
+}
+
+abstract class com.example.gutapp.session.AsyncResponse {
+# int reqId
++ int getReqId()
+}
+
+
+enum com.example.gutapp.session.ResponseType {
++  HANDSHAKEVERIFY
++  HANDSHAKESUCCESS
++  SNAPSHOT
++  STREAM
++  REGISTER
++  LOGIN
++  SEARCHTICKERRESPONSE
++  TICKERINFO
++  GETBALANCE
++  ORDERCOMMITED
++  INVALIDORDER
++  ORDERSLIPPED
++  ORDERSBATCH
++  ORDEREXITTED
++  ORDERFAILEDEXIT
++  WATCHLIST_SUMMARY
++  WATCHLIST_ACTION_STATUS
++  WATCHLIST_CONTENT
++  CHART_SYNC_PULL_RESULT
++  CHART_SYNC_PUSH_RESULT
++  ALERT_SYNC_PULL_RESULT
++  ALERT_SYNC_PUSH_RESULT
++  ALERT
++ byte value
++ {static} ResponseType fromByte(byte)
+}
+
+
+class com.example.gutapp.session.Requests.GetWatchlistContent {
+- String listName
+- int offset
+- int limit
++ byte[] getBytes()
++ void handle(Response)
+}
+
+
+class com.example.gutapp.session.Requests.LoginRequest {
+- byte[] payload
+- String username
++ byte[] getBytes()
++ void handle(Response)
+}
+
+
+class com.example.gutapp.session.Responses.ChartSyncResponses {
+}
+class com.example.gutapp.session.Responses.ChartSyncResponses$PushResult {
++ byte status
+}
+
+class com.example.gutapp.session.Responses.ChartSyncResponses$PullResult {
++ byte status
++ List<ChartStateDao.Row> rows
+- {static} String kindFromCode(int)
+}
+
+
+class com.example.gutapp.session.Requests.SyncChartPush {
+- List<ChartStateDao.Row> rows
++ List<ChartStateDao.Row> getRows()
+- {static} byte kindCode(String)
++ byte[] getBytes()
++ void handle(Response)
+}
+
+
+class com.example.gutapp.session.Responses.WatchlistResponses {
++ {static} String translate(byte)
+}
+
+class com.example.gutapp.session.Responses.WatchlistResponses$Summary {
++ byte status
++ List<WatchlistInfo> lists
+}
+
+class com.example.gutapp.session.Responses.WatchlistResponses$ActionStatus {
++ byte status
+}
+
+class com.example.gutapp.session.Responses.WatchlistResponses$Content {
++ byte status
++ List<String> tickers
+}
+
+class com.example.gutapp.session.Responses.WatchlistResponses$WatchlistInfo {
++ int id
++ String name
+}
+
+enum com.example.gutapp.session.Flag {
++  PLAINTEXT
++  ENCRYPTED
++ byte value
+}
+
+class com.example.gutapp.session.Responses.SearchTickerResponse {
+- ArrayList<TickerInfo> tickers
+- boolean found
++ boolean isFound()
++ ArrayList<TickerInfo> getTickers()
+}
+
+
+abstract class com.example.gutapp.session.AsyncRequest {
+# SessionCallback caller
+# boolean isDone
++ SessionCallback getCaller()
++ boolean isDone()
+}
+
+
+class com.example.gutapp.session.Requests.EndOrder {
+- Order order
+- double expectedPrice
+- String password
+- Context appContext
++ byte[] getBytes()
++ void handle(Response)
+- String fetchPassword()
+}
+
+
+class com.example.gutapp.session.Requests.FetchOrders {
+- String symbol
+- OrderView view
+- int limit
+- int offset
++ byte[] getBytes()
++ void handle(Response)
+}
+
+
+enum com.example.gutapp.session.Requests.OrderView {
++  ALL
++  ACTIVE
++  INACTIVE
++ byte value
+}
+
+abstract class com.example.gutapp.session.Response {
+~ ResponseType type
++ ResponseType getType()
+}
+
+
+class com.example.gutapp.session.Requests.TickerInfoRequest {
+~ String symbol
++ byte[] getBytes()
++ void handle(Response)
+}
+
+
+class com.example.gutapp.session.Requests.HandShakeHello {
+~ byte[] publicKey
+~ CryptoUtility.CryptoContext ctx
++ byte[] getBytes()
++ void handle(Response)
+}
+
+
+class com.example.gutapp.session.Requests.HandShakeVerify {
+~ byte[] payload
++ byte[] getBytes()
++ void handle(Response)
+}
+
+
+class com.example.gutapp.session.Requests.SyncChartPull {
++ byte[] getBytes()
++ void handle(Response)
+}
+
+enum com.example.gutapp.session.DataType {
++  ERROR
++  REGISTER_ERROR
++  LOGIN_ERROR
++  AUTH_SUCCESS
++  MARKET_DATA
++  TICKER_STREAM
++  TICKER_SNAPSHOT
++  TICKER_REQUEST_DONE
++  TICKER_ERROR
++  SEARCH_RESULT
++  SEARCH_NO_RESULT
++  TICKER_INFORMATION
++  ORDER_RECEIVED
++  ORDER_INVALID
++  ORDER_SLIP
++  ORDERS_BATCH
++  ORDER_CLOSED_SUCCESS
++  ORDER_CLOSED_FAILURE
++  WATCHLISTS_LOADED
++  WATCHLIST_OPERATION_RESULT
++  WATCHLIST_CONTENT_LOADED
++  WATCHLIST_ERROR
++  CHART_SYNC_PULLED
++  CHART_SYNC_PUSHED
++  CHART_SYNC_ERROR
++  ALERT_SYNC_PULLED
++  ALERT_SYNC_PUSHED
++  ALERT_SYNC_ERROR
+}
+
+class com.example.gutapp.session.Requests.GetBalance {
++ byte[] getBytes()
++ void handle(Response)
+}
+
+class com.example.gutapp.session.Requests.RegisterRequest {
+- byte[] payload
++ byte[] getBytes()
++ void handle(Response)
+}
+
+
+class com.example.gutapp.session.Requests.GetWatchlists {
++ byte[] getBytes()
++ void handle(Response)
+}
+
+
+
+com.example.gutapp.session.AsyncRequest <|-- com.example.gutapp.session.Requests.CancelTickerStream
+com.example.gutapp.session.Responses.EndOrderResponses +.. com.example.gutapp.session.Responses.EndOrderResponses$Success
+com.example.gutapp.session.Responses.AsyncResponse <|-- com.example.gutapp.session.Responses.EndOrderResponses$Success
+com.example.gutapp.session.Responses.EndOrderResponses +.. com.example.gutapp.session.Responses.EndOrderResponses$Failure
+com.example.gutapp.session.Responses.AsyncResponse <|-- com.example.gutapp.session.Responses.EndOrderResponses$Failure
+com.example.gutapp.session.AsyncResponse <|-- com.example.gutapp.session.Responses.TickerInfoResponse
+com.example.gutapp.session.Response <|-- com.example.gutapp.session.Responses.HandShakeVerifyResponse
+com.example.gutapp.session.AsyncRequest <|-- com.example.gutapp.session.Requests.ModifyWatchlistItems
+com.example.gutapp.session.Responses.AlertSyncResponses +.. com.example.gutapp.session.Responses.AlertSyncResponses$PushResult
+com.example.gutapp.session.Responses.AsyncResponse <|-- com.example.gutapp.session.Responses.AlertSyncResponses$PushResult
+com.example.gutapp.session.Responses.AlertSyncResponses +.. com.example.gutapp.session.Responses.AlertSyncResponses$PullResult
+com.example.gutapp.session.Responses.AsyncResponse <|-- com.example.gutapp.session.Responses.AlertSyncResponses$PullResult
+com.example.gutapp.session.AsyncResponse <|-- com.example.gutapp.session.Responses.FetchOrdersResponse
+com.example.gutapp.session.AsyncRequest <|-- com.example.gutapp.session.Requests.ManageWatchlist
+com.example.gutapp.session.Response <|-- com.example.gutapp.session.Responses.LoginResponse
+com.example.gutapp.session.Responses.OrderResponses +.. com.example.gutapp.session.Responses.OrderResponses$Commited
+com.example.gutapp.session.Responses.AsyncResponse <|-- com.example.gutapp.session.Responses.OrderResponses$Commited
+com.example.gutapp.session.Responses.OrderResponses +.. com.example.gutapp.session.Responses.OrderResponses$Invalid
+com.example.gutapp.session.Responses.AsyncResponse <|-- com.example.gutapp.session.Responses.OrderResponses$Invalid
+com.example.gutapp.session.Responses.OrderResponses +.. com.example.gutapp.session.Responses.OrderResponses$Slip
+com.example.gutapp.session.Responses.AsyncResponse <|-- com.example.gutapp.session.Responses.OrderResponses$Slip
+com.example.gutapp.session.Response <|-- com.example.gutapp.session.Responses.RegisterResponse
+com.example.gutapp.session.AsyncRequest <|-- com.example.gutapp.session.Requests.RequestTickerData
+com.example.gutapp.session.AsyncResponse <|-- com.example.gutapp.session.Responses.SnapshotResponse
+com.example.gutapp.session.AsyncRequest <|-- com.example.gutapp.session.Requests.SyncAlertPush
+com.example.gutapp.session.Response <|-- com.example.gutapp.session.Responses.HandShakeHelloResponse
+com.example.gutapp.session.AsyncRequest <|-- com.example.gutapp.session.Requests.SearchTicker
+com.example.gutapp.session.AsyncRequest <|-- com.example.gutapp.session.Requests.SendOrder
+com.example.gutapp.session.AsyncResponse <|-- com.example.gutapp.session.Responses.StreamResponse
+com.example.gutapp.session.AsyncRequest <|-- com.example.gutapp.session.Requests.SyncAlertPull
+com.example.gutapp.session.AsyncResponse <|-- com.example.gutapp.session.Responses.GetBalanceResponse
+com.example.gutapp.session.Response <|-- com.example.gutapp.session.AsyncResponse
+com.example.gutapp.session.AsyncRequest <|-- com.example.gutapp.session.Requests.GetWatchlistContent
+com.example.gutapp.session.Request <|-- com.example.gutapp.session.Requests.LoginRequest
+com.example.gutapp.session.Responses.ChartSyncResponses +.. com.example.gutapp.session.Responses.ChartSyncResponses$PushResult
+com.example.gutapp.session.Responses.AsyncResponse <|-- com.example.gutapp.session.Responses.ChartSyncResponses$PushResult
+com.example.gutapp.session.Responses.ChartSyncResponses +.. com.example.gutapp.session.Responses.ChartSyncResponses$PullResult
+com.example.gutapp.session.Responses.AsyncResponse <|-- com.example.gutapp.session.Responses.ChartSyncResponses$PullResult
+com.example.gutapp.session.AsyncRequest <|-- com.example.gutapp.session.Requests.SyncChartPush
+com.example.gutapp.session.Responses.WatchlistResponses +.. com.example.gutapp.session.Responses.WatchlistResponses$Summary
+com.example.gutapp.session.Responses.AsyncResponse <|-- com.example.gutapp.session.Responses.WatchlistResponses$Summary
+com.example.gutapp.session.Responses.WatchlistResponses +.. com.example.gutapp.session.Responses.WatchlistResponses$ActionStatus
+com.example.gutapp.session.Responses.AsyncResponse <|-- com.example.gutapp.session.Responses.WatchlistResponses$ActionStatus
+com.example.gutapp.session.Responses.WatchlistResponses +.. com.example.gutapp.session.Responses.WatchlistResponses$Content
+com.example.gutapp.session.Responses.AsyncResponse <|-- com.example.gutapp.session.Responses.WatchlistResponses$Content
+com.example.gutapp.session.Responses.WatchlistResponses +.. com.example.gutapp.session.Responses.WatchlistResponses$WatchlistInfo
+com.example.gutapp.session.AsyncResponse <|-- com.example.gutapp.session.Responses.SearchTickerResponse
+com.example.gutapp.session.Request <|-- com.example.gutapp.session.AsyncRequest
+com.example.gutapp.session.AsyncRequest <|-- com.example.gutapp.session.Requests.EndOrder
+com.example.gutapp.session.AsyncRequest <|-- com.example.gutapp.session.Requests.FetchOrders
+com.example.gutapp.session.AsyncRequest <|-- com.example.gutapp.session.Requests.TickerInfoRequest
+com.example.gutapp.session.Request <|-- com.example.gutapp.session.Requests.HandShakeHello
+com.example.gutapp.session.Request <|-- com.example.gutapp.session.Requests.HandShakeVerify
+com.example.gutapp.session.AsyncRequest <|-- com.example.gutapp.session.Requests.SyncChartPull
+com.example.gutapp.session.AsyncRequest <|-- com.example.gutapp.session.Requests.GetBalance
+com.example.gutapp.session.Request <|-- com.example.gutapp.session.Requests.RegisterRequest
+com.example.gutapp.session.AsyncRequest <|-- com.example.gutapp.session.Requests.GetWatchlists
+@enduml
